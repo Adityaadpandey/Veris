@@ -1,4 +1,4 @@
-# 📷 LensMint - Web3 Camera with Proof of Memory & ZK Verification
+# 📷 Veris - Web3 Camera with Proof of Memory & ZK Verification
 
 <div align="center">
 
@@ -103,7 +103,7 @@
 
 ## 🎯 Vision: Solving Real Problems for Creators
 
-**LensMint** is a Web3 camera system that solves critical problems facing content creators, wildlife photographers, and event organizers. We provide cryptographic proof of authenticity, enable automatic monetization through tagging, create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others.
+**Veris** is a Web3 camera system that solves critical problems facing content creators, wildlife photographers, and event organizers. We provide cryptographic proof of authenticity, enable automatic monetization through tagging, create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others.
 
 ### Core Innovation: Proof of Authenticity + Creator Monetization
 
@@ -118,7 +118,7 @@ Every photo captured solves real problems:
 
 ## 💡 Our Solution: Proof of Authenticity + Creator Monetization
 
-**LensMint** solves these real problems with blockchain technology:
+**Veris** solves these real problems with blockchain technology:
 
 ### 🔐 Proof of Authenticity
 
@@ -238,8 +238,8 @@ Every photo captured solves real problems:
        │ Create Claim
        ▼
 ┌──────────────────────────┐
-│  LensMint Public Server │
-│ (lensmint-public-server) │
+│  Veris Public Server │
+│ (public-server) │
 └──────┬───────────────────┘
        │ Return QR Code URL
        ▼
@@ -254,7 +254,7 @@ Every photo captured solves real problems:
        │ Scan QR & Enter Wallet
        ▼
 ┌──────────────────────────┐
-│  LensMint Public Server │
+│  Veris Public Server │
 └──────┬───────────────────┘
        │ Store Address
        │ (Camera App polls)
@@ -281,7 +281,7 @@ Every photo captured solves real problems:
        │ Mark Complete
        ▼
 ┌──────────────────────────┐
-│  LensMint Public Server │
+│  Veris Public Server │
 └──────┬───────────────────┘
        │
        ▼
@@ -496,9 +496,9 @@ Every photo captured solves real problems:
 │                  External Services                          │
 │                                                             │
 │  ┌──────────────────────┐    ┌──────────────────────┐   │
-│  │ LensMint Public      │    │ Filecoin Network     │   │
+│  │ Veris Public      │    │ Filecoin Network     │   │
 │  │ Server               │    │ Decentralized       │   │
-│  │ (lensmint-public-    │    │ Storage              │   │
+│  │ (Veris-public-    │    │ Storage              │   │
 │  │  server)             │    └──────────────────────┘   │
 │  │ Node.js              │                                │
 │  └──────────┬───────────┘                                │
@@ -510,8 +510,8 @@ Every photo captured solves real problems:
 │  │ Ethereum Sepolia                   │                 │
 │  │ Smart Contracts                    │                 │
 │  │ - DeviceRegistry                   │                 │
-│  │ - LensMintERC1155                   │                 │
-│  │ - LensMintVerifier                 │                 │
+│  │ - VerisERC1155                   │                 │
+│  │ - VerisVerifier                 │                 │
 │  └─────────────────────────────────────┘                 │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -574,7 +574,7 @@ Every photo captured solves real problems:
 │                  Blockchain Layer                           │
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ DeviceRegistry│  │ LensMint    │  │ LensMint     │     │
+│  │ DeviceRegistry│  │ Veris    │  │ Veris     │     │
 │  │ Contract      │  │ ERC1155     │  │ Verifier     │     │
 │  │               │  │ Contract    │  │ Contract     │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
@@ -719,8 +719,8 @@ Every photo captured solves real problems:
 
 ```bash
 cd ~
-git clone <repository-url> lensmint
-cd lensmint
+git clone <repository-url> Veris
+cd Veris
 ```
 
 ### Step 2: Install System Dependencies
@@ -769,13 +769,13 @@ npm install
 ### Step 5: Install Public Server Dependencies
 
 ```bash
-cd ../lensmint-public-server
+cd ../public-server
 npm install
 ```
 
 ### Step 6: Configure Environment Variables
 
-Create `.env` files in `hardware-web3-service` and `lensmint-public-server` directories with your configuration settings.
+Create `.env` files in `hardware-web3-service` and `public-server` directories with your configuration settings.
 
 **For Privy Integration (Owner Portal):**
 
@@ -803,10 +803,10 @@ python3 hardware_identity.py
 sudo npm install -g pm2
 
 cd hardware-web3-service
-pm2 start server.js --name lensmint-hardware-web3-service
+pm2 start server.js --name Veris-hardware-web3-service
 
-cd ../lensmint-public-server
-pm2 start server.js --name lensmint-public-server
+cd ../public-server
+pm2 start server.js --name public-server
 
 pm2 save
 pm2 startup
@@ -844,20 +844,20 @@ Create a systemd service or add to autostart:
 
 ```bash
 # Create service file
-sudo nano /etc/systemd/system/lensmint.service
+sudo nano /etc/systemd/system/Veris.service
 ```
 
 ```ini
 [Unit]
-Description=LensMint Camera App
+Description=Veris Camera App
 After=network.target
 
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/lensmint/hardware-camera-app
-Environment="PATH=/home/pi/lensmint/hardware-camera-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/pi/lensmint/hardware-camera-app/venv/bin/python3 /home/pi/lensmint/hardware-camera-app/raspberry_pi_camera_app.py
+WorkingDirectory=/home/pi/Veris/hardware-camera-app
+Environment="PATH=/home/pi/Veris/hardware-camera-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/pi/Veris/hardware-camera-app/venv/bin/python3 /home/pi/Veris/hardware-camera-app/raspberry_pi_camera_app.py
 Restart=always
 RestartSec=10
 
@@ -868,8 +868,8 @@ WantedBy=multi-user.target
 Enable and start:
 
 ```bash
-sudo systemctl enable lensmint.service
-sudo systemctl start lensmint.service
+sudo systemctl enable Veris.service
+sudo systemctl start Veris.service
 ```
 
 ---
@@ -1091,14 +1091,14 @@ sudo systemctl start lensmint.service
 - Stores device metadata (address, camera ID, model)
 - Manages device activation status
 
-### LensMintERC1155.sol
+### VerisERC1155.sol
 
 - ERC-1155 NFT contract for multi-token standard
 - Device-only minting for originals
 - Public minting for editions
 - Transfer functionality
 
-### LensMintVerifier.sol
+### VerisVerifier.sol
 
 - **Zero-Knowledge Proof Verification**: RISC Zero verifier for ZK proof validation
 - **Device Authenticity**: Verifies device identity from ZK proof data
@@ -1145,6 +1145,6 @@ Built with:
 
 **Made with ❤️ for the Web3 community**
 
-[⬆ Back to Top](#-lensmint---decentralized-camera-system-for-web3)
+[⬆ Back to Top](#-Veris---decentralized-camera-system-for-web3)
 
 </div>
