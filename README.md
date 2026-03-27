@@ -2,7 +2,6 @@
 
 <div align="center">
 
-![LensMint Logo](https://img.shields.io/badge/LensMint-Web3%20Camera-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 ![Blockchain](https://img.shields.io/badge/Blockchain-Ethereum%20%7C%20Filecoin-purple?style=for-the-badge)
 ![ZK Proofs](https://img.shields.io/badge/ZK%20Proofs-vlayer%20%7C%20RISC%20Zero-orange?style=for-the-badge)
