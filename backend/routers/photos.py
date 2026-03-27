@@ -16,6 +16,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/photos", tags=["photos"])
 
 
+# ─── GET /api/photos ─────────────────────────────────────────────────────────
+
+
+@router.get("", response_model=list[VerifyResponse])
+async def list_photos():
+    """Return all minted photos by scanning on-chain PhotoMinted events."""
+    try:
+        photos = await blockchain.get_all_photos()
+    except Exception as exc:
+        logger.error("list_photos failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Blockchain error: {exc}")
+    return [VerifyResponse(**p) for p in photos]
+
+
 # ─── POST /api/photos/capture ────────────────────────────────────────────────
 
 
@@ -84,7 +98,7 @@ async def capture_photo(
 
     # 8. Build claim URL and QR code
     settings = get_settings()
-    claim_url = f"{settings.base_url}/api/photos/claim/{token_id}"
+    claim_url = f"{settings.frontend_url}/claim/{token_id}"
     qr_code_base64 = _generate_qr_base64(claim_url)
 
     return CaptureResponse(
