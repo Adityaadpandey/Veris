@@ -16,12 +16,6 @@
 
 ## 📸 Gallery
 
-### 🖼️ Logo
-
-<div align="center">
-  <img src="assets/lensmintlogo.png" alt="LensMint Logo" width="300"/>
-</div>
-
 ### 🔧 Hardware Components
 
 <div align="center">
