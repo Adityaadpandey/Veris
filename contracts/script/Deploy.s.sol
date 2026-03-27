@@ -35,6 +35,17 @@ contract DeployScript is Script {
         console.log("DeviceRegistry:", address(deviceRegistry));
         console.log("VerisERC1155:", address(veris));
         console.log("Base URI:", baseURI);
+
+        // Write deployment.json for use by backend services
+        string memory deploymentJson = string.concat(
+            '{"network":"sepolia","chainId":11155111,"contracts":{"DeviceRegistry":{"address":"',
+            vm.toString(address(deviceRegistry)),
+            '"},"VerisERC1155":{"address":"',
+            vm.toString(address(veris)),
+            '"}}}'
+        );
+        vm.writeFile("deployment.json", deploymentJson);
+        console.log("\ndeployment.json written.");
     }
 }
 
