@@ -34,6 +34,7 @@ export default function ClaimPage() {
   const [message, setMessage] = useState(null)
   const [manualAddress, setManualAddress] = useState('')
   const [useManual, setUseManual] = useState(false)
+  const [mintedEdition, setMintedEdition] = useState(null) // { wallet, txHash }
 
   const walletAddress = address || wallets[0]?.address
 
@@ -77,7 +78,7 @@ export default function ClaimPage() {
         wallet_address: recipient
       })
       if (res.data.success) {
-        setMessage({ type: 'success', text: '🎉 Edition minting submitted! Your NFT will arrive shortly.' })
+        setMintedEdition({ wallet: recipient, editionRequestId: res.data.edition_request_id })
         setManualAddress('')
         fetchClaim()
       } else {
@@ -178,26 +179,97 @@ export default function ClaimPage() {
           )}
         </div>
 
-        {/* Claim form */}
-        {canClaim && (
-          <div className="claim-form">
-            <h3>Mint Your Edition</h3>
-            <p className="claim-form-sub">
-              Connect your wallet or enter your address to receive a free NFT edition.
-            </p>
+        {/* Post-claim success state */}
+        {mintedEdition ? (
+          <div className="claim-success-block">
+            <div className="claim-success-icon">🎉</div>
+            <h3>Edition Claimed!</h3>
+            <p>Your NFT is being minted on Sepolia. It usually arrives in your wallet within <strong>30–60 seconds</strong>.</p>
+            <div className="claim-meta" style={{ marginTop: 12 }}>
+              <div className="claim-meta-row">
+                <span>Your wallet</span>
+                <span className="mono">{mintedEdition.wallet.slice(0,8)}…{mintedEdition.wallet.slice(-6)}</span>
+              </div>
+              <div className="claim-meta-row">
+                <span>Check wallet</span>
+                <a
+                  href={`https://sepolia.etherscan.io/address/${mintedEdition.wallet}`}
+                  target="_blank" rel="noreferrer"
+                  className="claim-link"
+                >
+                  Etherscan ↗
+                </a>
+              </div>
+              <div className="claim-meta-row">
+                <span>Contract</span>
+                <a
+                  href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
+                  target="_blank" rel="noreferrer"
+                  className="claim-link"
+                >
+                  LensMint ↗
+                </a>
+              </div>
+            </div>
+            <button
+              className="claim-btn claim-btn-ghost"
+              style={{ marginTop: 8 }}
+              onClick={() => setMintedEdition(null)}
+            >
+              Claim another edition
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Claim form */}
+            {canClaim && (
+              <div className="claim-form">
+                <h3>Mint Your Edition</h3>
+                <p className="claim-form-sub">
+                  Connect your wallet or enter your address to receive a free NFT edition.
+                </p>
 
-            {!useManual ? (
-              <>
-                {!authenticated ? (
-                  <button className="claim-btn claim-btn-primary" onClick={login} disabled={!ready}>
-                    {ready ? 'Connect Wallet' : 'Loading…'}
-                  </button>
-                ) : walletAddress ? (
+                {!useManual ? (
                   <>
-                    <div className="claim-wallet-badge">
-                      <span>📱</span>
-                      <span className="mono">{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</span>
-                    </div>
+                    {!authenticated ? (
+                      <button className="claim-btn claim-btn-primary" onClick={login} disabled={!ready}>
+                        {ready ? 'Connect Wallet' : 'Loading…'}
+                      </button>
+                    ) : walletAddress ? (
+                      <>
+                        <div className="claim-wallet-badge">
+                          <span>📱</span>
+                          <span className="mono">{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</span>
+                        </div>
+                        <button
+                          className="claim-btn claim-btn-primary"
+                          onClick={submit}
+                          disabled={submitting}
+                        >
+                          {submitting ? 'Minting…' : 'Claim Edition'}
+                        </button>
+                      </>
+                    ) : (
+                      <button className="claim-btn claim-btn-primary" onClick={login}>
+                        Connect Wallet
+                      </button>
+                    )}
+                    <button
+                      className="claim-btn claim-btn-ghost"
+                      onClick={() => setUseManual(true)}
+                    >
+                      Enter address manually instead
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      className="claim-input"
+                      placeholder="0x..."
+                      value={manualAddress}
+                      onChange={e => setManualAddress(e.target.value)}
+                    />
                     <button
                       className="claim-btn claim-btn-primary"
                       onClick={submit}
@@ -205,56 +277,29 @@ export default function ClaimPage() {
                     >
                       {submitting ? 'Minting…' : 'Claim Edition'}
                     </button>
+                    <button
+                      className="claim-btn claim-btn-ghost"
+                      onClick={() => { setUseManual(false); setManualAddress('') }}
+                    >
+                      Back to wallet connect
+                    </button>
                   </>
-                ) : (
-                  <button className="claim-btn claim-btn-primary" onClick={login}>
-                    Connect Wallet
-                  </button>
                 )}
-                <button
-                  className="claim-btn claim-btn-ghost"
-                  onClick={() => setUseManual(true)}
-                >
-                  Enter address manually instead
-                </button>
-              </>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  className="claim-input"
-                  placeholder="0x..."
-                  value={manualAddress}
-                  onChange={e => setManualAddress(e.target.value)}
-                />
-                <button
-                  className="claim-btn claim-btn-primary"
-                  onClick={submit}
-                  disabled={submitting}
-                >
-                  {submitting ? 'Minting…' : 'Claim Edition'}
-                </button>
-                <button
-                  className="claim-btn claim-btn-ghost"
-                  onClick={() => { setUseManual(false); setManualAddress('') }}
-                >
-                  Back to wallet connect
-                </button>
-              </>
-            )}
 
-            {message && (
-              <div className={`claim-message claim-message-${message.type}`}>
-                {message.text}
+                {message && (
+                  <div className={`claim-message claim-message-${message.type}`}>
+                    {message.text}
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {!canClaim && claim?.status === 'pending' && (
-          <div className="claim-pending-note">
-            The camera is still processing this photo. This page will update automatically.
-          </div>
+            {!canClaim && claim?.status === 'pending' && (
+              <div className="claim-pending-note">
+                The camera is still processing this photo. This page will update automatically.
+              </div>
+            )}
+          </>
         )}
 
         <div className="claim-footer">
