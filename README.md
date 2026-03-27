@@ -16,12 +16,6 @@
 
 ## 📸 Gallery
 
-### 🖼️ Logo
-
-<div align="center">
-  <img src="assets/verislogo.png" alt="Veris Logo" width="300"/>
-</div>
-
 ### 🔧 Hardware Components
 
 <div align="center">
