@@ -3,9 +3,10 @@ import { WagmiProvider } from "wagmi";
 import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sepolia } from "wagmi/chains";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ClaimPage from "./components/ClaimPage";
+import LandingPage from "./components/LandingPage";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
 
@@ -25,8 +26,9 @@ function App() {
       config={{
         loginMethods: ["wallet", "email", "sms"],
         appearance: {
-          theme: "light",
-          accentColor: "#667eea",
+          theme: "dark",
+          accentColor: "#E85002",
+          logo: "https://auth.privy.io/logos/privy-logo-dark.png",
         },
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
@@ -37,8 +39,10 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/dashboard" element={<OwnerDashboard />} />
               <Route path="/claim/:claimId" element={<ClaimPage />} />
-              <Route path="*" element={<OwnerDashboard />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
         </QueryClientProvider>
