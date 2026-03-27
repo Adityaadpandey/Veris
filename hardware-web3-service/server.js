@@ -311,36 +311,11 @@ app.get('/api/balance', async (req, res) => {
     console.log(`   📊 ETH Required: ${minEthBalance} ETH`);
     console.log(`   ${hasEnoughEth ? '✅' : '⚠️'} ETH Status: ${hasEnoughEth ? 'Sufficient' : 'Low - needs funding'}`);
 
-    let usdfcBalance = null;
-    let hasEnoughUsdfc = false;
-    const minUsdfcBalance = parseFloat(process.env.MIN_USDFC_BALANCE || '0.1');
+    const lighthouseReady = filecoinService.initialized;
+    console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set LIGHTHOUSE_API_KEY)'}`);
 
-    if (filecoinService.initialized) {
-      try {
-        console.log('   🔍 Checking USDFC balance...');
-        const balanceUsdfc = await filecoinService.getUSDFCBalance();
-        hasEnoughUsdfc = balanceUsdfc >= minUsdfcBalance;
-        
-        console.log(`   📊 USDFC Balance: ${balanceUsdfc} USDFC`);
-        console.log(`   📊 USDFC Required: ${minUsdfcBalance} USDFC`);
-        console.log(`   ${hasEnoughUsdfc ? '✅' : '⚠️'} USDFC Status: ${hasEnoughUsdfc ? 'Sufficient' : 'Low - needs funding'}`);
-        
-        usdfcBalance = {
-          address: filecoinService.wallet.address,
-          balance: balanceUsdfc,
-          minBalance: minUsdfcBalance,
-          hasEnoughBalance: hasEnoughUsdfc,
-          needsFunding: !hasEnoughUsdfc
-        };
-      } catch (error) {
-        console.warn('   ⚠️ Could not get USDFC balance:', error.message);
-      }
-    } else {
-      console.log('   ⚠️ Filecoin service not initialized - skipping USDFC check');
-    }
-
-    const allFunded = hasEnoughEth && (usdfcBalance ? hasEnoughUsdfc : false);
-    const needsFunding = !hasEnoughEth || (usdfcBalance ? !hasEnoughUsdfc : true);
+    const allFunded = hasEnoughEth && lighthouseReady;
+    const needsFunding = !hasEnoughEth || !lighthouseReady;
     
     console.log(`   ${allFunded ? '✅' : '⚠️'} Overall Status: ${allFunded ? 'All balances sufficient' : 'Some balances need funding'}`);
     console.log(`💰 [BALANCE CHECK] Complete - Returning response\n`);
@@ -355,13 +330,10 @@ app.get('/api/balance', async (req, res) => {
         hasEnoughBalance: hasEnoughEth,
         needsFunding: !hasEnoughEth
       },
-      usdfc: usdfcBalance || {
-        balance: '0',
-        balanceUsdfc: 0,
-        minBalance: minUsdfcBalance,
-        hasEnoughBalance: false,
-        needsFunding: true,
-        available: false
+      lighthouse: {
+        initialized: lighthouseReady,
+        hasEnoughBalance: lighthouseReady,
+        needsFunding: !lighthouseReady
       },
       hasEnoughBalance: allFunded,
       needsFunding: needsFunding
