@@ -958,6 +958,86 @@ app.get('/api/images/:id', async (req, res) => {
   }
 });
 
+app.post('/api/retry-pending', async (req, res) => {
+  try {
+    const savedImages = dbService.getImages('saved', 50);
+    if (savedImages.length === 0) {
+      return res.json({ success: true, message: 'No pending images to retry', processed: 0 });
+    }
+
+    if (!filecoinService.initialized) {
+      return res.status(503).json({ success: false, error: 'Filecoin service not initialized — set LIGHTHOUSE_API_KEY' });
+    }
+
+    const results = [];
+    for (const image of savedImages) {
+      const result = { id: image.id, filename: image.filename, status: 'failed' };
+      try {
+        if (!fs.existsSync(image.filepath)) {
+          result.error = 'Local file not found';
+          results.push(result);
+          continue;
+        }
+
+        const filecoinCid = await filecoinService.uploadImage(image.filepath);
+        const deviceInfo = dbService.getDevice(image.device_address);
+        const deviceId = deviceInfo?.device_id || 'unknown';
+
+        const metadata = filecoinService.createMetadata({
+          name: `LensMint Photo #${image.id}`,
+          description: 'Captured by LensMint Camera',
+          imageCid: filecoinCid,
+          deviceAddress: image.device_address,
+          deviceId,
+          cameraId: image.camera_id,
+          imageHash: image.image_hash,
+          signature: image.signature,
+          timestamp: image.created_at
+        });
+
+        const metadataCid = await filecoinService.uploadMetadata(metadata);
+        dbService.updateImageStatus(image.id, 'uploaded', { filecoin_cid: filecoinCid, filecoin_metadata_cid: metadataCid });
+
+        const claimId = (await import('uuid')).v4();
+        try {
+          const claimResult = await claimClient.createClaim(claimId, filecoinCid, metadataCid, deviceId, image.camera_id, image.image_hash, image.signature, image.device_address);
+          dbService.createClaim(claimId, image.id, filecoinCid);
+          dbService.updateImageStatus(image.id, 'uploaded', { claim_id: claimId });
+          result.claimId = claimId;
+          result.claimUrl = claimResult.claim_url;
+
+          const ownerWallet = process.env.OWNER_WALLET_ADDRESS;
+          if (ownerWallet) {
+            try {
+              const mintResult = await web3Service.mintOriginal({ recipient: ownerWallet, ipfsHash: filecoinCid, imageHash: image.image_hash, signature: image.signature, maxEditions: 0 });
+              dbService.updateImageStatus(image.id, 'minted', { token_id: mintResult.tokenId, tx_hash: mintResult.txHash, recipient_address: ownerWallet });
+              dbService.updateClaim(claimId, { token_id: mintResult.tokenId, tx_hash: mintResult.txHash, recipient_address: ownerWallet, status: 'open' });
+              await claimClient.updateClaimStatus(claimId, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+              result.tokenId = mintResult.tokenId;
+              result.txHash = mintResult.txHash;
+            } catch (mintErr) {
+              result.mintError = mintErr.message;
+            }
+          }
+        } catch (claimErr) {
+          result.claimError = claimErr.message;
+        }
+
+        result.status = 'processed';
+        result.filecoinCid = filecoinCid;
+      } catch (err) {
+        result.error = err.message;
+      }
+      results.push(result);
+    }
+
+    res.json({ success: true, processed: results.length, results });
+  } catch (error) {
+    console.error('❌ Retry pending error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/claims/check', async (req, res) => {
   try {
     const { claim_id } = req.query;
