@@ -1,6 +1,13 @@
-node_modules/
-artifacts/
+# Foundry
+out/
 cache/
-dist/
-typechain-types/
+broadcast/
+lib/
+
+# Environment
 .env
+.env.local
+
+# IDE
+.idea/
+.vscode/

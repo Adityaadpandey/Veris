@@ -1,36 +1,18 @@
 {
   "name": "lensmint-contracts",
   "version": "1.0.0",
-  "private": true,
+  "type": "module",
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "deploy:sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
-    "deploy:local": "FORCE_DEPLOY=true hardhat run scripts/deploy.ts"
+    "submit-proof": "tsx scripts/submitProof.ts"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0"
+    "viem": "^2.0.0",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@nomicfoundation/hardhat-ethers": "^3.0.0",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.0",
-    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
-    "@typechain/ethers-v6": "^0.5.0",
-    "@typechain/hardhat": "^9.0.0",
-    "typechain": "^8.3.0",
-    "ethers": "^6.4.0",
-    "hardhat-gas-reporter": "^1.0.8",
-    "solidity-coverage": "^0.8.1",
-    "@types/chai": "^4.2.0",
-    "@types/mocha": ">=9.1.0",
-    "chai": "^4.2.0",
     "@types/node": "^20.0.0",
-    "dotenv": "^16.0.0",
-    "hardhat": "^2.22.0",
-    "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
   }
 }
+
