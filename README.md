@@ -18,11 +18,13 @@
 ## 📸 Gallery
 
 ### 🖼️ Logo
+
 <div align="center">
   <img src="assets/lensmintlogo.png" alt="LensMint Logo" width="300"/>
 </div>
 
 ### 🔧 Hardware Components
+
 <div align="center">
   <table>
     <tr>
@@ -42,6 +44,7 @@
 </div>
 
 ### 💻 Backend Screenshots
+
 <div align="center">
   <table>
     <tr>
@@ -67,6 +70,7 @@
 </div>
 
 ### 📷 Physical Camera Final Images
+
 <div align="center">
   <table>
     <tr>
@@ -104,6 +108,7 @@
 ### Core Innovation: Proof of Authenticity + Creator Monetization
 
 Every photo captured solves real problems:
+
 - **🔍 Prove It's Real**: Cryptographic proof images aren't AI-generated or manipulated
 - **💰 Tag for Payment**: Tag people in images to automatically distribute royalties
 - **🎫 Proof of Attendance**: Verify who was at events, easy minting for attendees
@@ -116,6 +121,7 @@ Every photo captured solves real problems:
 **LensMint** solves these real problems with blockchain technology:
 
 ### 🔐 Proof of Authenticity
+
 - **Zero-Knowledge Proofs (vlayer)**: Generate cryptographic proofs that images are real, not AI-generated or manipulated
 - **Hardware-Based Identity**: Each camera has unique cryptographic identity - proves which device captured the image
 - **RISC Zero Verification**: On-chain verification of authenticity proofs using RISC Zero verifier contracts
@@ -123,6 +129,7 @@ Every photo captured solves real problems:
 - **Device Metadata**: Cryptographic proof of camera model, location, and capture conditions
 
 ### 💰 Creator Monetization & Tagging
+
 - **Automatic NFT Minting**: Every photo becomes an NFT - creators own their content
 - **Tag-Based Payments**: Tag people in images to automatically distribute royalties
 - **Direct Payments**: Receive payments directly via smart contracts, no middlemen
@@ -130,6 +137,7 @@ Every photo captured solves real problems:
 - **Revenue Sharing**: Smart contracts automatically split payments between tagged creators
 
 ### 🎫 Proof of Attendance & Memory
+
 - **Proof of Attendance**: Verify who was present at events using blockchain verification
 - **Proof of Memory**: Cryptographic proof that important moments were captured
 - **Easy Minting for Others**: Mint NFTs for event attendees or people in photos with QR codes
@@ -137,6 +145,7 @@ Every photo captured solves real problems:
 - **Memory Preservation**: Permanent blockchain records of important moments
 
 ### 💾 Permanent Storage & Ownership
+
 - **Filecoin Storage**: Images stored permanently on decentralized network
 - **True Ownership**: NFTs prove you own the original content
 - **No Platform Lock-in**: Your content lives on blockchain, not platforms
@@ -147,6 +156,7 @@ Every photo captured solves real problems:
 ## ✨ Features
 
 ### 📸 Camera Features
+
 - **Live Preview**: Real-time camera feed with 30 FPS preview
 - **High-Quality Capture**: 1920x1080 photo resolution with rotation support
 - **Video Recording**: H.264 video recording with configurable duration
@@ -155,12 +165,14 @@ Every photo captured solves real problems:
 - **Touch-Optimized UI**: Designed for 3.5" touchscreen displays
 
 ### 🔐 Security & Identity
+
 - **Hardware Identity**: Unique cryptographic key derived from device hardware
 - **Image Signing**: Every photo is cryptographically signed with device key
 - **Device Registration**: On-chain device registry ensures only authorized cameras can mint
 - **Camera ID**: Unique camera hardware identifier for provenance tracking
 
 ### 🌐 Web3 & Blockchain Features
+
 - **Zero-Knowledge Proofs**: Generate ZK proofs using vlayer from external metadata APIs
 - **RISC Zero Verification**: On-chain ZK proof verification via RISC Zero verifier contracts
 - **Automatic NFT Minting**: ERC-1155 tokens auto-minted with device-signed metadata
@@ -171,6 +183,7 @@ Every photo captured solves real problems:
 - **On-Chain Provenance**: Complete immutable history tracked on blockchain
 
 ### 🎨 User Experience
+
 - **Battery Monitoring**: Real-time battery level display
 - **Status Indicators**: Visual feedback for upload, minting, and claim status
 - **Offline Support**: Queue system for offline captures
@@ -717,7 +730,7 @@ cd lensmint
 sudo apt update && sudo apt upgrade -y
 
 # Install Node.js 18+
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # Install Python dependencies
@@ -765,6 +778,7 @@ npm install
 Create `.env` files in `hardware-web3-service` and `lensmint-public-server` directories with your configuration settings.
 
 **For Privy Integration (Owner Portal):**
+
 - Add to `hardware-web3-service/.env`:
   ```
   PRIVY_APP_ID=your-privy-app-id
@@ -817,6 +831,7 @@ npm run dev
 ```
 
 The owner portal will be available at `http://localhost:3000`. This allows the owner to:
+
 - Login with Privy (wallet, email, or SMS)
 - Setup session signers for backend transaction signing
 - Mint NFTs with automatic gas sponsorship
@@ -851,6 +866,7 @@ WantedBy=multi-user.target
 ```
 
 Enable and start:
+
 ```bash
 sudo systemctl enable lensmint.service
 sudo systemctl start lensmint.service
@@ -862,25 +878,25 @@ sudo systemctl start lensmint.service
 
 ### Minimum Requirements
 
-| Component | Specification |
-|-----------|--------------|
-| **Raspberry Pi** | Raspberry Pi 4 Model B (2GB+ RAM) |
-| **Camera** | Raspberry Pi Camera Module v1/v2/v3 or USB camera |
-| **Display** | 3.5" Touchscreen Display (320x240 or higher) |
-| **Storage** | MicroSD Card (16GB+, Class 10) |
-| **Power** | 5V 3A USB-C Power Supply |
-| **Network** | WiFi or Ethernet connection |
+| Component        | Specification                                     |
+| ---------------- | ------------------------------------------------- |
+| **Raspberry Pi** | Raspberry Pi 4 Model B (2GB+ RAM)                 |
+| **Camera**       | Raspberry Pi Camera Module v1/v2/v3 or USB camera |
+| **Display**      | 3.5" Touchscreen Display (320x240 or higher)      |
+| **Storage**      | MicroSD Card (16GB+, Class 10)                    |
+| **Power**        | 5V 3A USB-C Power Supply                          |
+| **Network**      | WiFi or Ethernet connection                       |
 
 ### Recommended Setup
 
-| Component | Recommendation |
-|-----------|----------------|
-| **Raspberry Pi** | Raspberry Pi 4 Model B (4GB RAM) |
-| **Camera** | Raspberry Pi Camera Module v3 |
-| **Display** | Waveshare 3.5" HDMI LCD Touchscreen |
-| **Storage** | MicroSD Card (32GB+, Class 10, A1) |
-| **Power** | UPS HAT for battery backup |
-| **Cooling** | Heat sinks and fan for extended use |
+| Component        | Recommendation                      |
+| ---------------- | ----------------------------------- |
+| **Raspberry Pi** | Raspberry Pi 4 Model B (4GB RAM)    |
+| **Camera**       | Raspberry Pi Camera Module v3       |
+| **Display**      | Waveshare 3.5" HDMI LCD Touchscreen |
+| **Storage**      | MicroSD Card (32GB+, Class 10, A1)  |
+| **Power**        | UPS HAT for battery backup          |
+| **Cooling**      | Heat sinks and fan for extended use |
 
 ### Optional Components
 
@@ -961,8 +977,10 @@ sudo systemctl start lensmint.service
 ## 🎯 Real-World Use Cases
 
 ### 1. **Wildlife Photography & Media**
+
 **Problem**: Need to prove wildlife photos are authentic, not staged or AI-generated
-**Solution**: 
+**Solution**:
+
 - Cryptographic proof of capture device and timestamp
 - ZK proofs verify authenticity without exposing location data
 - NFTs enable direct monetization from media outlets
@@ -971,8 +989,10 @@ sudo systemctl start lensmint.service
 **Example**: National Geographic photographer captures rare wildlife - media outlets can verify authenticity before purchasing, photographer gets paid directly via NFT sales
 
 ### 2. **Content Creator Monetization**
+
 **Problem**: Creators lose 30-50% to platforms, can't track usage, hard to get paid
 **Solution**:
+
 - Automatic NFT minting gives creators ownership
 - Tag people in images for automatic revenue sharing
 - Smart contracts track usage and distribute payments
@@ -981,8 +1001,10 @@ sudo systemctl start lensmint.service
 **Example**: Photographer tags models in fashion shoot - when image is used commercially, smart contract automatically splits payment between photographer and models
 
 ### 3. **News & Journalism**
+
 **Problem**: Can't prove photos are real vs. AI-generated deepfakes
 **Solution**:
+
 - Hardware-based proof of capture device
 - ZK proofs verify authenticity without exposing sources
 - Blockchain timestamps prove when events occurred
@@ -991,8 +1013,10 @@ sudo systemctl start lensmint.service
 **Example**: Journalist captures breaking news - blockchain proof verifies it's real, not AI-generated, protecting journalism integrity
 
 ### 4. **Proof of Attendance at Events**
+
 **Problem**: Can't prove who was actually at events, hard to mint NFTs for attendees
 **Solution**:
+
 - Proof of attendance via blockchain verification
 - Easy minting for event attendees
 - Verified presence records
@@ -1001,8 +1025,10 @@ sudo systemctl start lensmint.service
 **Example**: Conference organizer captures group photo - attendees scan QR code to claim their proof of attendance NFT, permanently recorded on blockchain
 
 ### 5. **Memory Preservation & Minting**
+
 **Problem**: Important moments aren't permanently recorded, hard to mint NFTs for others
 **Solution**:
+
 - Proof of memory for captured moments
 - Easy minting for people in photos
 - Permanent blockchain records
@@ -1011,8 +1037,10 @@ sudo systemctl start lensmint.service
 **Example**: Wedding photographer captures moments - guests can easily claim their memory NFTs, creating permanent proof of attendance and shared memories
 
 ### 6. **Scientific Documentation**
+
 **Problem**: Need tamper-proof proof of research documentation
 **Solution**:
+
 - Cryptographic proof of capture device and conditions
 - Immutable timestamps prove when research occurred
 - Permanent storage ensures data can't be lost
@@ -1020,12 +1048,12 @@ sudo systemctl start lensmint.service
 
 **Example**: Field researcher documents rare species - blockchain proof verifies authenticity for scientific publication
 
-
 ---
 
 ## 🔧 Technical Stack
 
 ### Frontend (Hardware Camera App)
+
 - **Python 3.9+**: Core language
 - **Kivy 2.1+**: UI framework
 - **Picamera2**: Camera interface
@@ -1033,6 +1061,7 @@ sudo systemctl start lensmint.service
 - **Requests**: HTTP client
 
 ### Hardware Web3 Service
+
 - **Node.js 18+**: Runtime
 - **Express.js**: Web framework
 - **Ethers.js**: Blockchain interaction
@@ -1040,12 +1069,14 @@ sudo systemctl start lensmint.service
 - **Multer**: File upload handling
 
 ### Blockchain
+
 - **Ethereum Sepolia**: Testnet
 - **Solidity**: Smart contracts
 - **Foundry**: Development framework
 - **OpenZeppelin**: Contract libraries
 
 ### Storage
+
 - **Filecoin**: Decentralized storage
 - **Synapse SDK**: Filecoin integration
 - **IPFS**: Content addressing
@@ -1055,17 +1086,20 @@ sudo systemctl start lensmint.service
 ## 📊 Smart Contracts
 
 ### DeviceRegistry.sol
+
 - Registers authorized camera devices
 - Stores device metadata (address, camera ID, model)
 - Manages device activation status
 
 ### LensMintERC1155.sol
+
 - ERC-1155 NFT contract for multi-token standard
 - Device-only minting for originals
 - Public minting for editions
 - Transfer functionality
 
 ### LensMintVerifier.sol
+
 - **Zero-Knowledge Proof Verification**: RISC Zero verifier for ZK proof validation
 - **Device Authenticity**: Verifies device identity from ZK proof data
 - **Image Hash Verification**: Validates image integrity from external metadata
@@ -1093,11 +1127,10 @@ sudo systemctl start lensmint.service
 
 ---
 
-
-
 ## 🙏 Acknowledgments
 
 Built with:
+
 - [vlayer](https://vlayer.io/) - Zero-knowledge proof generation for authenticity verification
 - [Privy](https://privy.io/) - Wallet infrastructure and authentication
 - [Kivy](https://kivy.org/) - Python UI framework
@@ -1107,7 +1140,6 @@ Built with:
 - [Foundry](https://book.getfoundry.sh/) - Development framework
 
 ---
-
 
 <div align="center">
 

@@ -160,39 +160,6 @@ class ClaimClient {
     }
   }
 
-  async updateProofStatus(claim_id, token_id, verification_status, proof_tx_hash = null) {
-    try {
-      console.log(`[CLAIM CLIENT] Updating proof status:`, {
-        claim_id,
-        token_id,
-        verification_status,
-        proof_tx_hash: proof_tx_hash ? `${proof_tx_hash.substring(0, 10)}...` : null
-      });
-      
-      const response = await this.client.post('/update-proof-status', {
-        claim_id,
-        token_id,
-        verification_status,
-        proof_tx_hash
-      });
-
-      console.log(`[CLAIM CLIENT] Response:`, response.data);
-
-      if (response.data.success) {
-        return response.data;
-      } else {
-        throw new Error(response.data.error || 'Failed to update proof status');
-      }
-    } catch (error) {
-      console.error(`[CLAIM CLIENT] Error updating proof status:`, error.message);
-      if (error.response) {
-        console.error(`[CLAIM CLIENT] Response status:`, error.response.status);
-        console.error(`[CLAIM CLIENT] Response data:`, error.response.data);
-        throw new Error(error.response.data.error || 'Claim server error');
-      }
-      throw error;
-    }
-  }
 
   async healthCheck() {
     try {

@@ -4,4 +4,3 @@ forge-std/=lib/forge-std/src/
 halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
 solidity-utils/=lib/solidity-utils/
-risc0-risc0-ethereum-3.0.0/=lib/risc0-ethereum/contracts/src/
