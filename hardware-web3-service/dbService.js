@@ -99,21 +99,6 @@ class DBService {
       )
     `);
 
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS proofs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        claim_id TEXT UNIQUE NOT NULL,
-        token_id INTEGER,
-        zk_proof TEXT NOT NULL,
-        journal_data_abi TEXT NOT NULL,
-        proof_tx_hash TEXT,
-        verification_status TEXT DEFAULT 'pending',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        submitted_at DATETIME,
-        verified_at DATETIME,
-        FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
-      )
-    `);
     
     try {
       this.db.exec(`ALTER TABLE claims ADD COLUMN edition_tx_hash TEXT`);
@@ -365,76 +350,6 @@ class DBService {
     return device;
   }
 
-  createProof(claimId, tokenId, zkProof, journalDataAbi) {
-    const stmt = this.db.prepare(`
-      INSERT INTO proofs (claim_id, token_id, zk_proof, journal_data_abi, created_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `);
-    
-    stmt.run(claimId, tokenId || null, zkProof, journalDataAbi);
-    return this.getProof(claimId);
-  }
-
-  getProof(claimId) {
-    const stmt = this.db.prepare('SELECT * FROM proofs WHERE claim_id = ?');
-    return stmt.get(claimId);
-  }
-
-  /**
-   * Get proof by token ID
-   */
-  getProofByTokenId(tokenId) {
-    const stmt = this.db.prepare('SELECT * FROM proofs WHERE token_id = ?');
-    return stmt.get(tokenId);
-  }
-
-  updateProof(claimId, updates) {
-    const updateFields = [];
-    const values = [];
-
-    if (updates.proof_tx_hash) {
-      updateFields.push('proof_tx_hash = ?');
-      values.push(updates.proof_tx_hash);
-    }
-
-    if (updates.verification_status) {
-      updateFields.push('verification_status = ?');
-      values.push(updates.verification_status);
-    }
-
-    if (updates.submitted_at !== undefined) {
-      if (updates.submitted_at === true || updates.submitted_at === 'now') {
-        updateFields.push('submitted_at = CURRENT_TIMESTAMP');
-      } else {
-        updateFields.push('submitted_at = ?');
-        values.push(updates.submitted_at);
-      }
-    }
-
-    if (updates.verified_at !== undefined) {
-      if (updates.verified_at === true || updates.verified_at === 'now') {
-        updateFields.push('verified_at = CURRENT_TIMESTAMP');
-      } else {
-        updateFields.push('verified_at = ?');
-        values.push(updates.verified_at);
-      }
-    }
-
-    if (updateFields.length === 0) {
-      return this.getProof(claimId);
-    }
-
-    values.push(claimId);
-
-    const stmt = this.db.prepare(`
-      UPDATE proofs
-      SET ${updateFields.join(', ')}
-      WHERE claim_id = ?
-    `);
-
-    stmt.run(...values);
-    return this.getProof(claimId);
-  }
 
   getDatabase() {
     return this.db;
