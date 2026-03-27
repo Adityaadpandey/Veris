@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LensMint is a Web3 camera system that creates verifiable, blockchain-backed photo NFTs using Raspberry Pi hardware, Zero-Knowledge proofs, and Filecoin storage. The core value proposition: hardware-signed images + ZK proofs = verifiable proof a photo isn't AI-generated.
+Veris is a Web3 camera system that creates verifiable, blockchain-backed photo NFTs using Raspberry Pi hardware, Zero-Knowledge proofs, and Filecoin storage. The core value proposition: hardware-signed images + ZK proofs = verifiable proof a photo isn't AI-generated.
 
 ## Repository Structure
 

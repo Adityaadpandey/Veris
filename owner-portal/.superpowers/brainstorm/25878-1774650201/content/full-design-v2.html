@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veris — Revised Design v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --orange: #FF5500;
+    --orange-dim: rgba(255,85,0,0.5);
+    --orange-ghost: rgba(255,85,0,0.08);
+    --black: #000000;
+    --grey-dark: #111111;
+    --grey-mid: #1C1C1C;
+    --white: #FFFFFF;
+    --white-70: rgba(255,255,255,0.70);
+    --white-40: rgba(255,255,255,0.40);
+    --white-15: rgba(255,255,255,0.15);
+  }
+
+  html { scroll-behavior: smooth; }
+  body { background: var(--black); color: var(--white); font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
+
+  .design-label {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: var(--orange); color: #000;
+    font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-align: center; padding: 5px; text-transform: uppercase;
+  }
+
+  /* ══════════════════════════════════════════
+     NAV
+  ══════════════════════════════════════════ */
+  nav {
+    position: fixed; top: 28px; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 48px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(12px);
+  }
+  .nav-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px; font-weight: 700; color: var(--white);
+    letter-spacing: 6px;
+  }
+  .nav-logo span { color: var(--orange); }
+  .nav-links { display: flex; gap: 36px; align-items: center; }
+  .nav-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--white-40);
+    text-decoration: none; letter-spacing: 2px; text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--white); }
+  .nav-cta {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; font-weight: 700;
+    color: var(--orange) !important;
+    border: 1px solid rgba(255,85,0,0.4);
+    padding: 8px 20px;
+    letter-spacing: 2px; text-transform: uppercase;
+    transition: all 0.2s !important;
+  }
+  .nav-cta:hover { background: rgba(255,85,0,0.1) !important; border-color: var(--orange) !important; }
+
+  /* ══════════════════════════════════════════
+     SECTION 1 — HERO
+  ══════════════════════════════════════════ */
+  .hero {
+    height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    padding-top: 80px;
+  }
+
+  /* Grid bg — NO SCAN LINE */
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,85,0,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,85,0,0.07) 1px, transparent 1px);
+    background-size: 48px 48px;
+    transform: perspective(700px) rotateX(30deg) scale(2.2) translateY(12%);
+    transform-origin: center 70%;
+  }
+  .hero-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 60%, transparent 20%, rgba(0,0,0,0.92) 80%);
+  }
+  .hero-top-fade {
+    position: absolute; top: 0; left: 0; right: 0; height: 40%;
+    background: linear-gradient(180deg, #000 0%, transparent 100%);
+  }
+
+  /* HUD corners */
+  .hc { position: absolute; width: 24px; height: 24px; border-color: rgba(255,85,0,0.35); border-style: solid; border-width: 0; }
+  .hc-tl { top: 90px; left: 48px; border-top-width: 1.5px; border-left-width: 1.5px; }
+  .hc-tr { top: 90px; right: 48px; border-top-width: 1.5px; border-right-width: 1.5px; }
+  .hc-bl { bottom: 32px; left: 48px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+  .hc-br { bottom: 32px; right: 48px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+  .hud-tl { position: absolute; top: 100px; left: 56px; font-family: 'Space Mono', monospace; font-size: 9px; color: rgba(255,85,0,0.55); letter-spacing: 2px; line-height: 2; }
+  .hud-tr { position: absolute; top: 100px; right: 56px; text-align: right; font-family: 'Space Mono', monospace; font-size: 9px; color: rgba(255,85,0,0.55); letter-spacing: 2px; line-height: 2; }
+
+  /* Hero content */
+  .hero-content { position: relative; z-index: 2; text-align: center; max-width: 700px; padding: 0 24px; }
+
+  .hero-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; color: var(--orange);
+    letter-spacing: 6px; text-transform: uppercase;
+    margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+  }
+  .eyebrow-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+
+  .hero-wordmark {
+    font-size: 120px; font-weight: 700; color: var(--white);
+    letter-spacing: 28px; text-indent: 28px;
+    line-height: 0.9;
+    margin-bottom: 28px;
+  }
+
+  .hero-tagline {
+    font-size: 18px; font-weight: 400; color: var(--white-70);
+    letter-spacing: 1px; line-height: 1.6;
+    margin-bottom: 48px;
+    max-width: 480px; margin-left: auto; margin-right: auto;
+  }
+  .hero-tagline strong { color: var(--white); font-weight: 600; }
+
+  .hero-actions { display: flex; align-items: center; gap: 20px; justify-content: center; margin-bottom: 64px; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--orange);
+    color: #000; font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    padding: 16px 32px;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    cursor: pointer; border: none;
+    transition: all 0.2s;
+  }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: transparent;
+    color: var(--white-70); font-family: 'Space Mono', monospace;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 15px 32px;
+    border: 1px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .scroll-hint {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font-family: 'Space Mono', monospace; font-size: 9px;
+    color: rgba(255,255,255,0.25); letter-spacing: 3px; text-transform: uppercase;
+  }
+  .scroll-arrow {
+    width: 1px; height: 40px;
+    background: linear-gradient(180deg, rgba(255,85,0,0.6), transparent);
+  }
+
+  /* ══════════════════════════════════════════
+     SECTION 2 — 3D CAMERA REVEAL
+  ══════════════════════════════════════════ */
+  .camera-section {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    background: #000;
+    flex-direction: column;
+    padding: 100px 48px;
+  }
+
+  .camera-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; color: var(--orange);
+    letter-spacing: 5px; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .camera-heading {
+    font-size: 48px; font-weight: 700; color: var(--white);
+    text-align: center; letter-spacing: 4px;
+    margin-bottom: 12px;
+  }
+  .camera-subheading {
+    font-size: 16px; color: var(--white-40);
+    text-align: center; margin-bottom: 64px;
+    letter-spacing: 0.5px;
+  }
+
+  /* 3D Camera mockup (will be Three.js in real impl) */
+  .camera-3d-placeholder {
+    width: 480px; height: 320px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 64px;
+  }
+
+  /* Raspberry Pi body */
+  .rpi-body {
+    width: 280px; height: 188px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 60px rgba(255,85,0,0.05);
+  }
+
+  /* Board details */
+  .rpi-gpio { position: absolute; top: 8px; left: 8px; width: 90px; height: 14px; background: #2a2a3e; border-radius: 2px; border: 1px solid rgba(255,255,255,0.08); }
+  .rpi-gpio::after { content: ''; position: absolute; inset: 3px; background: repeating-linear-gradient(90deg, #444 0px, #444 3px, transparent 3px, transparent 6px); }
+  .rpi-chip { position: absolute; bottom: 30px; left: 24px; width: 40px; height: 40px; background: #222; border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; }
+  .rpi-chip::after { content: 'BCM\A2711'; white-space: pre; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Space Mono', monospace; font-size: 5px; color: rgba(255,255,255,0.3); text-align: center; padding: 4px; }
+  .rpi-usb { position: absolute; bottom: 12px; right: 12px; width: 36px; height: 16px; background: #333; border-radius: 2px; border: 1px solid rgba(255,255,255,0.1); }
+  .rpi-usb2 { position: absolute; bottom: 32px; right: 12px; width: 36px; height: 16px; background: #333; border-radius: 2px; border: 1px solid rgba(255,255,255,0.1); }
+
+  /* Camera ribbon cable */
+  .cam-ribbon {
+    position: absolute;
+    top: 50%; right: -60px;
+    width: 60px; height: 4px;
+    background: linear-gradient(90deg, #888, #aaa, #888);
+    transform: translateY(-50%);
+    border-radius: 2px;
+  }
+
+  /* Camera module */
+  .cam-module {
+    position: absolute;
+    right: -160px; top: 50%;
+    transform: translateY(-50%);
+    width: 68px; height: 68px;
+    background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 30px rgba(255,85,0,0.15);
+  }
+
+  .cam-lens-outer {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,85,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 16px rgba(255,85,0,0.2);
+  }
+  .cam-lens-inner {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,85,0,0.25);
+    background: radial-gradient(circle at 35% 35%, rgba(255,100,0,0.25), rgba(0,0,0,0.9));
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cam-lens-core {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #0a0a0a;
+    border: 1px solid rgba(255,85,0,0.5);
+    box-shadow: 0 0 8px rgba(255,85,0,0.3);
+  }
+
+  /* Annotation lines */
+  .cam-annotation {
+    position: absolute;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px; color: rgba(255,85,0,0.5);
+    letter-spacing: 1.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ann-line { width: 30px; height: 1px; background: rgba(255,85,0,0.3); }
+  .ca1 { top: -28px; left: 60px; }
+  .ca2 { bottom: -28px; right: 0; }
+  .ca3 { top: 50%; right: -240px; transform: translateY(-50%); }
+
+  /* Glow under camera */
+  .cam-glow {
+    position: absolute;
+    bottom: -40px; left: 50%; transform: translateX(-50%);
+    width: 300px; height: 60px;
+    background: radial-gradient(ellipse, rgba(255,85,0,0.12), transparent 70%);
+    filter: blur(10px);
+  }
+
+  /* Camera spec cards */
+  .cam-specs {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; width: 100%; max-width: 720px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .spec-cell {
+    background: rgba(255,255,255,0.02);
+    padding: 20px 24px;
+    border-right: 1px solid rgba(255,255,255,0.05);
+  }
+  .spec-cell:last-child { border-right: none; }
+  .spec-val { font-size: 28px; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+  .spec-val span { font-size: 14px; color: var(--orange); }
+  .spec-key { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--white-40); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ══════════════════════════════════════════
+     SECTION 3 — HOW IT WORKS
+  ══════════════════════════════════════════ */
+  .how-section {
+    padding: 120px 48px;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .section-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; color: var(--orange);
+    letter-spacing: 5px; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 52px; font-weight: 700; color: var(--white);
+    letter-spacing: 2px; margin-bottom: 64px;
+    line-height: 1.1;
+  }
+  .section-title em { color: var(--orange); font-style: normal; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+  .step {
+    padding: 36px 32px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative; overflow: hidden;
+    transition: background 0.3s;
+  }
+  .step:hover { background: rgba(255,85,0,0.04); border-color: rgba(255,85,0,0.15); }
+  .step-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 64px; font-weight: 700;
+    color: rgba(255,85,0,0.08);
+    position: absolute; top: 16px; right: 24px;
+    line-height: 1;
+  }
+  .step-icon {
+    width: 40px; height: 40px;
+    border: 1px solid rgba(255,85,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .step-icon-dot { width: 10px; height: 10px; background: var(--orange); border-radius: 50%; }
+  .step-title { font-size: 20px; font-weight: 600; color: var(--white); margin-bottom: 12px; letter-spacing: 0.5px; }
+  .step-desc { font-size: 14px; color: var(--white-40); line-height: 1.7; }
+  .step-tag {
+    margin-top: 20px;
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px; color: var(--orange);
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid rgba(255,85,0,0.2);
+    border-radius: 2px;
+  }
+
+  /* ══════════════════════════════════════════
+     SECTION 4 — AUTH GATE
+  ══════════════════════════════════════════ */
+  .auth-section {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    background: #000;
+  }
+  .auth-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,85,0,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,85,0,0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transform: perspective(700px) rotateX(30deg) scale(2.2) translateY(12%);
+    transform-origin: center 70%;
+    opacity: 0.5;
+  }
+  .auth-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 60%, transparent 25%, rgba(0,0,0,0.95) 80%);
+  }
+
+  .auth-form {
+    position: relative; z-index: 2;
+    width: 420px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  .auth-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; color: var(--orange);
+    letter-spacing: 5px; text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow-line { width: 24px; height: 1px; background: var(--orange); }
+
+  .auth-wordmark {
+    font-size: 64px; font-weight: 700; color: var(--white);
+    letter-spacing: 20px; text-indent: 20px;
+    margin-bottom: 8px;
+  }
+  .auth-sub {
+    font-size: 13px; color: var(--white-40);
+    letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 48px;
+    font-family: 'Space Mono', monospace;
+  }
+  .auth-divider { width: 100%; height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 40px; position: relative; }
+  .auth-divider::after { content: 'OWNER ACCESS'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; padding: 0 16px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--white-40); letter-spacing: 3px; }
+
+  .auth-field { width: 100%; margin-bottom: 24px; }
+  .auth-label { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--white-40); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; display: block; }
+  .auth-input {
+    width: 100%; background: rgba(255,255,255,0.04);
+    border: none; border-bottom: 1px solid rgba(255,255,255,0.12);
+    color: var(--white); font-family: 'Space Mono', monospace;
+    font-size: 14px; padding: 14px 0; outline: none; letter-spacing: 1px;
+    transition: border-color 0.2s;
+  }
+
+  .auth-btn-primary {
+    width: 100%; padding: 16px;
+    background: var(--orange); border: none;
+    color: #000; font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase;
+    cursor: pointer; margin-bottom: 16px;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  }
+
+  .auth-sep { display: flex; align-items: center; gap: 16px; width: 100%; margin-bottom: 16px; }
+  .auth-sep span { font-family: 'Space Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.2); letter-spacing: 2px; }
+  .auth-sep::before, .auth-sep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
+
+  .auth-btn-wallet {
+    width: 100%; padding: 15px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.12);
+    color: var(--white-70); font-family: 'Space Mono', monospace;
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  .auth-notice {
+    margin-top: 32px; text-align: center;
+    font-family: 'Space Mono', monospace; font-size: 8px;
+    color: rgba(255,255,255,0.2); letter-spacing: 2px; line-height: 2;
+    text-transform: uppercase;
+  }
+
+  /* Corner HUD on auth section */
+  .ahc { position: absolute; width: 20px; height: 20px; border-color: rgba(255,85,0,0.3); border-style: solid; border-width: 0; }
+  .ahc-tl { top: 48px; left: 48px; border-top-width: 1px; border-left-width: 1px; }
+  .ahc-tr { top: 48px; right: 48px; border-top-width: 1px; border-right-width: 1px; }
+  .ahc-bl { bottom: 48px; left: 48px; border-bottom-width: 1px; border-left-width: 1px; }
+  .ahc-br { bottom: 48px; right: 48px; border-bottom-width: 1px; border-right-width: 1px; }
+
+  /* ══════════════════════════════════════════
+     FOOTER
+  ══════════════════════════════════════════ */
+  footer {
+    padding: 32px 48px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .footer-logo { font-size: 16px; font-weight: 700; color: var(--white); letter-spacing: 5px; }
+  .footer-logo span { color: var(--orange); }
+  .footer-right { font-family: 'Space Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.2); letter-spacing: 2px; }
+
+  /* ── SECTION LABEL PILLS ── */
+  .section-pill {
+    display: inline-block;
+    border: 1px solid rgba(255,85,0,0.2);
+    padding: 6px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; color: var(--orange);
+    letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 32px;
+    border-radius: 2px;
+    background: rgba(255,85,0,0.04);
+  }
+</style>
+</head>
+<body>
+
+<div class="design-label">VERIS — REVISED DESIGN v2 — FULL LANDING PAGE MOCKUP</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">VERI<span>S</span></div>
+  <div class="nav-links">
+    <a href="#">System</a>
+    <a href="#">Camera</a>
+    <a href="#">Protocol</a>
+    <a href="#" class="nav-cta">Enter Portal</a>
+  </div>
+</nav>
+
+<!-- ════ SECTION 1: HERO ════ -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-vignette"></div>
+  <div class="hero-top-fade"></div>
+  <div class="hc hc-tl"></div>
+  <div class="hc hc-tr"></div>
+  <div class="hc hc-bl"></div>
+  <div class="hc hc-br"></div>
+  <div class="hud-tl">VRS / CAM-01<br>OWNER GATE<br>SIGNAL ACTIVE</div>
+  <div class="hud-tr">CHAIN: SEPOLIA<br>STATUS: ONLINE<br>NFT: READY</div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <div class="eyebrow-dot"></div>
+      Decentralized Camera Protocol
+      <div class="eyebrow-dot"></div>
+    </div>
+    <div class="hero-wordmark">VERIS</div>
+    <div class="hero-tagline">
+      A physical camera that <strong>sees, mints, and proves.</strong><br>
+      Every frame captured becomes an on-chain truth.
+    </div>
+    <div class="hero-actions">
+      <button class="btn-primary">Enter Owner Portal</button>
+      <button class="btn-ghost">See How It Works ↓</button>
+    </div>
+    <div class="scroll-hint">
+      <div class="scroll-arrow"></div>
+      SCROLL
+    </div>
+  </div>
+</section>
+
+<!-- ════ SECTION 2: 3D CAMERA REVEAL ════ -->
+<section class="camera-section">
+  <div class="section-pill">The Hardware</div>
+  <div class="camera-label">Built on Raspberry Pi + HQ Camera Module</div>
+  <div class="camera-heading">THE VERIS UNIT</div>
+  <div class="camera-subheading">A precision instrument. Not just a camera — a node on the network.</div>
+
+  <!-- 3D Camera (Three.js in real impl) -->
+  <div class="camera-3d-placeholder">
+    <div class="cam-annotation ca1">
+      <div class="ann-line"></div>
+      RASPBERRY PI 4B
+    </div>
+    <div class="rpi-body">
+      <div class="rpi-gpio"></div>
+      <div class="rpi-chip"></div>
+      <div class="rpi-usb"></div>
+      <div class="rpi-usb2"></div>
+      <!-- Ribbon cable -->
+      <div class="cam-ribbon"></div>
+    </div>
+    <!-- Camera module -->
+    <div class="cam-module">
+      <div class="cam-lens-outer">
+        <div class="cam-lens-inner">
+          <div class="cam-lens-core"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cam-annotation ca2">
+      <div class="ann-line"></div>
+      HQ CAMERA MODULE
+    </div>
+    <div class="cam-glow"></div>
+  </div>
+
+  <!-- Specs -->
+  <div class="cam-specs">
+    <div class="spec-cell">
+      <div class="spec-val">12<span>MP</span></div>
+      <div class="spec-key">Sensor Resolution</div>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-val">4<span>K</span></div>
+      <div class="spec-key">Max Capture</div>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-val">~3<span>s</span></div>
+      <div class="spec-key">Capture to On-Chain</div>
+    </div>
+    <div class="spec-cell">
+      <div class="spec-val">∞</div>
+      <div class="spec-key">Chain Permanence</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ SECTION 3: HOW IT WORKS ════ -->
+<section style="background:#000; padding: 0 0 0 0;">
+  <div class="how-section">
+    <div class="section-eyebrow">The Protocol</div>
+    <div class="section-title">From shutter press<br>to <em>on-chain truth.</em></div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-icon"><div class="step-icon-dot"></div></div>
+        <div class="step-title">Capture</div>
+        <div class="step-desc">The Veris camera captures the photo. The shutter trigger sends the image directly to the edge processor — no cloud, no middleman.</div>
+        <div class="step-tag">Raspberry Pi HQ Camera</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-icon"><div class="step-icon-dot"></div></div>
+        <div class="step-title">Mint</div>
+        <div class="step-desc">The image is pinned to IPFS via Filecoin and minted as an NFT on Ethereum. Tamper-proof. Timestamped. Permanent.</div>
+        <div class="step-tag">IPFS + Filecoin + Sepolia</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-icon"><div class="step-icon-dot"></div></div>
+        <div class="step-title">Claim</div>
+        <div class="step-desc">A QR code appears on-device. Anyone photographed scans it and claims their edition. You — the owner — manage everything here.</div>
+        <div class="step-tag">Privy Auth + Wallet</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ SECTION 4: AUTH GATE ════ -->
+<section class="auth-section">
+  <div class="auth-grid"></div>
+  <div class="auth-vignette"></div>
+  <div class="ahc ahc-tl"></div>
+  <div class="ahc ahc-tr"></div>
+  <div class="ahc ahc-bl"></div>
+  <div class="ahc ahc-br"></div>
+
+  <div class="auth-form">
+    <div class="auth-eyebrow">
+      <div class="eyebrow-line"></div>
+      Owner Access
+      <div class="eyebrow-line"></div>
+    </div>
+    <div class="auth-wordmark">VERIS</div>
+    <div class="auth-sub">Owner Portal</div>
+    <div class="auth-divider"></div>
+
+    <div class="auth-field">
+      <label class="auth-label">Wallet Address</label>
+      <input class="auth-input" type="text" placeholder="0x...">
+    </div>
+
+    <button class="auth-btn-primary">Authenticate →</button>
+
+    <div class="auth-sep"><span>or</span></div>
+
+    <button class="auth-btn-wallet">Connect Wallet via Privy</button>
+
+    <div class="auth-notice">
+      Restricted to Veris camera owners only<br>
+      Access is verified on-chain
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">VERI<span>S</span></div>
+  <div class="footer-right">DECENTRALIZED CAMERA PROTOCOL — 2024</div>
+</footer>
+
+</body>
+</html>
