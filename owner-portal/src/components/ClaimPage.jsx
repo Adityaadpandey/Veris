@@ -5,20 +5,52 @@ import { useAccount } from 'wagmi'
 import axios from 'axios'
 import './ClaimPage.css'
 
-// Use Vercel proxy in production to avoid mixed-content blocks.
-// In dev, calls go directly to the claim server.
 const CLAIM_API = import.meta.env.DEV
-  ? (import.meta.env.VITE_CLAIM_API || 'http://localhost:5001')
+  ? (import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001')
   : '/api/claim-server'
 
-function statusLabel(status) {
-  const map = {
-    pending: { text: 'Pending — waiting for original NFT to be minted…', color: '#f59e0b', icon: '⏳' },
-    open:    { text: 'Open — ready to claim editions!', color: '#10b981', icon: '✅' },
-    claimed: { text: 'Claimed', color: '#3b82f6', icon: '📦' },
-    completed: { text: 'Completed — NFT minted!', color: '#8b5cf6', icon: '🎉' },
+function fmt(dateStr) {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  })
+}
+
+function short(str, len = 12) {
+  if (!str) return '—'
+  if (str.length <= len * 2 + 3) return str
+  return `${str.slice(0, len)}…${str.slice(-len)}`
+}
+
+function CopyBtn({ text }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
-  return map[status] || { text: status, color: '#6b7280', icon: '❔' }
+  return (
+    <button className="copy-btn" onClick={copy} title="Copy">
+      {copied ? '✓' : '⎘'}
+    </button>
+  )
+}
+
+function ProofRow({ label, value, full, link, mono }) {
+  return (
+    <div className="proof-row">
+      <span className="proof-label">{label}</span>
+      <span className="proof-val">
+        {link ? (
+          <a href={link} target="_blank" rel="noreferrer" className="proof-link">{value} ↗</a>
+        ) : (
+          <span className={mono ? 'mono' : ''}>{value || '—'}</span>
+        )}
+        {full && value && <CopyBtn text={full} />}
+      </span>
+    </div>
+  )
 }
 
 export default function ClaimPage() {
@@ -31,12 +63,29 @@ export default function ClaimPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [message, setMessage] = useState(null)
+  const [error, setError] = useState(null)
   const [manualAddress, setManualAddress] = useState('')
   const [useManual, setUseManual] = useState(false)
-  const [mintedEdition, setMintedEdition] = useState(null) // { wallet, txHash }
+  const [mintedEdition, setMintedEdition] = useState(null)
 
   const walletAddress = address || wallets[0]?.address
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`lensmint_claim_${claimId}`)
+      if (stored) setMintedEdition(JSON.parse(stored))
+    } catch {}
+  }, [claimId])
+
+  const saveMintedEdition = (data) => {
+    setMintedEdition(data)
+    try { localStorage.setItem(`lensmint_claim_${claimId}`, JSON.stringify(data)) } catch {}
+  }
+
+  const clearMintedEdition = () => {
+    setMintedEdition(null)
+    try { localStorage.removeItem(`lensmint_claim_${claimId}`) } catch {}
+  }
 
   const fetchClaim = useCallback(async () => {
     try {
@@ -56,254 +105,245 @@ export default function ClaimPage() {
 
   useEffect(() => {
     fetchClaim()
-    const interval = setInterval(fetchClaim, 5000)
+    const interval = setInterval(fetchClaim, 6000)
     return () => clearInterval(interval)
   }, [fetchClaim])
 
   const submit = async () => {
     const recipient = useManual ? manualAddress.trim() : walletAddress
-    if (!recipient) {
-      setMessage({ type: 'error', text: 'No wallet address. Connect a wallet or enter one manually.' })
-      return
-    }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
-      setMessage({ type: 'error', text: 'Invalid Ethereum address.' })
-      return
-    }
+    if (!recipient) { setError('No wallet address. Connect a wallet or enter one manually.'); return }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) { setError('Invalid Ethereum address.'); return }
 
     setSubmitting(true)
-    setMessage(null)
+    setError(null)
     try {
-      const res = await axios.post(`${CLAIM_API}/claim/${claimId}/submit`, {
-        wallet_address: recipient
-      })
+      const res = await axios.post(`${CLAIM_API}/claim/${claimId}/submit`, { wallet_address: recipient })
       if (res.data.success) {
-        setMintedEdition({ wallet: recipient, editionRequestId: res.data.edition_request_id })
+        saveMintedEdition({ wallet: recipient })
         setManualAddress('')
-        fetchClaim()
       } else {
-        setMessage({ type: 'error', text: res.data.error || 'Submission failed.' })
+        setError(res.data.error || 'Submission failed.')
       }
     } catch (e) {
-      setMessage({ type: 'error', text: e.response?.data?.error || e.message })
+      setError(e.response?.data?.error || e.message)
     }
     setSubmitting(false)
   }
 
   if (loading) {
     return (
-      <div className="claim-splash">
+      <div className="claim-bg">
         <div className="claim-spinner" />
-        <p>Loading claim…</p>
       </div>
     )
   }
 
   if (notFound) {
     return (
-      <div className="claim-splash">
-        <div className="claim-card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 52 }}>❌</div>
-          <h2>Claim Not Found</h2>
-          <p style={{ color: '#64748b', marginTop: 8 }}>This claim ID doesn't exist or has expired.</p>
+      <div className="claim-bg">
+        <div className="claim-card">
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 48 }}>❌</div>
+            <h2 style={{ marginTop: 12, color: '#1e293b' }}>Claim Not Found</h2>
+            <p style={{ color: '#64748b', marginTop: 8 }}>This claim ID doesn't exist.</p>
+          </div>
         </div>
       </div>
     )
   }
 
-  const st = statusLabel(claim?.status)
-  const canClaim = claim?.status === 'open'
-  const ipfsUrl = claim?.cid
-    ? `https://gateway.lighthouse.storage/ipfs/${claim.cid}`
-    : null
+  const isOpen = claim?.status === 'open'
+  const isPending = claim?.status === 'pending'
+  const ipfsUrl = claim?.cid ? `https://gateway.lighthouse.storage/ipfs/${claim.cid}` : null
+  const etherscanTx = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
+  const etherscanToken = `https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69`
 
   return (
-    <div className="claim-splash">
+    <div className="claim-bg">
       <div className="claim-card">
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div className="claim-header">
-          <div className="claim-logo">📷</div>
-          <h1>LensMint</h1>
-          <p className="claim-sub">Claim your photo NFT edition</p>
+          <span className="claim-badge">📷 LensMint</span>
+          <h1>Certificate of Authenticity</h1>
+          <p className="claim-sub">This photo was captured and cryptographically signed by a LensMint camera. Its origin is verifiable on the blockchain.</p>
         </div>
 
-        {/* NFT Image */}
+        {/* ── Photo ── */}
         {ipfsUrl && (
-          <div className="claim-img-wrap">
+          <div className="claim-photo-wrap">
             <img
               src={ipfsUrl}
-              alt="NFT"
-              className="claim-img"
+              alt="Original capture"
+              className="claim-photo"
               onError={e => { e.target.style.display = 'none' }}
             />
+            <div className="claim-photo-overlay">
+              <span className="verified-tag">✓ Verified Original</span>
+            </div>
           </div>
         )}
 
-        {/* Status */}
-        <div className="claim-status" style={{ borderColor: st.color, background: st.color + '18' }}>
-          <span>{st.icon}</span>
-          <span style={{ color: st.color, fontWeight: 600 }}>{st.text}</span>
-        </div>
-
-        {/* Claim info */}
-        <div className="claim-meta">
-          {claim?.token_id && (
-            <div className="claim-meta-row">
-              <span>Original Token</span>
-              <span className="mono">#{claim.token_id}</span>
-            </div>
-          )}
-          <div className="claim-meta-row">
-            <span>Claim ID</span>
-            <span className="mono truncate">{claimId}</span>
+        {/* ── Proof of authenticity ── */}
+        <div className="proof-section">
+          <div className="proof-section-title">
+            <span>🔐</span> Proof of Authenticity
           </div>
-          {claim?.cid && (
-            <div className="claim-meta-row">
-              <span>IPFS</span>
-              <a href={ipfsUrl} target="_blank" rel="noreferrer" className="claim-link">
-                View image ↗
-              </a>
-            </div>
-          )}
-          {claim?.tx_hash && (
-            <div className="claim-meta-row">
-              <span>Mint TX</span>
-              <a
-                href={`https://sepolia.etherscan.io/tx/${claim.tx_hash}`}
-                target="_blank" rel="noreferrer"
-                className="claim-link"
-              >
-                Etherscan ↗
-              </a>
-            </div>
-          )}
+
+          <ProofRow
+            label="Captured at"
+            value={fmt(claim?.created_at)}
+          />
+          <ProofRow
+            label="Camera Device"
+            value={claim?.camera_id || claim?.device_id || '—'}
+            mono
+          />
+          <ProofRow
+            label="Device Address"
+            value={short(claim?.device_address, 8)}
+            full={claim?.device_address}
+            link={claim?.device_address ? `https://sepolia.etherscan.io/address/${claim.device_address}` : null}
+            mono
+          />
+          <ProofRow
+            label="Image Hash (SHA-256)"
+            value={short(claim?.image_hash, 10)}
+            full={claim?.image_hash}
+            mono
+          />
+          <ProofRow
+            label="Hardware Signature"
+            value={short(claim?.signature, 10)}
+            full={claim?.signature}
+            mono
+          />
+          <ProofRow
+            label="IPFS Content ID"
+            value={short(claim?.cid, 10)}
+            full={claim?.cid}
+            link={ipfsUrl}
+            mono
+          />
         </div>
 
-        {/* Post-claim success state */}
+        {/* ── Ownership ── */}
+        <div className="proof-section">
+          <div className="proof-section-title">
+            <span>🏆</span> Ownership
+          </div>
+          <ProofRow
+            label="Original owner"
+            value={claim?.recipient_address ? short(claim.recipient_address, 8) : 'Minting…'}
+            full={claim?.recipient_address}
+            link={claim?.recipient_address ? `https://sepolia.etherscan.io/address/${claim.recipient_address}` : null}
+            mono
+          />
+          {claim?.token_id && (
+            <ProofRow
+              label="Token ID"
+              value={`#${claim.token_id}`}
+              link={etherscanToken}
+            />
+          )}
+          {etherscanTx && (
+            <ProofRow
+              label="Mint transaction"
+              value="View on Etherscan"
+              link={etherscanTx}
+            />
+          )}
+          <ProofRow
+            label="Network"
+            value="Sepolia Testnet"
+          />
+          <ProofRow
+            label="Contract"
+            value="LensMintERC1155"
+            link={etherscanToken}
+          />
+        </div>
+
+        {/* ── Claim / Success ── */}
         {mintedEdition ? (
-          <div className="claim-success-block">
+          <div className="claim-success">
             <div className="claim-success-icon">🎉</div>
             <h3>Edition Claimed!</h3>
-            <p>Your NFT is being minted on Sepolia. It usually arrives in your wallet within <strong>30–60 seconds</strong>.</p>
-            <div className="claim-meta" style={{ marginTop: 12 }}>
-              <div className="claim-meta-row">
-                <span>Your wallet</span>
-                <span className="mono">{mintedEdition.wallet.slice(0,8)}…{mintedEdition.wallet.slice(-6)}</span>
-              </div>
-              <div className="claim-meta-row">
-                <span>Check wallet</span>
-                <a
-                  href={`https://sepolia.etherscan.io/address/${mintedEdition.wallet}`}
-                  target="_blank" rel="noreferrer"
-                  className="claim-link"
-                >
-                  Etherscan ↗
-                </a>
-              </div>
-              <div className="claim-meta-row">
-                <span>Contract</span>
-                <a
-                  href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
-                  target="_blank" rel="noreferrer"
-                  className="claim-link"
-                >
-                  LensMint ↗
-                </a>
-              </div>
+            <p>Your NFT edition is being minted. It will arrive in your wallet in ~30–60 seconds.</p>
+            <div className="proof-section" style={{ marginTop: 12 }}>
+              <ProofRow
+                label="Your wallet"
+                value={short(mintedEdition.wallet, 8)}
+                full={mintedEdition.wallet}
+                link={`https://sepolia.etherscan.io/address/${mintedEdition.wallet}`}
+                mono
+              />
             </div>
-            <button
-              className="claim-btn claim-btn-ghost"
-              style={{ marginTop: 8 }}
-              onClick={() => setMintedEdition(null)}
-            >
+            <button className="claim-btn-ghost" onClick={clearMintedEdition}>
               Claim another edition
             </button>
           </div>
-        ) : (
-          <>
-            {/* Claim form */}
-            {canClaim && (
-              <div className="claim-form">
-                <h3>Mint Your Edition</h3>
-                <p className="claim-form-sub">
-                  Connect your wallet or enter your address to receive a free NFT edition.
-                </p>
+        ) : isOpen ? (
+          <div className="claim-form-section">
+            <div className="claim-form-title">
+              <span>✨</span> Claim Your Edition
+            </div>
+            <p className="claim-form-sub">
+              Submit your wallet address to receive a free NFT edition of this photo. Each edition is its own unique token linked to this original.
+            </p>
 
-                {!useManual ? (
+            {!useManual ? (
+              <>
+                {!authenticated ? (
+                  <button className="claim-btn" onClick={login} disabled={!ready}>
+                    {ready ? 'Connect Wallet to Claim' : 'Loading…'}
+                  </button>
+                ) : walletAddress ? (
                   <>
-                    {!authenticated ? (
-                      <button className="claim-btn claim-btn-primary" onClick={login} disabled={!ready}>
-                        {ready ? 'Connect Wallet' : 'Loading…'}
-                      </button>
-                    ) : walletAddress ? (
-                      <>
-                        <div className="claim-wallet-badge">
-                          <span>📱</span>
-                          <span className="mono">{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</span>
-                        </div>
-                        <button
-                          className="claim-btn claim-btn-primary"
-                          onClick={submit}
-                          disabled={submitting}
-                        >
-                          {submitting ? 'Minting…' : 'Claim Edition'}
-                        </button>
-                      </>
-                    ) : (
-                      <button className="claim-btn claim-btn-primary" onClick={login}>
-                        Connect Wallet
-                      </button>
-                    )}
-                    <button
-                      className="claim-btn claim-btn-ghost"
-                      onClick={() => setUseManual(true)}
-                    >
-                      Enter address manually instead
+                    <div className="wallet-connected">
+                      <span className="wallet-dot" />
+                      <span className="mono">{walletAddress.slice(0,8)}…{walletAddress.slice(-6)}</span>
+                    </div>
+                    <button className="claim-btn" onClick={submit} disabled={submitting}>
+                      {submitting ? 'Submitting…' : 'Claim Free Edition'}
                     </button>
                   </>
                 ) : (
-                  <>
-                    <input
-                      type="text"
-                      className="claim-input"
-                      placeholder="0x..."
-                      value={manualAddress}
-                      onChange={e => setManualAddress(e.target.value)}
-                    />
-                    <button
-                      className="claim-btn claim-btn-primary"
-                      onClick={submit}
-                      disabled={submitting}
-                    >
-                      {submitting ? 'Minting…' : 'Claim Edition'}
-                    </button>
-                    <button
-                      className="claim-btn claim-btn-ghost"
-                      onClick={() => { setUseManual(false); setManualAddress('') }}
-                    >
-                      Back to wallet connect
-                    </button>
-                  </>
+                  <button className="claim-btn" onClick={login}>Connect Wallet</button>
                 )}
-
-                {message && (
-                  <div className={`claim-message claim-message-${message.type}`}>
-                    {message.text}
-                  </div>
-                )}
-              </div>
+                <button className="claim-btn-ghost" onClick={() => setUseManual(true)}>
+                  Enter address manually
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  className="claim-input"
+                  type="text"
+                  placeholder="0x..."
+                  value={manualAddress}
+                  onChange={e => setManualAddress(e.target.value)}
+                />
+                <button className="claim-btn" onClick={submit} disabled={submitting}>
+                  {submitting ? 'Submitting…' : 'Claim Free Edition'}
+                </button>
+                <button className="claim-btn-ghost" onClick={() => { setUseManual(false); setManualAddress('') }}>
+                  Use connected wallet instead
+                </button>
+              </>
             )}
 
-            {!canClaim && claim?.status === 'pending' && (
-              <div className="claim-pending-note">
-                The camera is still processing this photo. This page will update automatically.
-              </div>
-            )}
-          </>
-        )}
+            {error && <div className="claim-error">{error}</div>}
+          </div>
+        ) : isPending ? (
+          <div className="claim-pending">
+            <div className="claim-pending-spinner" />
+            <p>The camera is still processing this photo. The claim will open automatically once the original NFT is minted.</p>
+          </div>
+        ) : null}
 
         <div className="claim-footer">
-          Powered by LensMint · Sepolia Testnet
+          Powered by LensMint · Hardware-signed photos on Sepolia
         </div>
       </div>
     </div>
