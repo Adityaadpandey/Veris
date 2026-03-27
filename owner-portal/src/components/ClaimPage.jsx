@@ -194,6 +194,13 @@ export default function ClaimPage() {
             label="Captured at"
             value={fmt(claim?.created_at)}
           />
+          {(claim?.location_name || claim?.latitude) && (
+            <ProofRow
+              label="Location"
+              value={claim.location_name || `${claim.latitude?.toFixed(4)}, ${claim.longitude?.toFixed(4)}`}
+              link={claim.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null}
+            />
+          )}
           <ProofRow
             label="Camera Device"
             value={claim?.camera_id || claim?.device_id || '—'}
