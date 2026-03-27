@@ -5,7 +5,11 @@ import { useAccount } from 'wagmi'
 import axios from 'axios'
 import './ClaimPage.css'
 
-const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001'
+// Use Vercel proxy in production to avoid mixed-content blocks.
+// In dev, calls go directly to the claim server.
+const CLAIM_API = import.meta.env.DEV
+  ? (import.meta.env.VITE_CLAIM_API || 'http://localhost:5001')
+  : '/api/claim-server'
 
 function statusLabel(status) {
   const map = {
@@ -35,7 +39,7 @@ export default function ClaimPage() {
 
   const fetchClaim = useCallback(async () => {
     try {
-      const res = await axios.get(`${CLAIM_SERVER_URL}/check-claim?claim_id=${claimId}`)
+      const res = await axios.get(`${CLAIM_API}/check-claim?claim_id=${claimId}`)
       if (res.data.success) {
         setClaim(res.data)
         setNotFound(false)
@@ -69,7 +73,7 @@ export default function ClaimPage() {
     setSubmitting(true)
     setMessage(null)
     try {
-      const res = await axios.post(`${CLAIM_SERVER_URL}/claim/${claimId}/submit`, {
+      const res = await axios.post(`${CLAIM_API}/claim/${claimId}/submit`, {
         wallet_address: recipient
       })
       if (res.data.success) {
