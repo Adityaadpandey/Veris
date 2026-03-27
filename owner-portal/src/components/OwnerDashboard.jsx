@@ -95,7 +95,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         )}
         <div className="meta-row">
           <span className="meta-label">Time</span>
-          <span className="meta-value">{new Date(img.createdAt).toLocaleString()}</span>
+          <span className="meta-value">{(() => { const iso = img.createdAt?.includes('T') || img.createdAt?.endsWith('Z') ? img.createdAt : (img.createdAt || '').replace(' ', 'T') + 'Z'; return new Date(iso).toLocaleString('en-IN', { hour12: false }) })()}</span>
         </div>
       </div>
 
