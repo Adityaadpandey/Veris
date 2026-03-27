@@ -46,6 +46,11 @@ async def claim_photo(token_id: int, claimer_address: str) -> str:
     return await asyncio.to_thread(_claim_photo_sync, token_id, claimer_address)
 
 
+async def get_all_photos() -> list[dict]:
+    """Return photo data for every minted token, ordered by token ID."""
+    return await asyncio.to_thread(_get_all_photos_sync)
+
+
 # ─── Sync implementations (run in thread pool) ───────────────────────────────
 
 
@@ -125,6 +130,27 @@ def _claim_photo_sync(token_id: int, claimer_address: str) -> str:
     tx_hash_hex = tx_hash_bytes.hex()
     logger.info("Claimed token %d for %s tx=%s", token_id, checksummed, tx_hash_hex)
     return tx_hash_hex
+
+
+def _get_all_photos_sync() -> list[dict]:
+    w3, contract, _ = _setup()
+
+    # Collect all token IDs from PhotoMinted events (tokenId is indexed).
+    # Fall back to the in-memory cache when event scanning fails (e.g. no archive node).
+    try:
+        logs = contract.events.PhotoMinted.get_logs(from_block=0)
+        token_ids = sorted({log["args"]["tokenId"] for log in logs})
+    except Exception as exc:
+        logger.warning("Could not scan PhotoMinted events: %s — using tx cache", exc)
+        token_ids = sorted(_tx_cache.keys())
+
+    results = []
+    for token_id in token_ids:
+        try:
+            results.append(_get_photo_data_sync(token_id))
+        except Exception as exc:
+            logger.warning("Skipping token %d in gallery: %s", token_id, exc)
+    return results
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

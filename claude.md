@@ -102,24 +102,9 @@ Do ALL of this the night before. You do NOT want to debug driver issues during t
 
 ### Local Dev Environment
 
-- [ ] Node.js 18+ installed
-- [ ] Python 3.11+ installed
-- [ ] Git repo created and team has access
-- [ ] VS Code / Cursor with extensions: Solidity, Python, Tailwind
-
 ---
 
 ## 3. Component 1: Raspberry Pi Camera Device
-
-### device/requirements.txt
-
-```
-picamera2
-cryptography
-requests
-qrcode[pil]
-Pillow
-```
 
 ### device/config.py
 
@@ -1187,39 +1172,6 @@ echo "WASM:             build/photo_verify_js/photo_verify.wasm"
 
 ## 7. Component 5: Frontend Web App
 
-### frontend/package.json (key dependencies)
-
-```json
-{
-  "name": "lensmint-frontend",
-  "version": "1.0.0",
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "14.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@rainbow-me/rainbowkit": "^2.0.0",
-    "wagmi": "^2.0.0",
-    "viem": "^2.0.0",
-    "@tanstack/react-query": "^5.0.0",
-    "qrcode.react": "^3.1.0",
-    "framer-motion": "^11.0.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.0",
-    "tailwindcss": "^3.4.0",
-    "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0",
-    "@types/react": "^18.2.0",
-    "@types/node": "^20.0.0"
-  }
-}
-```
-
 ### frontend/app/layout.tsx
 
 ```tsx
@@ -1540,7 +1492,7 @@ export default function ClaimPage() {
 
 ## 8. Integration & End-to-End Flow
 
-### The complete flow in sequence:
+### The complete flow in sequence
 
 ```
 ┌────────────┐     ┌────────────┐     ┌────────────┐     ┌────────────┐
@@ -1562,7 +1514,7 @@ export default function ClaimPage() {
 12. Judge connects wallet → claims NFT copy
 ```
 
-### Testing the flow locally:
+### Testing the flow locally
 
 ```bash
 # Terminal 1: Start backend
@@ -1604,23 +1556,7 @@ npx hardhat run scripts/deploy.js --network baseSepolia
 # Output:
 # LensMint deployed to: 0xYOUR_CONTRACT_ADDRESS
 # Copy this to your .env files
-```
 
-### Deploy backend to Railway
-
-```bash
-# In backend/ directory
-# 1. Create railway.json:
-echo '{"build": {"builder": "NIXPACKS"}, "deploy": {"startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT"}}' > railway.json
-
-# 2. Connect to Railway
-railway login
-railway init
-railway up
-
-# 3. Add environment variables in Railway dashboard
-# Copy all values from .env
-```
 
 ### Deploy frontend to Vercel
 
