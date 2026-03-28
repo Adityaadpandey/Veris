@@ -8,21 +8,14 @@ import OwnerDashboard from "./components/OwnerDashboard";
 import ClaimPage from "./components/ClaimPage";
 import LandingPage from "./components/LandingPage";
 
-const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient();
 
 const wagmiConfig = createConfig({
   chains: [sepolia],
   transports: { [sepolia.id]: http() },
-})
-
-function AppContent() {
-  const { ready, authenticated } = usePrivy()
-  if (!ready) return null
-  if (authenticated) return <OwnerDashboard />
-  return <LandingPage />
-}
+});
 
 export default function App() {
   return (
@@ -53,5 +46,5 @@ export default function App() {
         </QueryClientProvider>
       </WagmiProvider>
     </PrivyProvider>
-  )
+  );
 }
