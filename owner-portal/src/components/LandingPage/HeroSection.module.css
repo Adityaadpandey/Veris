@@ -1,0 +1,203 @@
+.hero {
+  height: 100vh;
+  min-height: 700px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: clip; /* clips bg layers but allows 3D canvas to breathe */
+}
+
+.radialGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 60% 90%, rgba(255, 85, 0, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 55% 55%, transparent 20%, rgba(0, 0, 0, 0.82) 80%);
+  pointer-events: none;
+}
+
+.topFade {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 30%;
+  background: linear-gradient(180deg, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.bottomFade {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 18%;
+  background: linear-gradient(0deg, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.hudCorner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: rgba(255, 85, 0, 0.4);
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.tl { top: 32px; left: 40px; border-top-width: 2px; border-left-width: 2px; }
+.tr { top: 32px; right: 40px; border-top-width: 2px; border-right-width: 2px; }
+.bl { bottom: 32px; left: 40px; border-bottom-width: 2px; border-left-width: 2px; }
+.br { bottom: 32px; right: 40px; border-bottom-width: 2px; border-right-width: 2px; }
+
+.hudText {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255, 85, 0, 0.45);
+  letter-spacing: 2px;
+  line-height: 2.2;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 4;
+}
+.hudTL { top: 44px; left: 54px; }
+.hudTR { top: 44px; right: 54px; text-align: right; }
+
+.blink { animation: blink 1.2s step-end infinite; }
+
+/* Two-column split */
+.split {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 40px;
+  height: 100%;
+}
+
+/* Left column */
+.left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+  padding: 8px 20px;
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255, 120, 0, 0.9);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 8px var(--orange);
+  animation: pulse-dot 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.wordmark {
+  font-size: clamp(72px, 10vw, 140px);
+  font-weight: 800;
+  color: var(--white);
+  letter-spacing: clamp(12px, 2.5vw, 32px);
+  text-indent: clamp(12px, 2.5vw, 32px);
+  line-height: 0.88;
+  margin-bottom: 28px;
+  text-shadow: 0 0 120px rgba(255, 85, 0, 0.12);
+}
+
+.tagline {
+  font-size: clamp(15px, 1.6vw, 20px);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.7;
+  margin-bottom: 48px;
+  max-width: 440px;
+}
+.tagline strong {
+  color: var(--white);
+  font-weight: 700;
+}
+
+.actions {
+  margin-bottom: 56px;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--orange);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 18px 40px;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.btnPrimary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent);
+  pointer-events: none;
+}
+.btnPrimary:hover {
+  background: #ff6a1a;
+  box-shadow: 0 0 40px rgba(255, 85, 0, 0.5);
+}
+
+.scrollCue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.scrollCue span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.scrollLine {
+  width: 1px;
+  height: 48px;
+  background: linear-gradient(180deg, rgba(255, 85, 0, 0.7), transparent);
+}
+
+/* Right column — camera fills height */
+.right {
+  height: 100vh;
+  min-height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

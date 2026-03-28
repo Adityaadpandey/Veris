@@ -1,0 +1,196 @@
+.section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  padding: 80px 24px;
+}
+
+.radial {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 80%, rgba(255, 85, 0, 0.1), transparent 70%);
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 60%, transparent 20%, rgba(0, 0, 0, 0.96) 75%);
+  pointer-events: none;
+}
+
+.hc {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: rgba(255, 85, 0, 0.35);
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+}
+.hcTL { top: 48px; left: 48px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.hcTR { top: 48px; right: 48px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.hcBL { bottom: 48px; left: 48px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.hcBR { bottom: 48px; right: 48px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+.card {
+  position: relative;
+  z-index: 2;
+  width: 480px;
+  padding: 52px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pre {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255, 85, 0, 0.7);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.pre::before, .pre::after {
+  content: '';
+  flex: 0 0 20px;
+  height: 1px;
+  background: rgba(255, 85, 0, 0.35);
+}
+
+.logo {
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--white);
+  letter-spacing: 22px;
+  text-indent: 22px;
+  text-align: center;
+  line-height: 0.9;
+  margin-bottom: 12px;
+}
+
+.sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.38);
+  text-align: center;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+}
+
+.divider {
+  width: 100%;
+  position: relative;
+  text-align: center;
+  margin-bottom: 36px;
+}
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0; right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.divider span {
+  position: relative;
+  padding: 0 16px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  background: rgba(12, 12, 12, 0.9);
+}
+
+.warning {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 180, 0, 0.08);
+  border: 1px solid rgba(255, 180, 0, 0.2);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255, 200, 0, 0.7);
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.cta {
+  width: 100%;
+  padding: 18px;
+  border: none;
+  cursor: pointer;
+  background: var(--orange);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  transition: all 0.25s;
+}
+.cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent);
+  pointer-events: none;
+}
+.cta:hover:not(:disabled) { background: #ff6a1a; box-shadow: 0 0 40px rgba(255, 85, 0, 0.4); }
+.cta:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.orRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+.orRow::before, .orRow::after { content: ''; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.07); }
+.orRow span { font-family: var(--font-mono); font-size: 9px; color: rgba(255, 255, 255, 0.18); letter-spacing: 2px; }
+
+.walletBtn {
+  width: 100%;
+  padding: 16px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  border-radius: 8px;
+  transition: all 0.2s;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  background: none;
+}
+.walletBtn:hover:not(:disabled) { color: var(--white); }
+.walletBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.notice {
+  margin-top: 28px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.15);
+  letter-spacing: 2px;
+  line-height: 2.2;
+  text-transform: uppercase;
+}
