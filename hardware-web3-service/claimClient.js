@@ -13,17 +13,12 @@ class ClaimClient {
     });
   }
 
-  async createClaim(claim_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null) {
+  async createClaim(claim_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null) {
     try {
       const response = await this.client.post('/create-claim', {
-        claim_id,
-        cid,
-        metadata_cid,
-        device_id,
-        camera_id,
-        image_hash,
-        signature,
-        device_address
+        claim_id, cid, metadata_cid, device_id, camera_id,
+        image_hash, signature, device_address,
+        latitude, longitude, location_name
       });
 
       if (response.data.success) {
