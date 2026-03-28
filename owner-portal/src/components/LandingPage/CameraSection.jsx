@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import CameraCanvas from './CameraCanvas'
+import SkeletonCanvas from './SkeletonCanvas'
 import styles from './CameraSection.module.css'
 
 const SPECS = [
@@ -31,15 +31,7 @@ export default function CameraSection() {
       <p className={styles.sub}>Built on Raspberry Pi 4B + HQ Camera Module. A node, not just a camera.</p>
 
       <div className={styles.canvasWrap}>
-        <div className={styles.annTop}>
-          <div className={styles.annLine} />
-          Raspberry Pi 4B — 4GB RAM
-        </div>
-        <CameraCanvas />
-        <div className={styles.annBot}>
-          <div className={styles.annLine} />
-          HQ Camera Module v2 — 12MP
-        </div>
+        <SkeletonCanvas />
       </div>
 
       <div className={`${styles.specsRow} glass`}>
