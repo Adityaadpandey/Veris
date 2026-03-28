@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --orange: #FF5500;
+  --orange-dim: rgba(255, 85, 0, 0.5);
+  --orange-ghost: rgba(255, 85, 0, 0.08);
+  --orange-glow: rgba(255, 85, 0, 0.4);
+  --black: #000000;
+  --white: #FFFFFF;
+  --white-70: rgba(255, 255, 255, 0.70);
+  --white-40: rgba(255, 255, 255, 0.40);
+  --white-15: rgba(255, 255, 255, 0.15);
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Liquid Glass ── */
+.glass {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.09) 0%,
+    rgba(255, 255, 255, 0.04) 40%,
+    rgba(255, 85, 0, 0.04) 70%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  border-left-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 0.5px rgba(255, 255, 255, 0.05);
+}
+
+.glass-orange {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 85, 0, 0.14) 0%,
+    rgba(255, 85, 0, 0.06) 50%,
+    rgba(255, 120, 0, 0.08) 100%
+  );
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 85, 0, 0.25);
+  border-top-color: rgba(255, 120, 0, 0.35);
+  box-shadow:
+    0 8px 40px rgba(255, 85, 0, 0.12),
+    inset 0 1px 0 rgba(255, 120, 0, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 6px var(--orange); }
+  50% { box-shadow: 0 0 16px var(--orange), 0 0 32px rgba(255, 85, 0, 0.4); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes led-blink {
+  0%, 90% { opacity: 1; }
+  91%, 100% { opacity: 0.1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}

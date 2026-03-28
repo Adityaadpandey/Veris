@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veris — Design v3</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:#000;color:#fff;font-family:'Space Grotesk',sans-serif;overflow-x:hidden;}
+
+.design-label{position:fixed;top:0;left:0;right:0;z-index:9999;background:#FF5500;color:#000;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:3px;text-align:center;padding:5px;}
+
+/* ─── LIQUID GLASS MIXIN ─── */
+/* Used on nav, cards, auth form */
+.glass{
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.09) 0%,
+    rgba(255,255,255,0.04) 40%,
+    rgba(255,85,0,0.04) 70%,
+    rgba(255,255,255,0.06) 100%
+  );
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-top-color: rgba(255,255,255,0.18);
+  border-left-color: rgba(255,255,255,0.14);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -1px 0 rgba(0,0,0,0.2),
+    0 0 0 0.5px rgba(255,255,255,0.05);
+}
+.glass-orange{
+  background: linear-gradient(135deg,
+    rgba(255,85,0,0.14) 0%,
+    rgba(255,85,0,0.06) 50%,
+    rgba(255,120,0,0.08) 100%
+  );
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255,85,0,0.25);
+  border-top-color: rgba(255,120,0,0.35);
+  box-shadow:
+    0 8px 40px rgba(255,85,0,0.12),
+    inset 0 1px 0 rgba(255,120,0,0.2),
+    inset 0 -1px 0 rgba(0,0,0,0.3);
+}
+
+/* ─── NAV ─── */
+nav{
+  position:fixed;top:28px;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 48px;
+  margin-top: 4px;
+}
+.nav-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%; padding:16px 32px; border-radius:16px;
+}
+.nav-inner.glass{border-radius:16px;}
+.nav-logo{font-size:22px;font-weight:800;letter-spacing:6px;color:#fff;}
+.nav-logo span{color:#FF5500;}
+.nav-links{display:flex;gap:32px;align-items:center;}
+.nav-links a{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.5);text-decoration:none;letter-spacing:2px;text-transform:uppercase;transition:color 0.2s;}
+.nav-links a:hover{color:#fff;}
+.nav-cta{
+  font-family:'Space Mono',monospace;font-size:10px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  padding:10px 22px;border-radius:8px;border:none;cursor:pointer;
+  background:#FF5500;color:#000;
+  transition:all 0.2s;
+}
+.nav-cta:hover{background:#ff6a1a;box-shadow:0 0 24px rgba(255,85,0,0.4);}
+
+/* ─── HERO ─── */
+.hero{
+  height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  position:relative;overflow:hidden;padding-top:120px;
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,85,0,0.08) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,85,0,0.08) 1px,transparent 1px);
+  background-size:52px 52px;
+  transform:perspective(800px) rotateX(32deg) scale(2.4) translateY(14%);
+  transform-origin:center 75%;
+}
+.hero-radial{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% 90%, rgba(255,85,0,0.12) 0%, transparent 70%);
+}
+.hero-vignette{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 55%, transparent 25%, rgba(0,0,0,0.88) 80%);
+}
+.hero-top-fade{position:absolute;top:0;left:0;right:0;height:45%;background:linear-gradient(180deg,#000 0%,transparent 100%);}
+
+/* HUD corners */
+.hc{position:absolute;width:28px;height:28px;border-color:rgba(255,85,0,0.4);border-style:solid;border-width:0;}
+.hc-tl{top:88px;left:48px;border-top-width:2px;border-left-width:2px;}
+.hc-tr{top:88px;right:48px;border-top-width:2px;border-right-width:2px;}
+.hc-bl{bottom:32px;left:48px;border-bottom-width:2px;border-left-width:2px;}
+.hc-br{bottom:32px;right:48px;border-bottom-width:2px;border-right-width:2px;}
+.hud-txt{position:absolute;font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,85,0,0.5);letter-spacing:2px;line-height:2.2;}
+.hud-tl{top:100px;left:60px;}
+.hud-tr{top:100px;right:60px;text-align:right;}
+
+/* Hero text */
+.hero-content{position:relative;z-index:2;text-align:center;max-width:900px;padding:0 24px;}
+
+.hero-badge{
+  display:inline-flex;align-items:center;gap:10px;
+  margin-bottom:32px;padding:8px 20px;border-radius:100px;
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:rgba(255,120,0,0.9);letter-spacing:3px;text-transform:uppercase;
+}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:#FF5500;box-shadow:0 0 8px #FF5500;animation:pulse-dot 2s ease-in-out infinite;}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 6px #FF5500;}50%{box-shadow:0 0 16px #FF5500,0 0 32px rgba(255,85,0,0.4);}}
+
+.hero-wordmark{
+  font-size:clamp(100px,14vw,180px);
+  font-weight:800;color:#fff;
+  letter-spacing:clamp(16px,3vw,40px);
+  text-indent:clamp(16px,3vw,40px);
+  line-height:0.88;margin-bottom:32px;
+  text-shadow:0 0 120px rgba(255,85,0,0.1);
+}
+
+.hero-tagline{
+  font-size:clamp(18px,2.2vw,26px);
+  font-weight:400;color:rgba(255,255,255,0.65);
+  line-height:1.55;margin-bottom:52px;
+  max-width:560px;margin-left:auto;margin-right:auto;
+}
+.hero-tagline strong{color:#fff;font-weight:700;}
+
+.hero-actions{display:flex;align-items:center;gap:16px;justify-content:center;margin-bottom:72px;flex-wrap:wrap;}
+
+.btn-primary{
+  display:inline-flex;align-items:center;gap:10px;
+  background:#FF5500;color:#000;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+  padding:18px 40px;border:none;cursor:pointer;border-radius:4px;
+  clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  transition:all 0.25s;position:relative;overflow:hidden;
+}
+.btn-primary::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);pointer-events:none;}
+.btn-primary:hover{background:#ff6a1a;box-shadow:0 0 40px rgba(255,85,0,0.5);}
+
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:10px;
+  background:transparent;color:rgba(255,255,255,0.7);
+  font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  padding:17px 36px;border-radius:4px;cursor:pointer;
+  transition:all 0.25s;
+}
+.btn-ghost.glass{border-radius:4px;}
+.btn-ghost:hover{color:#fff;}
+
+.scroll-cue{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.scroll-cue span{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:4px;text-transform:uppercase;}
+.scroll-line{width:1px;height:48px;background:linear-gradient(180deg,rgba(255,85,0,0.7),transparent);}
+
+/* ─── CAMERA SECTION ─── */
+.camera-section{
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:100px 48px;position:relative;background:#000;overflow:hidden;
+}
+.camera-section::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(255,85,0,0.06),transparent 70%);
+}
+
+.section-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:#FF5500;letter-spacing:4px;text-transform:uppercase;
+  margin-bottom:24px;
+}
+
+.section-heading{
+  font-size:clamp(48px,6vw,88px);
+  font-weight:800;color:#fff;
+  text-align:center;letter-spacing:6px;
+  line-height:0.95;margin-bottom:16px;
+}
+.section-heading .dim{color:rgba(255,255,255,0.18);}
+
+.section-sub{
+  font-size:18px;color:rgba(255,255,255,0.45);
+  text-align:center;margin-bottom:80px;letter-spacing:0.3px;
+  max-width:500px;
+}
+
+/* 3D Camera placeholder */
+.cam-stage{width:100%;max-width:680px;height:360px;position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:60px;}
+
+/* Glow radial behind camera */
+.cam-glow-bg{position:absolute;width:400px;height:300px;background:radial-gradient(ellipse,rgba(255,85,0,0.08),transparent 70%);filter:blur(20px);}
+
+/* PCB Board */
+.pcb{
+  width:300px;height:196px;border-radius:10px;position:relative;
+  background:linear-gradient(135deg,#0d1f12 0%,#112416 40%,#0a1a10 100%);
+  border:1px solid rgba(255,255,255,0.1);
+  box-shadow:0 24px 80px rgba(0,0,0,0.9),0 0 0 1px rgba(255,255,255,0.04);
+}
+/* PCB texture lines */
+.pcb::before{
+  content:'';position:absolute;inset:0;border-radius:10px;
+  background:repeating-linear-gradient(0deg,transparent,transparent 15px,rgba(255,255,255,0.015) 15px,rgba(255,255,255,0.015) 16px);
+}
+.pcb-gpio{position:absolute;top:10px;left:10px;width:88px;height:12px;background:#1a2e1a;border-radius:2px;border:1px solid rgba(255,255,255,0.07);overflow:hidden;}
+.pcb-gpio::after{content:'';position:absolute;inset:2px;background:repeating-linear-gradient(90deg,rgba(180,150,80,0.6) 0px,rgba(180,150,80,0.6) 3px,transparent 3px,transparent 7px);}
+.pcb-chip{position:absolute;bottom:28px;left:20px;width:44px;height:44px;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:4px;}
+.pcb-chip::after{content:'BCM\A2712';white-space:pre;font-family:'Space Mono',monospace;font-size:5px;color:rgba(255,255,255,0.25);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;}
+.pcb-ram{position:absolute;bottom:28px;left:72px;width:38px;height:28px;background:#141414;border:1px solid rgba(255,255,255,0.06);border-radius:3px;}
+.pcb-usb-stack{position:absolute;bottom:12px;right:12px;display:flex;flex-direction:column;gap:4px;}
+.pcb-usb{width:38px;height:14px;background:#222;border-radius:2px;border:1px solid rgba(255,255,255,0.08);}
+.pcb-led{position:absolute;top:12px;right:16px;width:6px;height:6px;border-radius:50%;background:#00ff44;box-shadow:0 0 8px #00ff44;animation:led-blink 2s step-end infinite;}
+@keyframes led-blink{0%,90%{opacity:1}91%,100%{opacity:0.1}}
+
+/* Ribbon cable */
+.ribbon{
+  position:absolute;right:-1px;top:50%;transform:translateY(-50%);
+  width:52px;height:6px;
+  background:linear-gradient(90deg,#555,#999 30%,#777 70%,#aaa);
+  border-radius:0 2px 2px 0;
+  box-shadow:0 2px 4px rgba(0,0,0,0.5);
+}
+.ribbon::before{content:'';position:absolute;inset:1.5px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.1) 0px,rgba(255,255,255,0.1) 2px,transparent 2px,transparent 4px);}
+
+/* Camera module */
+.cam-mod{
+  position:absolute;right:-148px;top:50%;transform:translateY(-50%);
+  width:80px;height:80px;border-radius:10px;
+  background:linear-gradient(135deg,#1a1a1a,#252525);
+  border:1px solid rgba(255,255,255,0.12);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 40px rgba(255,85,0,0.12),0 16px 40px rgba(0,0,0,0.8);
+}
+.lens-o{width:58px;height:58px;border-radius:50%;border:2px solid rgba(255,85,0,0.45);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(255,85,0,0.15);}
+.lens-m{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,85,0,0.25);background:radial-gradient(circle at 35% 35%,rgba(255,100,0,0.3),rgba(0,0,0,0.92));display:flex;align-items:center;justify-content:center;}
+.lens-i{width:18px;height:18px;border-radius:50%;background:#060606;border:1px solid rgba(255,85,0,0.5);box-shadow:0 0 10px rgba(255,85,0,0.3),inset 0 0 6px rgba(255,85,0,0.1);}
+/* Lens flare dot */
+.lens-m::before{content:'';position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.5);top:30%;left:33%;margin-top:-3px;margin-left:-3px;}
+
+/* Annotation labels */
+.ann{position:absolute;font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,85,0,0.6);letter-spacing:2px;text-transform:uppercase;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.ann-line-h{height:1px;background:rgba(255,85,0,0.3);}
+.ann-top{top:-36px;left:80px;flex-direction:column;align-items:flex-start;}
+.ann-top .ann-line-h{width:1px;height:28px;background:rgba(255,85,0,0.3);}
+.ann-bot{bottom:-36px;right:60px;flex-direction:column;align-items:flex-end;}
+.ann-bot .ann-line-h{width:1px;height:28px;background:rgba(255,85,0,0.3);}
+
+/* Specs grid */
+.specs-row{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:1px;width:100%;max-width:760px;
+  border:1px solid rgba(255,255,255,0.06);overflow:hidden;border-radius:12px;
+}
+.spec-box{
+  padding:24px 28px;
+  background:rgba(255,255,255,0.025);
+  border-right:1px solid rgba(255,255,255,0.05);
+  position:relative;overflow:hidden;
+  transition:background 0.3s;
+}
+.spec-box::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent);
+}
+.spec-box:last-child{border-right:none;}
+.spec-num{
+  font-size:40px;font-weight:800;color:#fff;line-height:1;margin-bottom:6px;
+  display:flex;align-items:flex-start;gap:4px;
+}
+.spec-num .unit{font-size:18px;color:#FF5500;margin-top:6px;}
+.spec-lbl{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.35);letter-spacing:2px;text-transform:uppercase;}
+
+/* ─── HOW IT WORKS ─── */
+.how-section{padding:120px 80px;max-width:1200px;margin:0 auto;}
+
+.big-section-title{
+  font-size:clamp(52px,6.5vw,96px);
+  font-weight:800;line-height:0.92;
+  margin-bottom:72px;letter-spacing:-1px;
+}
+.big-section-title .accent{color:#FF5500;}
+.big-section-title .muted{color:rgba(255,255,255,0.15);}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;}
+.step{
+  padding:40px 36px;position:relative;overflow:hidden;
+  border-radius:4px;transition:all 0.3s;cursor:default;
+}
+.step.glass{border-radius:4px;}
+.step::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.04),transparent);
+  pointer-events:none;
+}
+.step:hover{background:rgba(255,85,0,0.06) !important;border-color:rgba(255,85,0,0.2) !important;}
+
+.step-n{
+  font-size:88px;font-weight:800;
+  color:rgba(255,85,0,0.07);
+  position:absolute;top:12px;right:20px;line-height:1;
+  font-family:'Space Mono',monospace;
+}
+.step-icon-wrap{
+  width:44px;height:44px;border-radius:10px;margin-bottom:24px;
+  display:flex;align-items:center;justify-content:center;
+}
+.step-icon-wrap.glass-orange{border-radius:10px;}
+.step-icon-inner{width:14px;height:14px;border-radius:50%;background:#FF5500;box-shadow:0 0 16px rgba(255,85,0,0.6);}
+
+.step-title{font-size:28px;font-weight:700;color:#fff;margin-bottom:14px;letter-spacing:0.3px;}
+.step-body{font-size:15px;color:rgba(255,255,255,0.5);line-height:1.75;margin-bottom:24px;}
+.step-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:rgba(255,85,0,0.7);letter-spacing:2px;text-transform:uppercase;
+  padding:5px 12px;border-radius:4px;border:1px solid rgba(255,85,0,0.15);
+  background:rgba(255,85,0,0.05);
+}
+
+/* ─── AUTH SECTION ─── */
+.auth-section{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;background:#000;padding:80px 24px;
+}
+.auth-grid-bg{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,85,0,0.06) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,85,0,0.06) 1px,transparent 1px);
+  background-size:44px 44px;
+  transform:perspective(700px) rotateX(30deg) scale(2.2) translateY(14%);
+  transform-origin:center 70%;
+  opacity:0.6;
+}
+.auth-radial{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 70% 60% at 50% 80%,rgba(255,85,0,0.1),transparent 70%);
+}
+.auth-vignette{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 60%,transparent 20%,rgba(0,0,0,0.96) 75%);
+}
+
+/* HUD corners */
+.ahc{position:absolute;width:24px;height:24px;border-color:rgba(255,85,0,0.35);border-style:solid;border-width:0;}
+.ahc-tl{top:48px;left:48px;border-top-width:1.5px;border-left-width:1.5px;}
+.ahc-tr{top:48px;right:48px;border-top-width:1.5px;border-right-width:1.5px;}
+.ahc-bl{bottom:48px;left:48px;border-bottom-width:1.5px;border-left-width:1.5px;}
+.ahc-br{bottom:48px;right:48px;border-bottom-width:1.5px;border-right-width:1.5px;}
+
+.auth-card{
+  position:relative;z-index:2;width:480px;
+  padding:52px;border-radius:24px;
+}
+.auth-card.glass{border-radius:24px;}
+
+.auth-pre{
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:rgba(255,85,0,0.7);letter-spacing:4px;text-transform:uppercase;
+  margin-bottom:20px;display:flex;align-items:center;gap:10px;
+}
+.auth-pre::before,.auth-pre::after{content:'';flex:0 0 20px;height:1px;background:rgba(255,85,0,0.35);}
+
+.auth-logo{
+  font-size:72px;font-weight:800;color:#fff;
+  letter-spacing:22px;text-indent:22px;text-align:center;
+  line-height:0.9;margin-bottom:12px;
+}
+.auth-desc{
+  font-size:14px;color:rgba(255,255,255,0.38);
+  text-align:center;letter-spacing:1px;
+  margin-bottom:44px;font-family:'Space Mono',monospace;
+  font-size:10px;letter-spacing:3px;text-transform:uppercase;
+}
+.auth-divider{
+  width:100%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent);
+  margin-bottom:36px;
+}
+
+.field-label{
+  font-family:'Space Mono',monospace;font-size:9px;
+  color:rgba(255,255,255,0.35);letter-spacing:3px;text-transform:uppercase;
+  margin-bottom:10px;display:block;
+}
+.field-input{
+  width:100%;background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-bottom-color:rgba(255,85,0,0.3);
+  border-radius:6px;
+  color:#fff;font-family:'Space Mono',monospace;
+  font-size:14px;padding:14px 16px;
+  outline:none;letter-spacing:1px;margin-bottom:20px;
+  transition:all 0.2s;
+}
+.field-input:focus{
+  border-color:rgba(255,85,0,0.5);
+  background:rgba(255,85,0,0.04);
+  box-shadow:0 0 0 3px rgba(255,85,0,0.08);
+}
+
+.auth-cta{
+  width:100%;padding:18px;border:none;cursor:pointer;
+  background:#FF5500;color:#000;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:4px;text-transform:uppercase;
+  border-radius:8px;margin-bottom:16px;
+  position:relative;overflow:hidden;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+  transition:all 0.25s;
+}
+.auth-cta::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);pointer-events:none;}
+.auth-cta:hover{background:#ff6a1a;box-shadow:0 0 40px rgba(255,85,0,0.4);}
+
+.or-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.or-row span{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.18);letter-spacing:2px;}
+.or-row::before,.or-row::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.07);}
+
+.wallet-btn{
+  width:100%;padding:16px;cursor:pointer;
+  font-family:'Space Mono',monospace;font-size:11px;
+  letter-spacing:3px;text-transform:uppercase;
+  border-radius:8px;transition:all 0.2s;
+}
+.wallet-btn.glass{border-radius:8px;color:rgba(255,255,255,0.6);}
+.wallet-btn:hover{color:#fff !important;}
+
+.auth-note{
+  margin-top:28px;text-align:center;
+  font-family:'Space Mono',monospace;font-size:8px;
+  color:rgba(255,255,255,0.15);letter-spacing:2px;line-height:2.2;text-transform:uppercase;
+}
+
+/* ─── FOOTER ─── */
+footer{
+  padding:28px 48px;
+  border-top:1px solid rgba(255,255,255,0.05);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.footer-logo{font-size:18px;font-weight:800;letter-spacing:6px;}
+.footer-logo span{color:#FF5500;}
+.footer-r{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.18);letter-spacing:2px;}
+</style>
+</head>
+<body>
+
+<div class="design-label">VERIS — DESIGN v3 — LIQUID GLASS + BOLD TYPOGRAPHY</div>
+
+<!-- NAV -->
+<nav style="margin-top:28px;">
+  <div class="nav-inner glass">
+    <div class="nav-logo">VERI<span>S</span></div>
+    <div class="nav-links">
+      <a href="#">System</a>
+      <a href="#">Camera</a>
+      <a href="#">Protocol</a>
+      <button class="nav-cta">Enter Portal</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-radial"></div>
+  <div class="hero-vignette"></div>
+  <div class="hero-top-fade"></div>
+  <div class="hc hc-tl"></div><div class="hc hc-tr"></div>
+  <div class="hc hc-bl"></div><div class="hc hc-br"></div>
+  <div class="hud-txt hud-tl">VRS / CAM-01<br>SIGNAL ACTIVE<br>AUTH: PRIVY</div>
+  <div class="hud-txt hud-tr">CHAIN: SEPOLIA<br>BLOCK: 5,842,191<br>STATUS: ONLINE</div>
+
+  <div class="hero-content">
+    <div class="hero-badge glass-orange">
+      <div class="badge-dot"></div>
+      Decentralized Camera Protocol
+    </div>
+    <div class="hero-wordmark">VERIS</div>
+    <div class="hero-tagline">
+      A physical camera that <strong>sees, mints, and proves.</strong><br>
+      Every frame becomes an on-chain truth — permanent, tamper-proof, yours.
+    </div>
+    <div class="hero-actions">
+      <button class="btn-primary">Enter Owner Portal →</button>
+      <button class="btn-ghost glass">See The Camera ↓</button>
+    </div>
+    <div class="scroll-cue">
+      <div class="scroll-line"></div>
+      <span>SCROLL</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CAMERA REVEAL ══ -->
+<section class="camera-section">
+  <div class="section-badge">
+    <span>●</span> The Hardware
+  </div>
+  <div class="section-heading">THE VERIS <span class="dim">UNIT</span></div>
+  <p class="section-sub">Built on Raspberry Pi 4B + HQ Camera Module. A node, not just a camera.</p>
+
+  <!-- 3D Camera Stage (Three.js in real) -->
+  <div class="cam-stage">
+    <div class="cam-glow-bg"></div>
+    <div class="ann ann-top">
+      <div class="ann-line-h"></div>
+      Raspberry Pi 4B — 4GB RAM
+    </div>
+    <div class="pcb">
+      <div class="pcb-gpio"></div>
+      <div class="pcb-chip"></div>
+      <div class="pcb-ram"></div>
+      <div class="pcb-usb-stack">
+        <div class="pcb-usb"></div>
+        <div class="pcb-usb"></div>
+      </div>
+      <div class="pcb-led"></div>
+      <div class="ribbon"></div>
+    </div>
+    <div class="cam-mod">
+      <div class="lens-o">
+        <div class="lens-m">
+          <div class="lens-i"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ann ann-bot">
+      <div class="ann-line-h"></div>
+      HQ Camera Module v2 — 12MP
+    </div>
+  </div>
+
+  <div class="specs-row glass">
+    <div class="spec-box">
+      <div class="spec-num">12<span class="unit">MP</span></div>
+      <div class="spec-lbl">Sensor</div>
+    </div>
+    <div class="spec-box">
+      <div class="spec-num">4<span class="unit">K</span></div>
+      <div class="spec-lbl">Max Capture</div>
+    </div>
+    <div class="spec-box">
+      <div class="spec-num">~3<span class="unit">s</span></div>
+      <div class="spec-lbl">Mint Time</div>
+    </div>
+    <div class="spec-box">
+      <div class="spec-num" style="font-size:36px;">∞</div>
+      <div class="spec-lbl">On-Chain Life</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ HOW IT WORKS ══ -->
+<section style="background:#000;padding:0 80px;">
+  <div class="how-section">
+    <div class="section-badge" style="margin-bottom:20px;"><span>●</span> The Protocol</div>
+    <div class="big-section-title">
+      From shutter<br>
+      to <span class="accent">on-chain</span><br>
+      <span class="muted">truth.</span>
+    </div>
+    <div class="steps">
+      <div class="step glass">
+        <div class="step-n">01</div>
+        <div class="step-icon-wrap glass-orange">
+          <div class="step-icon-inner"></div>
+        </div>
+        <div class="step-title">Capture</div>
+        <div class="step-body">The Veris camera captures the moment. The shutter fires — no cloud, no middleman. Raw signal, straight to the edge processor.</div>
+        <div class="step-chip">RPi HQ Camera</div>
+      </div>
+      <div class="step glass">
+        <div class="step-n">02</div>
+        <div class="step-icon-wrap glass-orange">
+          <div class="step-icon-inner"></div>
+        </div>
+        <div class="step-title">Mint</div>
+        <div class="step-body">The image is pinned to IPFS via Filecoin and minted as an NFT on Ethereum. Tamper-proof. Timestamped. Permanent.</div>
+        <div class="step-chip">IPFS + Sepolia</div>
+      </div>
+      <div class="step glass">
+        <div class="step-n">03</div>
+        <div class="step-icon-wrap glass-orange">
+          <div class="step-icon-inner"></div>
+        </div>
+        <div class="step-title">Claim</div>
+        <div class="step-body">A QR code appears on-device. Anyone photographed scans it and claims their edition. You — the owner — manage everything here.</div>
+        <div class="step-chip">Privy + Wallet</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ AUTH GATE ══ -->
+<section class="auth-section">
+  <div class="auth-grid-bg"></div>
+  <div class="auth-radial"></div>
+  <div class="auth-vignette"></div>
+  <div class="ahc ahc-tl"></div><div class="ahc ahc-tr"></div>
+  <div class="ahc ahc-bl"></div><div class="ahc ahc-br"></div>
+
+  <div class="auth-card glass">
+    <div class="auth-pre">Owner Access</div>
+    <div class="auth-logo">VERIS</div>
+    <div class="auth-desc">Owner Portal</div>
+    <div class="auth-divider"></div>
+
+    <label class="field-label">Wallet Address</label>
+    <input class="field-input" type="text" placeholder="0x...">
+
+    <button class="auth-cta">Authenticate →</button>
+    <div class="or-row"><span>OR</span></div>
+    <button class="wallet-btn glass">Connect Wallet via Privy</button>
+
+    <div class="auth-note">
+      Restricted to Veris camera owners only<br>
+      Unauthorized access is logged on-chain
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">VERI<span>S</span></div>
+  <div class="footer-r">DECENTRALIZED CAMERA PROTOCOL — 2024</div>
+</footer>
+
+</body>
+</html>
