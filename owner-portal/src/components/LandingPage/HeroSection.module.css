@@ -1,31 +1,30 @@
 .hero {
   height: 100vh;
+  min-height: 700px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow: clip; /* clips bg layers but allows 3D canvas to breathe */
 }
 
 .radialGlow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 50% 90%, rgba(255, 85, 0, 0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse 80% 60% at 60% 90%, rgba(255, 85, 0, 0.12) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 55%, transparent 25%, rgba(0, 0, 0, 0.88) 80%);
+  background: radial-gradient(ellipse at 55% 55%, transparent 20%, rgba(0, 0, 0, 0.82) 80%);
   pointer-events: none;
 }
 
 .topFade {
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 35%;
+  height: 30%;
   background: linear-gradient(180deg, #000 0%, transparent 100%);
   pointer-events: none;
 }
@@ -33,7 +32,7 @@
 .bottomFade {
   position: absolute;
   bottom: 0; left: 0; right: 0;
-  height: 20%;
+  height: 18%;
   background: linear-gradient(0deg, #000 0%, transparent 100%);
   pointer-events: none;
 }
@@ -46,6 +45,7 @@
   border-style: solid;
   border-width: 0;
   pointer-events: none;
+  z-index: 4;
 }
 .tl { top: 32px; left: 40px; border-top-width: 2px; border-left-width: 2px; }
 .tr { top: 32px; right: 40px; border-top-width: 2px; border-right-width: 2px; }
@@ -56,26 +56,38 @@
   position: absolute;
   font-family: var(--font-mono);
   font-size: 9px;
-  color: rgba(255, 85, 0, 0.5);
+  color: rgba(255, 85, 0, 0.45);
   letter-spacing: 2px;
   line-height: 2.2;
   text-transform: uppercase;
   pointer-events: none;
+  z-index: 4;
 }
 .hudTL { top: 44px; left: 54px; }
 .hudTR { top: 44px; right: 54px; text-align: right; }
 
 .blink { animation: blink 1.2s step-end infinite; }
 
-.content {
+/* Two-column split */
+.split {
   position: relative;
   z-index: 2;
-  text-align: center;
-  max-width: 900px;
-  padding: 0 24px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 40px;
+  height: 100%;
+}
+
+/* Left column */
+.left {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .badge {
@@ -103,23 +115,23 @@
 }
 
 .wordmark {
-  font-size: clamp(100px, 14vw, 180px);
+  font-size: clamp(72px, 10vw, 140px);
   font-weight: 800;
   color: var(--white);
-  letter-spacing: clamp(16px, 3vw, 40px);
-  text-indent: clamp(16px, 3vw, 40px);
+  letter-spacing: clamp(12px, 2.5vw, 32px);
+  text-indent: clamp(12px, 2.5vw, 32px);
   line-height: 0.88;
-  margin-bottom: 32px;
-  text-shadow: 0 0 120px rgba(255, 85, 0, 0.1);
+  margin-bottom: 28px;
+  text-shadow: 0 0 120px rgba(255, 85, 0, 0.12);
 }
 
 .tagline {
-  font-size: clamp(17px, 2.2vw, 24px);
+  font-size: clamp(15px, 1.6vw, 20px);
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.6;
-  margin-bottom: 52px;
-  max-width: 540px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.7;
+  margin-bottom: 48px;
+  max-width: 440px;
 }
 .tagline strong {
   color: var(--white);
@@ -127,12 +139,7 @@
 }
 
 .actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 72px;
-  flex-wrap: wrap;
+  margin-bottom: 56px;
 }
 
 .btnPrimary {
@@ -167,28 +174,10 @@
   box-shadow: 0 0 40px rgba(255, 85, 0, 0.5);
 }
 
-.btnGhost {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: rgba(255, 255, 255, 0.65);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 17px 36px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.25s;
-  border: none;
-  background: none;
-}
-.btnGhost:hover { color: var(--white); }
-
 .scrollCue {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 .scrollCue span {
@@ -202,4 +191,13 @@
   width: 1px;
   height: 48px;
   background: linear-gradient(180deg, rgba(255, 85, 0, 0.7), transparent);
+}
+
+/* Right column — camera fills height */
+.right {
+  height: 100vh;
+  min-height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
