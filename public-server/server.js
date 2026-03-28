@@ -63,15 +63,10 @@ initializeServices();
 
 app.post('/create-claim', (req, res) => {
   try {
-    const { 
-      claim_id, 
-      cid, 
-      metadata_cid,
-      device_id,
-      camera_id,
-      image_hash,
-      signature,
-      device_address
+    const {
+      claim_id, cid, metadata_cid,
+      device_id, camera_id, image_hash, signature, device_address,
+      latitude, longitude, location_name
     } = req.body;
 
     if (!claim_id || !cid) {
@@ -82,15 +77,12 @@ app.post('/create-claim', (req, res) => {
     }
 
     const claim = dbService.createClaim(
-      claim_id, 
-      null, 
-      cid, 
-      metadata_cid || null,
-      device_id || null,
-      camera_id || null,
-      image_hash || null,
-      signature || null,
-      device_address || null
+      claim_id, null, cid,
+      metadata_cid || null, device_id || null, camera_id || null,
+      image_hash || null, signature || null, device_address || null,
+      latitude ? parseFloat(latitude) : null,
+      longitude ? parseFloat(longitude) : null,
+      location_name || null
     );
 
     if (!claim) {
@@ -232,8 +224,20 @@ app.get('/check-claim', (req, res) => {
       status: claim.status,
       recipient_address: claim.recipient_address || null,
       token_id: claim.token_id || null,
+      tx_hash: claim.tx_hash || null,
       cid: claim.cid,
-      created_at: claim.created_at
+      metadata_cid: claim.metadata_cid || null,
+      device_id: claim.device_id || null,
+      camera_id: claim.camera_id || null,
+      device_address: claim.device_address || null,
+      image_hash: claim.image_hash || null,
+      signature: claim.signature || null,
+      latitude: claim.latitude || null,
+      longitude: claim.longitude || null,
+      location_name: claim.location_name || null,
+      created_at: claim.created_at,
+      claimed_at: claim.claimed_at || null,
+      completed_at: claim.completed_at || null
     });
 
   } catch (error) {
@@ -539,11 +543,6 @@ app.get('/claim/:claim_id', (req, res) => {
         <div id="message"></div>
         <div class="claim-id">Claim ID: ${claim_id}</div>
         
-        <div style="margin-top: 20px; text-align: center; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-          <a href="/verify/${claim_id}" class="proof-link">
-            🔐 Check ZK Proof Verification
-          </a>
-        </div>
       </div>
 
       <script>

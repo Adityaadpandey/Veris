@@ -100,18 +100,13 @@ class DBService {
     `);
 
     
-    try {
-      this.db.exec(`ALTER TABLE claims ADD COLUMN edition_tx_hash TEXT`);
-    } catch (e) {
-    }
-    try {
-      this.db.exec(`ALTER TABLE claims ADD COLUMN edition_token_id TEXT`);
-    } catch (e) {
-    }
-    try {
-      this.db.exec(`ALTER TABLE claims ADD COLUMN error_message TEXT`);
-    } catch (e) {
-    }
+    const safeAlter = (sql) => { try { this.db.exec(sql); } catch (_) {} };
+    safeAlter(`ALTER TABLE claims ADD COLUMN edition_tx_hash TEXT`);
+    safeAlter(`ALTER TABLE claims ADD COLUMN edition_token_id TEXT`);
+    safeAlter(`ALTER TABLE claims ADD COLUMN error_message TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN latitude REAL`);
+    safeAlter(`ALTER TABLE images ADD COLUMN longitude REAL`);
+    safeAlter(`ALTER TABLE images ADD COLUMN location_name TEXT`);
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS devices (
@@ -134,20 +129,17 @@ class DBService {
 
   createImage(imageData) {
     const {
-      filename,
-      filepath,
-      image_hash,
-      camera_id,
-      device_address,
-      signature
+      filename, filepath, image_hash, camera_id,
+      device_address, signature,
+      latitude = null, longitude = null, location_name = null
     } = imageData;
 
     const stmt = this.db.prepare(`
-      INSERT INTO images (filename, filepath, image_hash, camera_id, device_address, signature, status)
-      VALUES (?, ?, ?, ?, ?, ?, 'saved')
+      INSERT INTO images (filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved')
     `);
 
-    const result = stmt.run(filename, filepath, image_hash, camera_id, device_address, signature);
+    const result = stmt.run(filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name);
     return this.getImageById(result.lastInsertRowid);
   }
 
