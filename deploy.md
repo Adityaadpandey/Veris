@@ -7,6 +7,7 @@ Full step-by-step deployment: smart contracts → cloud services → Raspberry P
 ## Prerequisites
 
 ### Dev Machine
+
 ```bash
 # Install Foundry (for smart contracts)
 curl -L https://foundry.paradigm.xyz | bash
@@ -15,14 +16,14 @@ foundryup
 
 ### Accounts & API Keys
 
-| Service | What you need | Where to get it |
-|---------|--------------|-----------------|
-| **Sepolia RPC** | RPC URL | [alchemy.com](https://alchemy.com) — free tier |
-| **Etherscan** | API key | [etherscan.io/apis](https://etherscan.io/apis) — free |
-| **Privy** | App ID + App Secret | [console.privy.io](https://console.privy.io) — free dev tier |
-| **Deployer wallet** | Private key + Sepolia ETH | Any wallet; ETH from [sepoliafaucet.com](https://sepoliafaucet.com) |
-| **Device wallet** | Separate private key | Generate fresh — this is the Pi's on-chain identity |
-| **Filecoin faucet** | Test USDFC tokens | [faucet.calibration.fildev.network](https://faucet.calibration.fildev.network) |
+| Service             | What you need             | Where to get it                                                                |
+| ------------------- | ------------------------- | ------------------------------------------------------------------------------ |
+| **Sepolia RPC**     | RPC URL                   | [alchemy.com](https://alchemy.com) — free tier                                 |
+| **Etherscan**       | API key                   | [etherscan.io/apis](https://etherscan.io/apis) — free                          |
+| **Privy**           | App ID + App Secret       | [console.privy.io](https://console.privy.io) — free dev tier                   |
+| **Deployer wallet** | Private key + Sepolia ETH | Any wallet; ETH from [sepoliafaucet.com](https://sepoliafaucet.com)            |
+| **Device wallet**   | Separate private key      | Generate fresh — this is the Pi's on-chain identity                            |
+| **Filecoin faucet** | Test USDFC tokens         | [faucet.calibration.fildev.network](https://faucet.calibration.fildev.network) |
 
 > **Device wallet** — generate with `cast wallet new` (Foundry) or any wallet app. Keep the private key safe — it goes on the Pi.
 
@@ -36,6 +37,7 @@ forge install
 ```
 
 Export your keys:
+
 ```bash
 export PRIVATE_KEY=0x<deployer-private-key>
 export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<your-alchemy-key>
@@ -43,6 +45,7 @@ export ETHERSCAN_API_KEY=<your-etherscan-key>
 ```
 
 Deploy `DeviceRegistry` + `LensMintERC1155`:
+
 ```bash
 forge script script/Deploy.s.sol \
   --rpc-url $SEPOLIA_RPC_URL \
@@ -54,6 +57,7 @@ forge script script/Deploy.s.sol \
 **Save the two contract addresses printed in the output.** You'll need them in every `.env`.
 
 Register the Raspberry Pi's device wallet on-chain:
+
 ```bash
 export DEVICE_ADDRESS=0x<device-wallet-address>
 forge script script/RegisterDevice.s.sol \
@@ -75,6 +79,7 @@ npm install
 ```
 
 Create `.env`:
+
 ```env
 PORT=5001
 NODE_ENV=production
@@ -102,6 +107,7 @@ npm install
 ```
 
 Create `.env` (Vite reads these at build time):
+
 ```env
 VITE_PRIVY_APP_ID=<your-privy-app-id>
 VITE_BACKEND_URL=http://<raspi-local-ip>:5000
@@ -110,6 +116,7 @@ VITE_BACKEND_URL=http://<raspi-local-ip>:5000
 > `VITE_BACKEND_URL` should be your Pi's local IP if users are on the same network, or a tunneled URL (e.g. ngrok) if they're remote.
 
 Build and deploy:
+
 ```bash
 npm run build
 # deploy the dist/ folder to Vercel/Netlify
@@ -133,7 +140,7 @@ sudo apt install -y git cmake libjpeg62-turbo-dev python3-pip python3-venv
 ### 4b. Node.js 18+
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 sudo npm install -g pm2
 ```
@@ -154,6 +161,7 @@ mkdir -p /home/pi/lensmint/captures
 ```
 
 Create `/home/pi/lensmint/hardware-web3-service/.env`:
+
 ```env
 PORT=5000
 NODE_ENV=production
@@ -192,6 +200,7 @@ bash install_dependencies.sh
 ```
 
 Set env vars (add to `~/.bashrc` for persistence):
+
 ```bash
 export BACKEND_URL=http://localhost:5000
 export CLAIM_SERVER_URL=https://your-app.onrender.com
@@ -229,6 +238,7 @@ pm2 startup   # run the command it prints
 ```
 
 Camera GUI (autostart on display):
+
 ```bash
 # Add to /etc/xdg/autostart/lensmint.desktop
 [Desktop Entry]
@@ -254,6 +264,7 @@ pm2 logs camera-stream
 ```
 
 Check the claim server from any browser:
+
 ```
 https://your-app.onrender.com/health
 ```
@@ -262,13 +273,13 @@ https://your-app.onrender.com/health
 
 ## Startup Order
 
-| Order | Service | Where | Port |
-|-------|---------|-------|------|
-| 1 | Claim server | Cloud (Render) | 5001 |
-| 2 | Owner portal | Cloud (Vercel) | 443 |
-| 3 | `lensmint-backend` | Pi (PM2) | 5000 |
-| 4 | `camera-stream` | Pi (PM2) | 8081 |
-| 5 | Camera app (Kivy GUI) | Pi (autostart) | — |
+| Order | Service               | Where          | Port |
+| ----- | --------------------- | -------------- | ---- |
+| 1     | Claim server          | Cloud (Render) | 5001 |
+| 2     | Owner portal          | Cloud (Vercel) | 443  |
+| 3     | `lensmint-backend`    | Pi (PM2)       | 5000 |
+| 4     | `camera-stream`       | Pi (PM2)       | 8081 |
+| 5     | Camera app (Kivy GUI) | Pi (autostart) | —    |
 
 ---
 
@@ -284,15 +295,15 @@ Before the Pi can upload images, fund the device wallet with test USDFC:
 
 ## Env Var Cheatsheet
 
-| Variable | Used in | Value |
-|----------|---------|-------|
-| `SEPOLIA_RPC_URL` | web3 service, contracts | Alchemy/Infura Sepolia URL |
-| `DEVICE_PRIVATE_KEY` | web3 service | Pi device wallet private key |
-| `DEVICE_REGISTRY_ADDRESS` | web3 service | From Step 1 deploy output |
-| `LENSMINT_ERC1155_ADDRESS` | web3 service | From Step 1 deploy output |
-| `PRIVY_APP_ID` | web3 service, owner portal | Privy dashboard |
-| `PRIVY_APP_SECRET` | web3 service | Privy dashboard |
-| `CLAIM_SERVER_URL` | web3 service, camera app | Your Render URL |
-| `OWNER_WALLET_ADDRESS` | web3 service | Wallet that receives original NFT |
-| `VITE_PRIVY_APP_ID` | owner portal | Same Privy App ID (Vite prefix) |
-| `VITE_BACKEND_URL` | owner portal | Pi's IP:5000 or tunnel URL |
+| Variable                   | Used in                    | Value                             |
+| -------------------------- | -------------------------- | --------------------------------- |
+| `SEPOLIA_RPC_URL`          | web3 service, contracts    | Alchemy/Infura Sepolia URL        |
+| `DEVICE_PRIVATE_KEY`       | web3 service               | Pi device wallet private key      |
+| `DEVICE_REGISTRY_ADDRESS`  | web3 service               | From Step 1 deploy output         |
+| `LENSMINT_ERC1155_ADDRESS` | web3 service               | From Step 1 deploy output         |
+| `PRIVY_APP_ID`             | web3 service, owner portal | Privy dashboard                   |
+| `PRIVY_APP_SECRET`         | web3 service               | Privy dashboard                   |
+| `CLAIM_SERVER_URL`         | web3 service, camera app   | Your Render URL                   |
+| `OWNER_WALLET_ADDRESS`     | web3 service               | Wallet that receives original NFT |
+| `VITE_PRIVY_APP_ID`        | owner portal               | Same Privy App ID (Vite prefix)   |
+| `VITE_BACKEND_URL`         | owner portal               | Pi's IP:5000 or tunnel URL        |
