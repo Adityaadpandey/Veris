@@ -2,8 +2,6 @@ import { usePrivy } from '@privy-io/react-auth'
 import AuthCanvas from './AuthCanvas'
 import styles from './AuthSection.module.css'
 
-const isConfigured = (import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id') !== 'your-privy-app-id'
-
 export default function AuthSection() {
   const { login } = usePrivy()
 
@@ -26,19 +24,13 @@ export default function AuthSection() {
 
         <div className={styles.divider}><span>OWNER ACCESS</span></div>
 
-        {!isConfigured && (
-          <div className={styles.warning}>
-            Configure VITE_PRIVY_APP_ID in your .env file to enable login
-          </div>
-        )}
-
-        <button className={styles.cta} onClick={login} disabled={!isConfigured}>
+        <button className={styles.cta} onClick={login}>
           Authenticate →
         </button>
 
         <div className={styles.orRow}><span>OR</span></div>
 
-        <button className={`${styles.walletBtn} glass`} onClick={login} disabled={!isConfigured}>
+        <button className={`${styles.walletBtn} glass`} onClick={login}>
           Connect Wallet via Privy
         </button>
 
