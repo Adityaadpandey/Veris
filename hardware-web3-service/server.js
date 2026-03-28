@@ -311,36 +311,11 @@ app.get('/api/balance', async (req, res) => {
     console.log(`   📊 ETH Required: ${minEthBalance} ETH`);
     console.log(`   ${hasEnoughEth ? '✅' : '⚠️'} ETH Status: ${hasEnoughEth ? 'Sufficient' : 'Low - needs funding'}`);
 
-    let usdfcBalance = null;
-    let hasEnoughUsdfc = false;
-    const minUsdfcBalance = parseFloat(process.env.MIN_USDFC_BALANCE || '0.1');
+    const lighthouseReady = filecoinService.initialized;
+    console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set LIGHTHOUSE_API_KEY)'}`);
 
-    if (filecoinService.initialized) {
-      try {
-        console.log('   🔍 Checking USDFC balance...');
-        const balanceUsdfc = await filecoinService.getUSDFCBalance();
-        hasEnoughUsdfc = balanceUsdfc >= minUsdfcBalance;
-        
-        console.log(`   📊 USDFC Balance: ${balanceUsdfc} USDFC`);
-        console.log(`   📊 USDFC Required: ${minUsdfcBalance} USDFC`);
-        console.log(`   ${hasEnoughUsdfc ? '✅' : '⚠️'} USDFC Status: ${hasEnoughUsdfc ? 'Sufficient' : 'Low - needs funding'}`);
-        
-        usdfcBalance = {
-          address: filecoinService.wallet.address,
-          balance: balanceUsdfc,
-          minBalance: minUsdfcBalance,
-          hasEnoughBalance: hasEnoughUsdfc,
-          needsFunding: !hasEnoughUsdfc
-        };
-      } catch (error) {
-        console.warn('   ⚠️ Could not get USDFC balance:', error.message);
-      }
-    } else {
-      console.log('   ⚠️ Filecoin service not initialized - skipping USDFC check');
-    }
-
-    const allFunded = hasEnoughEth && (usdfcBalance ? hasEnoughUsdfc : false);
-    const needsFunding = !hasEnoughEth || (usdfcBalance ? !hasEnoughUsdfc : true);
+    const allFunded = hasEnoughEth && lighthouseReady;
+    const needsFunding = !hasEnoughEth || !lighthouseReady;
     
     console.log(`   ${allFunded ? '✅' : '⚠️'} Overall Status: ${allFunded ? 'All balances sufficient' : 'Some balances need funding'}`);
     console.log(`💰 [BALANCE CHECK] Complete - Returning response\n`);
@@ -355,13 +330,10 @@ app.get('/api/balance', async (req, res) => {
         hasEnoughBalance: hasEnoughEth,
         needsFunding: !hasEnoughEth
       },
-      usdfc: usdfcBalance || {
-        balance: '0',
-        balanceUsdfc: 0,
-        minBalance: minUsdfcBalance,
-        hasEnoughBalance: false,
-        needsFunding: true,
-        available: false
+      lighthouse: {
+        initialized: lighthouseReady,
+        hasEnoughBalance: lighthouseReady,
+        needsFunding: !lighthouseReady
       },
       hasEnoughBalance: allFunded,
       needsFunding: needsFunding
@@ -693,7 +665,10 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       imageHash,
       signature,
       cameraId,
-      deviceAddress
+      deviceAddress,
+      latitude,
+      longitude,
+      locationName
     } = req.body;
 
     if (!imageHash || !signature || !cameraId || !deviceAddress) {
@@ -715,7 +690,10 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       image_hash: imageHash,
       camera_id: cameraId,
       device_address: deviceAddress,
-      signature
+      signature,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      location_name: locationName || null
     });
 
     console.log(`📸 Image uploaded: ${image.id} - ${filename}`);
@@ -767,14 +745,17 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
           const deviceId = deviceInfo?.device_id || 'unknown';
 
           const claimResult = await claimClient.createClaim(
-            claimId, 
+            claimId,
             filecoinCid,
             metadataCid,
             deviceId,
             cameraId,
             imageHash,
             signature,
-            deviceAddress
+            deviceAddress,
+            image.latitude,
+            image.longitude,
+            image.location_name
           );
           claimUrl = claimResult.claim_url;
 
@@ -955,6 +936,67 @@ app.get('/api/images/:id', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// Mint originals for images that were uploaded + have a claim but no token_id yet
+app.post('/api/mint-pending', async (req, res) => {
+  try {
+    const ownerWallet = process.env.OWNER_WALLET_ADDRESS;
+    if (!ownerWallet) {
+      return res.status(400).json({ success: false, error: 'OWNER_WALLET_ADDRESS not set in .env' });
+    }
+    if (!web3Service.initialized) {
+      return res.status(503).json({ success: false, error: 'Web3 service not initialized' });
+    }
+
+    // Find images that are uploaded (have filecoin_cid + claim_id) but no token_id
+    const uploaded = dbService.getImages('uploaded', 50).filter(img => img.claim_id && !img.token_id);
+    if (uploaded.length === 0) {
+      return res.json({ success: true, message: 'No images pending mint', processed: 0 });
+    }
+
+    const results = [];
+    for (const image of uploaded) {
+      const result = { id: image.id, claimId: image.claim_id, status: 'failed' };
+      try {
+        const mintResult = await web3Service.mintOriginal({
+          recipient: ownerWallet,
+          ipfsHash: image.filecoin_cid,
+          imageHash: image.image_hash,
+          signature: image.signature,
+          maxEditions: 0
+        });
+
+        dbService.updateImageStatus(image.id, 'minted', {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet
+        });
+
+        dbService.updateClaim(image.claim_id, {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet,
+          status: 'open'
+        });
+
+        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+
+        result.status = 'minted';
+        result.tokenId = mintResult.tokenId;
+        result.txHash = mintResult.txHash;
+        console.log(`✅ Minted token #${mintResult.tokenId} for image ${image.id}, claim ${image.claim_id}`);
+      } catch (err) {
+        result.error = err.message;
+        console.error(`❌ Mint failed for image ${image.id}: ${err.message}`);
+      }
+      results.push(result);
+    }
+
+    res.json({ success: true, processed: results.length, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
