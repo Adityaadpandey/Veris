@@ -41,7 +41,7 @@ from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics.texture import Texture
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
 from kivy.uix.screenmanager import ScreenManager, Screen
 import glob
 
@@ -160,6 +160,53 @@ class BatteryMonitor:
         except Exception as e:
             print(f"Battery read error: {e}")
             return 85
+
+class RoundedButton(Button):
+    """Button with rounded corners. Intercepts background_color changes and routes them to canvas."""
+
+    def __init__(self, btn_color=(0.15, 0.18, 0.25, 1), radius=12, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_color = (0, 0, 0, 0)
+        self._btn_color = list(btn_color)
+        self._btn_radius = radius
+        self._color_instr = None
+        self._rect_instr = None
+        self._intercepting = False
+        with self.canvas.before:
+            self._color_instr = Color(*self._btn_color)
+            self._rect_instr = RoundedRectangle(
+                pos=self.pos, size=self.size, radius=[self._btn_radius]
+            )
+        self.bind(pos=self._sync_rect, size=self._sync_rect)
+        self.fbind('background_color', self._on_background_color)
+
+    def _sync_rect(self, *args):
+        if self._rect_instr:
+            self._rect_instr.pos = self.pos
+            self._rect_instr.size = self.size
+
+    def _on_background_color(self, instance, value):
+        if self._intercepting:
+            return
+        if list(value) != [0, 0, 0, 0]:
+            self._btn_color = list(value)
+            if self._color_instr:
+                self._color_instr.rgba = self._btn_color
+            self._intercepting = True
+            self.background_color = (0, 0, 0, 0)
+            self._intercepting = False
+
+    def on_press(self):
+        if self._color_instr:
+            r, g, b, a = self._btn_color
+            self._color_instr.rgba = [r * 0.68, g * 0.68, b * 0.68, a]
+
+    def on_release(self):
+        if self._color_instr:
+            self._color_instr.rgba = self._btn_color
+
 
 class CameraController:
 
@@ -406,107 +453,153 @@ class CameraApp(App):
 
         self.root_layout = FloatLayout()
 
+        # ── Camera Preview (full screen) ─────────────────────────────
         self.preview_image = Image(
             size_hint=(1, 1),
             pos_hint={'x': 0, 'y': 0},
             allow_stretch=True,
-            keep_ratio=False  # Fill entire screen without black bars
+            keep_ratio=False
         )
         self.root_layout.add_widget(self.preview_image)
 
+        # ── Viewfinder corner brackets ───────────────────────────────
+        self._vf_widget = FloatLayout(
+            size_hint=(0.72, 0.65),
+            pos_hint={'center_x': 0.5, 'center_y': 0.53}
+        )
+        self._vf_widget.bind(pos=self._update_viewfinder, size=self._update_viewfinder)
+        self.root_layout.add_widget(self._vf_widget)
+
+        # ── Top HUD Bar ──────────────────────────────────────────────
         self.top_bar = BoxLayout(
             orientation='horizontal',
-            size_hint=(1, 0.06),  # Smaller top bar
+            size_hint=(1, 0.07),
             pos_hint={'x': 0, 'top': 1},
-            spacing=5,
-            padding=[3, 1]
+            spacing=8,
+            padding=[14, 4, 10, 4]
         )
+        with self.top_bar.canvas.before:
+            Color(0.03, 0.03, 0.05, 0.90)
+            self._top_bar_bg = Rectangle(pos=self.top_bar.pos, size=self.top_bar.size)
+        self.top_bar.bind(
+            pos=lambda w, v: setattr(self._top_bar_bg, 'pos', v),
+            size=lambda w, v: setattr(self._top_bar_bg, 'size', v)
+        )
+
+        _brand = Label(
+            text='[b][color=00D4C0]◉[/color]  VERIS[/b]',
+            markup=True,
+            size_hint=(0.22, 1),
+            halign='left', valign='middle',
+            font_size='13sp',
+            color=(0.90, 0.90, 0.94, 1)
+        )
+        _brand.bind(size=_brand.setter('text_size'))
 
         self.datetime_label = Label(
             text='',
-            size_hint=(0.6, 1),
-            halign='left',
-            valign='middle',
-            font_size='10sp',
-            color=(1, 1, 1, 1)
+            size_hint=(0.50, 1),
+            halign='center', valign='middle',
+            font_size='12sp',
+            color=(0.52, 0.54, 0.60, 1)
         )
         self.datetime_label.bind(size=self.datetime_label.setter('text_size'))
 
         self.battery_label = Label(
-            text='Battery: ---%',
-            size_hint=(0.32, 1),
-            halign='right',
-            valign='middle',
-            font_size='11sp',
-            color=(1, 1, 1, 1),
-            bold=True
+            text='---%',
+            size_hint=(0.20, 1),
+            halign='right', valign='middle',
+            font_size='12sp',
+            bold=True,
+            color=(0.20, 0.85, 0.55, 1)
         )
         self.battery_label.bind(size=self.battery_label.setter('text_size'))
 
-        self.fund_button = Button(
-            text='💰',
+        self.fund_button = RoundedButton(
+            text='⚡',
             font_size='14sp',
-            size_hint=(0.08, 1),
-            background_color=(0.2, 0.5, 0.8, 0.7),
-            background_normal='',
-            color=(1, 1, 1, 1),
+            size_hint=(0.08, 0.78),
+            btn_color=(0.10, 0.28, 0.50, 1),
+            radius=8,
+            color=(0.70, 0.88, 1.0, 1),
             bold=True
         )
         self.fund_button.bind(on_press=self._show_funding_qr_button)
 
+        self.top_bar.add_widget(_brand)
         self.top_bar.add_widget(self.datetime_label)
         self.top_bar.add_widget(self.battery_label)
         self.top_bar.add_widget(self.fund_button)
         self.root_layout.add_widget(self.top_bar)
 
+        # ── Bottom Control Panel ─────────────────────────────────────
         self.control_panel = BoxLayout(
             orientation='horizontal',
-            size_hint=(1, 0.25),  # Reduced to 25% for cleaner look
+            size_hint=(1, 0.19),
             pos_hint={'x': 0, 'y': 0},
-            spacing=6,
-            padding=[6, 6]
+            spacing=10,
+            padding=[14, 10, 14, 10]
+        )
+        with self.control_panel.canvas.before:
+            Color(0.03, 0.03, 0.05, 0.92)
+            self._ctrl_bg = Rectangle(pos=self.control_panel.pos, size=self.control_panel.size)
+        self.control_panel.bind(
+            pos=lambda w, v: setattr(self._ctrl_bg, 'pos', v),
+            size=lambda w, v: setattr(self._ctrl_bg, 'size', v)
         )
 
-        self.photo_button = Button(
-            text='PHOTO',
-            font_size='16sp',
-            size_hint=(0.22, 1),
-            background_color=(0.2, 0.6, 0.2, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
+        self.gallery_button = RoundedButton(
+            text='GALLERY',
+            font_size='12sp',
+            size_hint=(0.15, 1),
+            btn_color=(0.11, 0.13, 0.21, 1),
+            radius=12,
+            color=(0.62, 0.70, 0.92, 1),
             bold=True
         )
-        self.photo_button.bind(on_press=self.take_photo)
+        self.gallery_button.bind(on_press=self.open_gallery)
 
-        self.video_button = Button(
+        self.video_button = RoundedButton(
             text='VIDEO',
-            font_size='16sp',
-            size_hint=(0.22, 1),
-            background_color=(0.6, 0.2, 0.2, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
+            font_size='14sp',
+            size_hint=(0.17, 1),
+            btn_color=(0.35, 0.09, 0.09, 1),
+            radius=12,
+            color=(1.0, 0.68, 0.68, 1),
             bold=True
         )
         self.video_button.bind(on_press=self.toggle_recording)
 
-        zoom_layout = BoxLayout(orientation='vertical', size_hint=(0.18, 1), spacing=4)
+        # Central shutter button
+        self.photo_button = RoundedButton(
+            text='◎',
+            font_size='40sp',
+            size_hint=(0.28, 1),
+            btn_color=(0.85, 0.85, 0.90, 1),
+            radius=14,
+            color=(0.05, 0.05, 0.08, 1),
+            bold=False
+        )
+        self.photo_button.bind(on_press=self.take_photo)
 
-        self.zoom_in_button = Button(
-            text='ZOOM +',
-            font_size='14sp',
-            background_color=(0.3, 0.3, 0.6, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
+        zoom_layout = BoxLayout(orientation='vertical', size_hint=(0.14, 1), spacing=6)
+
+        self.zoom_in_button = RoundedButton(
+            text='+ ZOOM',
+            font_size='12sp',
+            btn_color=(0.12, 0.14, 0.26, 1),
+            radius=10,
+            color=(0.62, 0.70, 0.96, 1),
             bold=True
         )
         self.zoom_in_button.bind(on_press=self.zoom_in)
 
-        self.zoom_out_button = Button(
-            text='ZOOM -',
-            font_size='14sp',
-            background_color=(0.3, 0.3, 0.6, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
+        self.zoom_out_button = RoundedButton(
+            text='− ZOOM',
+            font_size='12sp',
+            btn_color=(0.12, 0.14, 0.26, 1),
+            radius=10,
+            color=(0.62, 0.70, 0.96, 1),
             bold=True
         )
         self.zoom_out_button.bind(on_press=self.zoom_out)
@@ -514,115 +607,131 @@ class CameraApp(App):
         zoom_layout.add_widget(self.zoom_in_button)
         zoom_layout.add_widget(self.zoom_out_button)
 
-        self.gallery_button = Button(
-            text='GALLERY',
-            font_size='16sp',
-            size_hint=(0.18, 1),
-            background_color=(0.5, 0.3, 0.7, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True
-        )
-        self.gallery_button.bind(on_press=self.open_gallery)
-
-        self.quit_button = Button(
-            text='QUIT',
-            font_size='16sp',
-            size_hint=(0.20, 1),
-            background_color=(0.6, 0.2, 0.2, 0.8),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True
+        self.quit_button = RoundedButton(
+            text='⏻',
+            font_size='22sp',
+            size_hint=(0.10, 1),
+            btn_color=(0.20, 0.06, 0.06, 0.88),
+            radius=12,
+            color=(0.88, 0.42, 0.42, 1),
         )
         self.quit_button.bind(on_press=self.quit_app)
 
-        self.control_panel.add_widget(self.photo_button)
-        self.control_panel.add_widget(self.video_button)
-        self.control_panel.add_widget(zoom_layout)
         self.control_panel.add_widget(self.gallery_button)
+        self.control_panel.add_widget(self.video_button)
+        self.control_panel.add_widget(self.photo_button)
+        self.control_panel.add_widget(zoom_layout)
         self.control_panel.add_widget(self.quit_button)
-
         self.root_layout.add_widget(self.control_panel)
 
+        # ── Status Toast ─────────────────────────────────────────────
         self.status_label = Label(
             text='',
             size_hint=(None, None),
-            size=(200, 40),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            font_size='16sp',
+            size=(280, 44),
+            pos_hint={'center_x': 0.5, 'y': 0.21},
+            font_size='15sp',
             bold=True,
             color=(1, 1, 1, 1)
+        )
+        with self.status_label.canvas.before:
+            Color(0.0, 0.0, 0.0, 0.58)
+            self._status_bg = RoundedRectangle(
+                pos=self.status_label.pos,
+                size=self.status_label.size,
+                radius=[22]
+            )
+        self.status_label.bind(
+            pos=lambda w, v: setattr(self._status_bg, 'pos', v),
+            size=lambda w, v: setattr(self._status_bg, 'size', v)
         )
         self.root_layout.add_widget(self.status_label)
 
+        # ── QR Overlay ───────────────────────────────────────────────
         self.qr_overlay = FloatLayout()
         self.qr_overlay.opacity = 0
-        
+
         with self.qr_overlay.canvas.before:
-            Color(0, 0, 0, 0.8)
+            Color(0, 0, 0, 0.84)
             self.qr_bg = Rectangle(size=Window.size, pos=(0, 0))
-        
-        qr_container = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.6, 0.7),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            spacing=10,
-            padding=20
+
+        qr_card = FloatLayout(
+            size_hint=(0.52, 0.78),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}
         )
-        
+        with qr_card.canvas.before:
+            Color(0.08, 0.08, 0.11, 1)
+            self._qr_card_bg = RoundedRectangle(
+                pos=qr_card.pos, size=qr_card.size, radius=[18]
+            )
+        qr_card.bind(
+            pos=lambda w, v: setattr(self._qr_card_bg, 'pos', v),
+            size=lambda w, v: setattr(self._qr_card_bg, 'size', v)
+        )
+
+        qr_inner = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.86, 0.88),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            spacing=10
+        )
+
         self.qr_title = Label(
-            text='📱 Scan QR Code',
+            text='Scan QR Code',
             font_size='20sp',
             bold=True,
-            color=(1, 1, 1, 1),
-            size_hint=(1, 0.1)
+            color=(0.90, 0.90, 0.95, 1),
+            size_hint=(1, 0.10)
         )
-        
+
         self.qr_image = Image(
-            size_hint=(1, 0.7),
+            size_hint=(1, 0.68),
             allow_stretch=True,
             keep_ratio=True
         )
-        
+
         self.qr_status = Label(
             text='Waiting for wallet address...',
-            font_size='14sp',
-            color=(1, 1, 1, 1),
-            size_hint=(1, 0.1),
-            halign='center'
+            font_size='13sp',
+            color=(0.55, 0.58, 0.68, 1),
+            size_hint=(1, 0.12),
+            halign='center', valign='middle'
         )
         self.qr_status.bind(size=self.qr_status.setter('text_size'))
-        
-        qr_close = Button(
+
+        qr_close = RoundedButton(
             text='Close',
-            font_size='16sp',
-            size_hint=(1, 0.1),
-            background_color=(0.6, 0.2, 0.2, 1),
-            background_normal='',
-            color=(1, 1, 1, 1)
+            font_size='15sp',
+            size_hint=(1, 0.10),
+            btn_color=(0.22, 0.08, 0.08, 1),
+            radius=10,
+            color=(1, 0.65, 0.65, 1),
+            bold=True
         )
         qr_close.bind(on_press=self.close_qr_overlay)
-        
-        qr_container.add_widget(self.qr_title)
-        qr_container.add_widget(self.qr_image)
-        qr_container.add_widget(self.qr_status)
-        qr_container.add_widget(qr_close)
-        
-        self.qr_overlay.add_widget(qr_container)
+
+        qr_inner.add_widget(self.qr_title)
+        qr_inner.add_widget(self.qr_image)
+        qr_inner.add_widget(self.qr_status)
+        qr_inner.add_widget(qr_close)
+
+        qr_card.add_widget(qr_inner)
+        self.qr_overlay.add_widget(qr_card)
         self.root_layout.add_widget(self.qr_overlay)
-        
+
+        # ── State Init ────────────────────────────────────────────────
         self.active_claims = {}
         self.cleared_mint_status = set()
 
         self.camera = CameraController()
         self.battery_monitor = BatteryMonitor()
-        
+
         self.hardware_identity = None
         camera_id = None
-        
+
         self.camera_ready = False
         self.balance_check_passed = False
-        
+
         if CAMERA_AVAILABLE:
             try:
                 if self.camera.initialize():
@@ -641,30 +750,51 @@ class CameraApp(App):
         else:
             self.status_label.text = 'Demo Mode'
             self.show_error("Picamera2 not installed")
-        
+
         if HARDWARE_IDENTITY_AVAILABLE:
             try:
                 self.hardware_identity = get_hardware_identity(camera_id=camera_id)
-                
+
                 # Automatically export key for backend to use
                 self._export_device_key()
-                
+
                 # Print all hardware information on initialization
                 self._print_hardware_info()
             except Exception as e:
                 print(f"Warning: Could not initialize hardware identity: {e}")
                 self.hardware_identity = None
-        
+
         # Check balance and show funding QR if needed
         if self.hardware_identity:
             Clock.schedule_once(lambda dt: self._check_balance_and_setup(), 1)
-        
+
         # Schedule UI updates
         Clock.schedule_interval(self.update_datetime, 1.0)
         Clock.schedule_interval(self.update_battery, 5.0)
 
         return self.root_layout
     
+    def _update_viewfinder(self, widget, value):
+        """Draw professional viewfinder corner brackets and center mark."""
+        x, y = widget.pos
+        w, h = widget.size
+        bl = 28   # bracket arm length
+        lw = 2.0  # line width
+        widget.canvas.clear()
+        with widget.canvas:
+            Color(1, 1, 1, 0.30)
+            # Bottom-left
+            Line(points=[x, y + bl, x, y, x + bl, y], width=lw, cap='none', joint='miter')
+            # Bottom-right
+            Line(points=[x + w - bl, y, x + w, y, x + w, y + bl], width=lw, cap='none', joint='miter')
+            # Top-left
+            Line(points=[x, y + h - bl, x, y + h, x + bl, y + h], width=lw, cap='none', joint='miter')
+            # Top-right
+            Line(points=[x + w - bl, y + h, x + w, y + h, x + w, y + h - bl], width=lw, cap='none', joint='miter')
+            # Center crosshair dot
+            Color(1, 1, 1, 0.18)
+            Line(circle=(x + w / 2, y + h / 2, 5), width=1.5)
+
     def _check_balance_and_setup(self):
         """Check wallet balance and setup camera stream if sufficient."""
         def check_thread():
@@ -1512,95 +1642,79 @@ class CameraApp(App):
 
     def open_gallery(self, instance):
         """Open gallery view to browse photos and videos."""
-        # Create gallery overlay
         self.gallery_overlay = FloatLayout()
 
-        # Dark background
         with self.gallery_overlay.canvas.before:
-            Color(0, 0, 0, 0.95)
+            Color(0.03, 0.03, 0.05, 0.97)
             self.gallery_bg = Rectangle(size=Window.size, pos=(0, 0))
 
-        # Gallery container
         gallery_container = BoxLayout(
             orientation='vertical',
-            size_hint=(0.98, 0.98),
+            size_hint=(0.96, 0.96),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            spacing=15,
-            padding=15
+            spacing=12,
+            padding=[12, 12]
         )
 
-        # Top bar with title and buttons
         top_bar = BoxLayout(
-            orientation='horizontal', 
-            size_hint=(1, 0.12), 
-            spacing=15,
-            padding=[10, 5]
+            orientation='horizontal',
+            size_hint=(1, 0.11),
+            spacing=12,
+            padding=[0, 4]
         )
 
         title = Label(
-            text='📷 Gallery',
-            font_size='26sp',
-            size_hint=(0.5, 1),
-            halign='left',
-            valign='middle',
-            color=(1, 1, 1, 1),
-            bold=True,
-            text_size=(None, None)
+            text='[b][color=00D4C0]◫[/color]  GALLERY[/b]',
+            markup=True,
+            font_size='22sp',
+            size_hint=(0.55, 1),
+            halign='left', valign='middle',
+            color=(0.90, 0.90, 0.94, 1),
         )
         title.bind(size=title.setter('text_size'))
 
-        # Quit Gallery button - goes back to camera
-        quit_gallery_button = Button(
-            text='📸 Camera',
-            font_size='18sp',
-            size_hint=(0.3, 1),
-            background_color=(0.2, 0.7, 0.3, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True,
-            text_size=(None, None),
-            halign='center',
-            valign='middle'
+        quit_gallery_button = RoundedButton(
+            text='◉  CAMERA',
+            font_size='15sp',
+            size_hint=(0.30, 0.88),
+            btn_color=(0.09, 0.26, 0.16, 1),
+            radius=10,
+            color=(0.50, 0.92, 0.62, 1),
+            bold=True
         )
-        quit_gallery_button.bind(size=quit_gallery_button.setter('text_size'))
         quit_gallery_button.bind(on_press=self.quit_gallery)
 
-        # Close button
-        close_button = Button(
-            text='✕ Close',
+        close_button = RoundedButton(
+            text='✕',
             font_size='18sp',
-            size_hint=(0.2, 1),
-            background_color=(0.8, 0.2, 0.2, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True,
-            text_size=(None, None),
-            halign='center',
-            valign='middle'
+            size_hint=(0.12, 0.88),
+            btn_color=(0.22, 0.07, 0.07, 1),
+            radius=10,
+            color=(0.90, 0.48, 0.48, 1),
+            bold=True
         )
-        close_button.bind(size=close_button.setter('text_size'))
         close_button.bind(on_press=self.close_gallery)
 
         top_bar.add_widget(title)
         top_bar.add_widget(quit_gallery_button)
         top_bar.add_widget(close_button)
 
-        # Scrollable grid of thumbnails
         self.gallery_scroll_view = ScrollView(
-            size_hint=(1, 0.88),
-            bar_width=10,
-            scroll_type=['bars', 'content']
+            size_hint=(1, 0.89),
+            bar_width=5,
+            scroll_type=['bars', 'content'],
+            bar_color=(0.28, 0.32, 0.52, 0.9),
+            bar_inactive_color=(0.18, 0.20, 0.32, 0.5)
         )
 
         self.gallery_grid = GridLayout(
             cols=3,
-            spacing=15,
+            spacing=12,
             size_hint_y=None,
-            padding=15
+            padding=[0, 6]
         )
         self.gallery_grid.bind(minimum_height=self.gallery_grid.setter('height'))
 
-        # Load media files
         self.load_gallery_items()
 
         self.gallery_scroll_view.add_widget(self.gallery_grid)
@@ -1629,86 +1743,72 @@ class CameraApp(App):
         all_media.sort(key=lambda x: x[1], reverse=True)
 
         if not all_media:
-            # No files found - better styled message
             no_files_label = Label(
-                text='📷\n\nNo photos or videos yet\n\nTake some photos to see them here!',
-                font_size='24sp',
-                halign='center',
-                valign='middle',
-                color=(0.8, 0.8, 0.8, 1),
+                text='[b][color=00D4C0]◎[/color][/b]\n\nNo captures yet\nTake a photo to get started',
+                markup=True,
+                font_size='20sp',
+                halign='center', valign='middle',
+                color=(0.35, 0.38, 0.48, 1),
                 size_hint_y=None,
-                height=300
+                height=320
             )
             no_files_label.bind(size=no_files_label.setter('text_size'))
             self.gallery_grid.add_widget(no_files_label)
             return
 
-        # Add media items
         for media_type, filepath in all_media:
             item_layout = BoxLayout(
                 orientation='vertical',
                 size_hint_y=None,
-                height=250,
-                spacing=8
+                height=240,
+                spacing=6
             )
 
-            # Thumbnail button with better styling
             if media_type == 'photo':
                 thumb_button = Button(
                     background_normal=filepath,
                     background_down=filepath,
-                    size_hint=(1, 0.88),
+                    size_hint=(1, 0.86),
                     border=(0, 0, 0, 0)
                 )
-                thumb_button.filepath = filepath
-                thumb_button.media_type = media_type
-                thumb_button.bind(on_press=self.view_media)
-
-                # Label with better formatting
-                filename = os.path.basename(filepath)
-                # Extract date and time from filename
-                try:
-                    date_part = filename[6:14]  # YYYYMMDD
-                    time_part = filename[15:21]  # HHMMSS
-                    label_text = f'📷 {date_part} {time_part}'
-                except:
-                    label_text = f'📷 {filename[6:21]}'
             else:
-                # Video placeholder with better styling
-                thumb_button = Button(
-                    text='▶️\nVIDEO',
-                    font_size='28sp',
-                    background_color=(0.15, 0.15, 0.25, 1),
-                    background_normal='',
-                    size_hint=(1, 0.88),
-                    color=(1, 1, 1, 1),
+                thumb_button = RoundedButton(
+                    text='▶\nVIDEO',
+                    font_size='26sp',
+                    btn_color=(0.10, 0.10, 0.18, 1),
+                    radius=8,
+                    size_hint=(1, 0.86),
+                    color=(0.52, 0.60, 0.90, 1),
                     bold=True
                 )
-                thumb_button.filepath = filepath
-                thumb_button.media_type = media_type
-                thumb_button.bind(on_press=self.view_media)
 
-                filename = os.path.basename(filepath)
-                try:
-                    date_part = filename[6:14]
-                    time_part = filename[15:21]
-                    label_text = f'🎥 {date_part} {time_part}'
-                except:
-                    label_text = f'🎥 {filename[6:21]}'
+            thumb_button.filepath = filepath
+            thumb_button.media_type = media_type
+            thumb_button.bind(on_press=self.view_media)
+
+            filename = os.path.basename(filepath)
+            try:
+                date_part = filename[6:14]
+                time_part = filename[15:21]
+                icon = '◷' if media_type == 'photo' else '▶'
+                label_text = (
+                    f'{icon}  {date_part[:4]}-{date_part[4:6]}-{date_part[6:]}'
+                    f'  {time_part[:2]}:{time_part[2:4]}'
+                )
+            except Exception:
+                label_text = filename[6:21]
 
             label = Label(
                 text=label_text,
-                font_size='14sp',
-                size_hint=(1, 0.12),
-                color=(1, 1, 1, 1),
-                halign='center',
-                valign='middle'
+                font_size='11sp',
+                size_hint=(1, 0.14),
+                color=(0.40, 0.44, 0.56, 1),
+                halign='center', valign='middle'
             )
             label.bind(size=label.setter('text_size'))
 
             item_layout.add_widget(thumb_button)
             item_layout.add_widget(label)
-
             self.gallery_grid.add_widget(item_layout)
 
     def view_media(self, instance):
@@ -1716,7 +1816,6 @@ class CameraApp(App):
         filepath = instance.filepath
         media_type = instance.media_type
 
-        # Create full screen viewer - add to gallery overlay, not root
         self.viewer_overlay = FloatLayout()
 
         with self.viewer_overlay.canvas.before:
@@ -1729,75 +1828,72 @@ class CameraApp(App):
             spacing=0
         )
 
-        # Media display
         if media_type == 'photo':
             media_widget = Image(
                 source=filepath,
                 allow_stretch=True,
                 keep_ratio=True,
-                size_hint=(1, 0.92)
+                size_hint=(1, 0.91)
             )
-            # Prevent touch events from causing navigation
-            media_widget.bind(on_touch_down=lambda w, t: True)  # Consume touch events
+            media_widget.bind(on_touch_down=lambda w, t: True)
         else:
-            # Simple video info display with better styling
             media_widget = BoxLayout(
                 orientation='vertical',
-                size_hint=(1, 0.92),
+                size_hint=(1, 0.91),
                 padding=50
             )
             video_info = Label(
-                text=f'🎥\n\nVideo File\n\n{os.path.basename(filepath)}\n\n✓ Video recorded successfully!\n✓ File saved to captures folder',
-                font_size='22sp',
-                halign='center',
-                valign='middle',
-                color=(1, 1, 1, 1),
-                bold=True
+                text=(
+                    f'[b][color=00D4C0]▶[/color][/b]\n\n'
+                    f'Video File\n\n{os.path.basename(filepath)}\n\n'
+                    f'✓ Recorded successfully'
+                ),
+                markup=True,
+                font_size='20sp',
+                halign='center', valign='middle',
+                color=(0.72, 0.75, 0.85, 1),
             )
             video_info.bind(size=video_info.setter('text_size'))
             media_widget.add_widget(video_info)
 
-        # Bottom controls with better styling
         controls = BoxLayout(
             orientation='horizontal',
-            size_hint=(1, 0.1),
-            spacing=15,
-            padding=[15, 10]
+            size_hint=(1, 0.09),
+            spacing=12,
+            padding=[14, 8]
+        )
+        with controls.canvas.before:
+            Color(0.03, 0.03, 0.05, 0.95)
+            self._viewer_ctrl_bg = Rectangle(pos=controls.pos, size=controls.size)
+        controls.bind(
+            pos=lambda w, v: setattr(self._viewer_ctrl_bg, 'pos', v),
+            size=lambda w, v: setattr(self._viewer_ctrl_bg, 'size', v)
         )
 
-        back_button = Button(
-            text='← Gallery',
-            font_size='18sp',
-            size_hint=(0.3, 1),
-            background_color=(0.3, 0.5, 0.7, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True,
-            text_size=(None, None),
-            halign='center',
-            valign='middle'
+        back_button = RoundedButton(
+            text='← GALLERY',
+            font_size='15sp',
+            size_hint=(0.30, 1),
+            btn_color=(0.11, 0.14, 0.24, 1),
+            radius=10,
+            color=(0.58, 0.70, 0.96, 1),
+            bold=True
         )
-        back_button.bind(size=back_button.setter('text_size'))
-        # Use a lambda to ensure the event is handled and doesn't propagate
         back_button.bind(on_press=lambda btn: self.close_viewer(btn))
 
-        delete_button = Button(
-            text='🗑 Delete',
-            font_size='18sp',
-            size_hint=(0.3, 1),
-            background_color=(0.8, 0.2, 0.2, 1),
-            background_normal='',
-            color=(1, 1, 1, 1),
-            bold=True,
-            text_size=(None, None),
-            halign='center',
-            valign='middle'
+        delete_button = RoundedButton(
+            text='⌫  DELETE',
+            font_size='15sp',
+            size_hint=(0.28, 1),
+            btn_color=(0.28, 0.07, 0.07, 1),
+            radius=10,
+            color=(0.95, 0.48, 0.48, 1),
+            bold=True
         )
-        delete_button.bind(size=delete_button.setter('text_size'))
         delete_button.filepath = filepath
         delete_button.bind(on_press=self.delete_media)
 
-        spacer = Label(size_hint=(0.4, 1))
+        spacer = Label(size_hint=(0.42, 1))
 
         controls.add_widget(back_button)
         controls.add_widget(spacer)
@@ -1807,15 +1903,10 @@ class CameraApp(App):
         viewer_container.add_widget(controls)
 
         self.viewer_overlay.add_widget(viewer_container)
-        # Add viewer to gallery overlay so gallery stays underneath
-        # This ensures when we close viewer, gallery is still there
         if hasattr(self, 'gallery_overlay'):
-            # Make sure gallery overlay is visible first
             self.gallery_overlay.opacity = 1
-            # Add viewer on top of gallery
             self.gallery_overlay.add_widget(self.viewer_overlay)
         else:
-            # Fallback to root if gallery not available
             self.root_layout.add_widget(self.viewer_overlay)
 
     def close_viewer(self, instance):
