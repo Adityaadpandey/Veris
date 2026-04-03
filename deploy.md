@@ -1,4 +1,4 @@
-# LensMint Deployment Guide
+# Veris Deployment Guide
 
 Full step-by-step deployment: smart contracts → cloud services → Raspberry Pi.
 
@@ -16,6 +16,7 @@ foundryup
 
 ### Accounts & API Keys
 
+
 | Service             | What you need             | Where to get it                                                                |
 | ------------------- | ------------------------- | ------------------------------------------------------------------------------ |
 | **Sepolia RPC**     | RPC URL                   | [alchemy.com](https://alchemy.com) — free tier                                 |
@@ -25,6 +26,7 @@ foundryup
 | **Device wallet**   | Separate private key      | Generate fresh — this is the Pi's on-chain identity                            |
 | **Filecoin faucet** | Test USDFC tokens         | [faucet.calibration.fildev.network](https://faucet.calibration.fildev.network) |
 
+
 > **Device wallet** — generate with `cast wallet new` (Foundry) or any wallet app. Keep the private key safe — it goes on the Pi.
 
 ---
@@ -32,7 +34,7 @@ foundryup
 ## Step 1: Deploy Smart Contracts
 
 ```bash
-cd LensMint/contracts
+cd Veris/contracts
 forge install
 ```
 
@@ -44,7 +46,7 @@ export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<your-alchemy-key>
 export ETHERSCAN_API_KEY=<your-etherscan-key>
 ```
 
-Deploy `DeviceRegistry` + `LensMintERC1155`:
+Deploy `DeviceRegistry` + `VerisERC1155`:
 
 ```bash
 forge script script/Deploy.s.sol \
@@ -74,7 +76,7 @@ The claim server must be **publicly reachable** — both the Pi and users' phone
 Deploy to [Render](https://render.com) (free tier) or any VPS.
 
 ```bash
-cd LensMint/lensmint-public-server
+cd Veris/public-server
 npm install
 ```
 
@@ -86,14 +88,14 @@ NODE_ENV=production
 CLAIM_SERVER_URL=https://your-app.onrender.com
 FRONTEND_URL=https://your-owner-portal.vercel.app
 CORS_ORIGIN=*
-DATABASE_PATH=/var/data/lensmint-claims.db
+DATABASE_PATH=/var/data/Veris-claims.db
 ```
 
 > On Render: set env vars in the dashboard, set `DATABASE_PATH` to a persistent disk path.
 
 Start command: `npm run start`
 
-Note your public URL — e.g. `https://lensmint.onrender.com`. This is your `CLAIM_SERVER_URL`.
+Note your public URL — e.g. `https://Veris.onrender.com`. This is your `CLAIM_SERVER_URL`.
 
 ---
 
@@ -102,7 +104,7 @@ Note your public URL — e.g. `https://lensmint.onrender.com`. This is your `CLA
 Deploy to [Vercel](https://vercel.com) (free) or Netlify.
 
 ```bash
-cd LensMint/owner-portal
+cd Veris/owner-portal
 npm install
 ```
 
@@ -137,7 +139,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y git cmake libjpeg62-turbo-dev python3-pip python3-venv
 ```
 
-### 4b. Node.js 18+
+### 4b. Node.js 20
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -148,26 +150,26 @@ sudo npm install -g pm2
 ### 4c. Copy the project
 
 ```bash
-git clone https://github.com/<your-repo>/LensMint.git /home/pi/lensmint
+git clone https://github.com/<your-repo>/Veris.git /home/pi/Veris
 # or scp/rsync from your dev machine
 ```
 
 ### 4d. Configure `hardware-web3-service`
 
 ```bash
-cd /home/pi/lensmint/hardware-web3-service
+cd /home/pi/Veris/hardware-web3-service
 npm install
-mkdir -p /home/pi/lensmint/captures
+mkdir -p /home/pi/Veris/captures
 ```
 
-Create `/home/pi/lensmint/hardware-web3-service/.env`:
+Create `/home/pi/Veris/hardware-web3-service/.env`:
 
 ```env
 PORT=5000
 NODE_ENV=production
-CAPTURES_PATH=/home/pi/lensmint/captures
-DATABASE_PATH=/home/pi/lensmint/database.db
-DEPLOYMENT_JSON_PATH=/home/pi/lensmint/contracts/deployment.json
+CAPTURES_PATH=/home/pi/Veris/captures
+DATABASE_PATH=/home/pi/Veris/database.db
+DEPLOYMENT_JSON_PATH=/home/pi/Veris/contracts/deployment.json
 
 # Blockchain
 SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<your-alchemy-key>
@@ -193,7 +195,7 @@ FILECOIN_RPC_URL=https://api.calibration.node.glif.io/rpc/v1
 ### 4e. Configure the Python Camera App
 
 ```bash
-cd /home/pi/lensmint/hardware-camera-app
+cd /home/pi/Veris/hardware-camera-app
 pip3 install -r requirements.txt
 # or:
 bash install_dependencies.sh
@@ -220,11 +222,11 @@ sudo make install
 ## Step 5: Start Services on the Pi
 
 ```bash
-cd /home/pi/lensmint
+cd /home/pi/Veris
 
 # Backend Web3 service
 pm2 start hardware-web3-service/server.js \
-  --name lensmint-backend \
+  --name Veris-backend \
   --env production
 
 # Camera stream
@@ -240,11 +242,11 @@ pm2 startup   # run the command it prints
 Camera GUI (autostart on display):
 
 ```bash
-# Add to /etc/xdg/autostart/lensmint.desktop
+# Add to /etc/xdg/autostart/Veris.desktop
 [Desktop Entry]
 Type=Application
-Name=LensMint Camera
-Exec=bash /home/pi/lensmint/hardware-camera-app/run_camera_app.sh
+Name=Veris Camera
+Exec=bash /home/pi/Veris/hardware-camera-app/run_camera_app.sh
 ```
 
 ---
@@ -259,7 +261,7 @@ curl http://localhost:5000/health
 pm2 status
 
 # Logs
-pm2 logs lensmint-backend
+pm2 logs Veris-backend
 pm2 logs camera-stream
 ```
 
@@ -273,13 +275,15 @@ https://your-app.onrender.com/health
 
 ## Startup Order
 
+
 | Order | Service               | Where          | Port |
 | ----- | --------------------- | -------------- | ---- |
 | 1     | Claim server          | Cloud (Render) | 5001 |
 | 2     | Owner portal          | Cloud (Vercel) | 443  |
-| 3     | `lensmint-backend`    | Pi (PM2)       | 5000 |
+| 3     | `Veris-backend`       | Pi (PM2)       | 5000 |
 | 4     | `camera-stream`       | Pi (PM2)       | 8081 |
 | 5     | Camera app (Kivy GUI) | Pi (autostart) | —    |
+
 
 ---
 
@@ -295,15 +299,18 @@ Before the Pi can upload images, fund the device wallet with test USDFC:
 
 ## Env Var Cheatsheet
 
-| Variable                   | Used in                    | Value                             |
-| -------------------------- | -------------------------- | --------------------------------- |
-| `SEPOLIA_RPC_URL`          | web3 service, contracts    | Alchemy/Infura Sepolia URL        |
-| `DEVICE_PRIVATE_KEY`       | web3 service               | Pi device wallet private key      |
-| `DEVICE_REGISTRY_ADDRESS`  | web3 service               | From Step 1 deploy output         |
-| `LENSMINT_ERC1155_ADDRESS` | web3 service               | From Step 1 deploy output         |
-| `PRIVY_APP_ID`             | web3 service, owner portal | Privy dashboard                   |
-| `PRIVY_APP_SECRET`         | web3 service               | Privy dashboard                   |
-| `CLAIM_SERVER_URL`         | web3 service, camera app   | Your Render URL                   |
-| `OWNER_WALLET_ADDRESS`     | web3 service               | Wallet that receives original NFT |
-| `VITE_PRIVY_APP_ID`        | owner portal               | Same Privy App ID (Vite prefix)   |
-| `VITE_BACKEND_URL`         | owner portal               | Pi's IP:5000 or tunnel URL        |
+
+| Variable                  | Used in                    | Value                             |
+| ------------------------- | -------------------------- | --------------------------------- |
+| `SEPOLIA_RPC_URL`         | web3 service, contracts    | Alchemy/Infura Sepolia URL        |
+| `DEVICE_PRIVATE_KEY`      | web3 service               | Pi device wallet private key      |
+| `DEVICE_REGISTRY_ADDRESS` | web3 service               | From Step 1 deploy output         |
+| `Veris_ERC1155_ADDRESS`   | web3 service               | From Step 1 deploy output         |
+| `PRIVY_APP_ID`            | web3 service, owner portal | Privy dashboard                   |
+| `PRIVY_APP_SECRET`        | web3 service               | Privy dashboard                   |
+| `CLAIM_SERVER_URL`        | web3 service, camera app   | Your Render URL                   |
+| `OWNER_WALLET_ADDRESS`    | web3 service               | Wallet that receives original NFT |
+| `VITE_PRIVY_APP_ID`       | owner portal               | Same Privy App ID (Vite prefix)   |
+| `VITE_BACKEND_URL`        | owner portal               | Pi's IP:5000 or tunnel URL        |
+
+
