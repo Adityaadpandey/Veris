@@ -129,12 +129,21 @@ class ModernCard(FloatLayout):
 
     def __init__(self, card_color=(0.08, 0.12, 0.18, 0.92), shadow_color=(0, 0, 0, 0.15),
                  border_color=(1, 1, 1, 0.08), radius=16, elevation=4, **kwargs):
-        super().__init__(**kwargs)
+
+        # Extract our custom parameters
         self._card_color = list(card_color)
         self._shadow_color = list(shadow_color)
         self._border_color = list(border_color)
         self._radius = radius
         self._elevation = elevation
+
+        # Remove our custom parameters from kwargs
+        kwargs.pop('card_color', None)
+        kwargs.pop('shadow_color', None)
+        kwargs.pop('border_color', None)
+        kwargs.pop('elevation', None)
+
+        super().__init__(**kwargs)
 
         with self.canvas.before:
             # Shadow layer (multiple shadows for depth)
@@ -226,15 +235,23 @@ class RoundedButton(Button):
 
     def __init__(self, btn_color=(0.15, 0.18, 0.25, 1), radius=12, glow_color=None,
                  shadow_elevation=3, **kwargs):
-        super().__init__(**kwargs)
-        self.background_normal = ''
-        self.background_down = ''
-        self.background_color = (0, 0, 0, 0)
+
+        # Extract our custom parameters before calling super().__init__
         self._btn_color = list(btn_color)
         self._original_color = list(btn_color)
         self._btn_radius = radius
         self._shadow_elevation = shadow_elevation
         self._glow_color = glow_color or [min(1.0, c + 0.4) for c in btn_color[:3]] + [0.6]
+
+        # Remove our custom parameters from kwargs before passing to Button
+        kwargs.pop('btn_color', None)
+        kwargs.pop('glow_color', None)
+        kwargs.pop('shadow_elevation', None)
+
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_color = (0, 0, 0, 0)
         self._color_instr = None
         self._rect_instr = None
         self._shadow_instr = None
@@ -406,52 +423,6 @@ class BatteryMonitor:
         except Exception as e:
             print(f"Battery read error: {e}")
             return 85
-
-class RoundedButton(Button):
-    """Button with rounded corners. Intercepts background_color changes and routes them to canvas."""
-
-    def __init__(self, btn_color=(0.15, 0.18, 0.25, 1), radius=12, **kwargs):
-        super().__init__(**kwargs)
-        self.background_normal = ''
-        self.background_down = ''
-        self.background_color = (0, 0, 0, 0)
-        self._btn_color = list(btn_color)
-        self._btn_radius = radius
-        self._color_instr = None
-        self._rect_instr = None
-        self._intercepting = False
-        with self.canvas.before:
-            self._color_instr = Color(*self._btn_color)
-            self._rect_instr = RoundedRectangle(
-                pos=self.pos, size=self.size, radius=[self._btn_radius]
-            )
-        self.bind(pos=self._sync_rect, size=self._sync_rect)
-        self.fbind('background_color', self._on_background_color)
-
-    def _sync_rect(self, *args):
-        if self._rect_instr:
-            self._rect_instr.pos = self.pos
-            self._rect_instr.size = self.size
-
-    def _on_background_color(self, instance, value):
-        if self._intercepting:
-            return
-        if list(value) != [0, 0, 0, 0]:
-            self._btn_color = list(value)
-            if self._color_instr:
-                self._color_instr.rgba = self._btn_color
-            self._intercepting = True
-            self.background_color = (0, 0, 0, 0)
-            self._intercepting = False
-
-    def on_press(self):
-        if self._color_instr:
-            r, g, b, a = self._btn_color
-            self._color_instr.rgba = [r * 0.68, g * 0.68, b * 0.68, a]
-
-    def on_release(self):
-        if self._color_instr:
-            self._color_instr.rgba = self._btn_color
 
 
 class CameraController:
