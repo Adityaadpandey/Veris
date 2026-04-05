@@ -154,3 +154,51 @@ def test_phash_random_image_scores_low(dslr_image, random_image):
     from main import signal_phash
     score = signal_phash(dslr_image, random_image)
     assert 0.0 <= score <= 1.0
+
+
+@pytest.fixture(scope="module")
+def verifier():
+    from main import ImageVerifier
+    return ImageVerifier(device="cpu")
+
+
+def test_verifier_same_scene_authentic(verifier):
+    result = verifier.verify(DSLR_PATH, ESP_PATH)
+    assert result["authentic"] is True, f"Same scene should be authentic, got score {result['score']}"
+    assert 0.0 <= result["score"] <= 1.0
+    assert result["confidence"] in ("high", "medium", "low")
+    assert result["rejected_by"] is None
+    assert "orb" in result["signals"]
+    assert "ssim_edge" in result["signals"]
+    assert "color_hist" in result["signals"]
+    assert "clip" in result["signals"]
+    assert "phash" in result["signals"]
+
+
+def test_verifier_random_not_authentic(verifier):
+    import tempfile
+    arr = np.random.randint(0, 255, (256, 256, 3), dtype=np.uint8)
+    rand_img = Image.fromarray(arr)
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+        rand_img.save(f.name)
+        rand_path = f.name
+    try:
+        result = verifier.verify(DSLR_PATH, rand_path)
+        assert result["authentic"] is False, f"Random image should not be authentic, got score {result['score']}"
+    finally:
+        os.unlink(rand_path)
+
+
+def test_verifier_floor_rejection(verifier):
+    """If any signal falls below its floor, rejected_by should name it."""
+    import tempfile
+    arr = np.random.randint(0, 255, (256, 256, 3), dtype=np.uint8)
+    rand_img = Image.fromarray(arr)
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+        rand_img.save(f.name)
+        rand_path = f.name
+    try:
+        result = verifier.verify(DSLR_PATH, rand_path)
+        assert result["rejected_by"] is not None or result["authentic"] is False
+    finally:
+        os.unlink(rand_path)
