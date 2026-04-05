@@ -353,3 +353,30 @@ class ImageVerifier:
                 print(f"  [!] Small gap — recommended: {recommended}")
 
         return recommended
+
+
+# ------------------------------------------------------------------
+#  MAIN
+# ------------------------------------------------------------------
+
+if __name__ == "__main__":
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    DATA_DIR = "./data"
+    DSLR = os.path.join(DATA_DIR, "scene_001", "dslr.jpg")
+    ESP = os.path.join(DATA_DIR, "scene_001", "esp.jpg")
+
+    print(f"Device: {DEVICE}\n")
+
+    verifier = ImageVerifier(device=DEVICE)
+
+    # Diagnose all scenes
+    verifier.diagnose(DATA_DIR)
+
+    # Calibrate threshold
+    threshold = verifier.calibrate(DATA_DIR)
+
+    # Verify single pair
+    print(f"\n-- Verify scene_001 (threshold={threshold}) --")
+    result = verifier.verify(DSLR, ESP, threshold=threshold)
+    for k, v in result.items():
+        print(f"  {k}: {v}")
