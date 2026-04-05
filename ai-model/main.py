@@ -264,3 +264,92 @@ class ImageVerifier:
             "rejected_by": rejected_by,
             "signals": {k: round(v, 4) for k, v in signals.items()},
         }
+
+    def diagnose(self, data_dir: str, threshold: float = 0.45) -> list:
+        """Run verification on all scene pairs and print a summary table."""
+        scenes = sorted([
+            d for d in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, d))
+        ])
+
+        results = []
+        print(f"\n{'Scene':<16} {'Score':>6} {'ORB':>6} {'SSIM':>6} "
+              f"{'Color':>6} {'CLIP':>6} {'pHash':>6} {'Result':>8}")
+        print("-" * 72)
+
+        for scene in scenes:
+            dslr_p = os.path.join(data_dir, scene, "dslr.jpg")
+            esp_p = os.path.join(data_dir, scene, "esp.jpg")
+            if not (os.path.exists(dslr_p) and os.path.exists(esp_p)):
+                print(f"{scene:<16} {'MISSING':>6}")
+                continue
+
+            r = self.verify(dslr_p, esp_p, threshold=threshold)
+            s = r["signals"]
+            flag = "PASS" if r["authentic"] else f"FAIL({r['rejected_by'] or 'score'})"
+            print(f"{scene:<16} {r['score']:>6.3f} {s['orb']:>6.3f} "
+                  f"{s['ssim_edge']:>6.3f} {s['color_hist']:>6.3f} "
+                  f"{s['clip']:>6.3f} {s['phash']:>6.3f} {flag:>8}")
+            results.append({"scene": scene, "score": r["score"],
+                            "authentic": r["authentic"], "signals": s})
+
+        if results:
+            scores = [r["score"] for r in results]
+            passing = sum(1 for r in results if r["authentic"])
+            print(f"\nMean: {sum(scores)/len(scores):.3f}  "
+                  f"Min: {min(scores):.3f}  Max: {max(scores):.3f}  "
+                  f"Pass: {passing}/{len(results)}")
+        return results
+
+    def calibrate(self, data_dir: str) -> float:
+        """
+        Test positive pairs (same scene) vs negative pairs (cross-scene)
+        and find the threshold that best separates them.
+        """
+        scenes = sorted([
+            d for d in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, d))
+        ])
+
+        pos_scores = []
+        for scene in scenes:
+            dslr_p = os.path.join(data_dir, scene, "dslr.jpg")
+            esp_p = os.path.join(data_dir, scene, "esp.jpg")
+            if os.path.exists(dslr_p) and os.path.exists(esp_p):
+                r = self.verify(dslr_p, esp_p, threshold=0.0)
+                pos_scores.append(r["score"])
+
+        neg_scores = []
+        for i in range(len(scenes)):
+            s1 = scenes[i]
+            s2 = scenes[(i + 1) % len(scenes)]
+            if s1 == s2:
+                continue
+            dslr_p = os.path.join(data_dir, s1, "dslr.jpg")
+            esp_p = os.path.join(data_dir, s2, "esp.jpg")
+            if os.path.exists(dslr_p) and os.path.exists(esp_p):
+                r = self.verify(dslr_p, esp_p, threshold=0.0)
+                neg_scores.append(r["score"])
+
+        print("\n-- Threshold Calibration --")
+        if pos_scores:
+            print(f"  Positive (same scene)  mean={sum(pos_scores)/len(pos_scores):.4f}"
+                  f"  min={min(pos_scores):.4f}  max={max(pos_scores):.4f}")
+        if neg_scores:
+            print(f"  Negative (diff scene)  mean={sum(neg_scores)/len(neg_scores):.4f}"
+                  f"  min={min(neg_scores):.4f}  max={max(neg_scores):.4f}")
+
+        recommended = 0.45
+        if pos_scores and neg_scores:
+            worst_pos = min(pos_scores)
+            best_neg = max(neg_scores)
+            gap = worst_pos - best_neg
+            print(f"  Gap: {gap:.4f}")
+            if gap > 0.02:
+                recommended = round(best_neg + gap * 0.6, 3)
+                print(f"  Recommended threshold: {recommended}")
+            else:
+                recommended = round(best_neg + gap * 0.5, 3)
+                print(f"  [!] Small gap — recommended: {recommended}")
+
+        return recommended
