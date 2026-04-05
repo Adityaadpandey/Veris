@@ -198,3 +198,69 @@ def signal_phash(img1: Image.Image, img2: Image.Image,
     max_dist = hash_size * hash_size  # 64 for hash_size=8
     dist = h1 - h2  # hamming distance
     return 1.0 - (dist / max_dist)
+
+
+# ------------------------------------------------------------------
+#  IMAGE VERIFIER - MULTI-SIGNAL FUSION
+# ------------------------------------------------------------------
+
+SIGNAL_CONFIG = {
+    "orb":        {"weight": 0.25, "floor": 0.03},
+    "ssim_edge":  {"weight": 0.20, "floor": 0.15},
+    "color_hist": {"weight": 0.15, "floor": 0.10},
+    "clip":       {"weight": 0.25, "floor": 0.40},
+    "phash":      {"weight": 0.15, "floor": 0.25},
+}
+
+
+class ImageVerifier:
+    """
+    Multi-signal image authenticity verifier.
+    Combines 5 independent signals with weighted fusion and per-signal floors.
+    """
+
+    def __init__(self, device: str = "cpu", config: dict = None):
+        self.config = config or SIGNAL_CONFIG
+        self.clip = CLIPSignal(device=device)
+
+    def verify(self, dslr_path: str, esp_path: str,
+               threshold: float = 0.45) -> dict:
+        dslr_img = Image.open(dslr_path).convert("RGB")
+        esp_img = Image.open(esp_path).convert("RGB")
+        pair = preprocess_pair(dslr_img, esp_img)
+
+        signals = {
+            "orb": signal_orb(pair["orb_dslr"], pair["orb_esp"]),
+            "ssim_edge": signal_ssim_edge(pair["small_dslr"], pair["small_esp"]),
+            "color_hist": signal_color_hist(pair["small_dslr"], pair["small_esp"]),
+            "clip": self.clip.score(pair["clip_dslr"], pair["clip_esp"]),
+            "phash": signal_phash(pair["small_dslr"], pair["small_esp"]),
+        }
+
+        # Check floors — reject if any signal is below its minimum
+        rejected_by = None
+        for name, value in signals.items():
+            floor = self.config[name]["floor"]
+            if value < floor:
+                rejected_by = name
+                break
+
+        # Weighted fusion
+        score = sum(
+            signals[name] * self.config[name]["weight"]
+            for name in signals
+        )
+        score = round(float(score), 4)
+
+        authentic = rejected_by is None and score >= threshold
+        confidence = ("high" if score >= 0.85 else
+                      "medium" if score >= threshold else "low")
+
+        return {
+            "authentic": authentic,
+            "score": score,
+            "confidence": confidence,
+            "threshold": threshold,
+            "rejected_by": rejected_by,
+            "signals": {k: round(v, 4) for k, v in signals.items()},
+        }
