@@ -181,3 +181,20 @@ class CLIPSignal:
         e2 = self._encode(img2)
         sim = (e1 * e2).sum().item()
         return max(0.0, min(sim, 1.0))
+
+
+# ------------------------------------------------------------------
+#  SIGNAL 5: PERCEPTUAL HASH DISTANCE
+# ------------------------------------------------------------------
+
+def signal_phash(img1: Image.Image, img2: Image.Image,
+                 hash_size: int = 8) -> float:
+    """
+    DCT-based perceptual hash. Returns 1 - (hamming_distance / hash_bits).
+    Score of 1.0 = identical, 0.0 = maximally different.
+    """
+    h1 = imagehash.phash(img1, hash_size=hash_size)
+    h2 = imagehash.phash(img2, hash_size=hash_size)
+    max_dist = hash_size * hash_size  # 64 for hash_size=8
+    dist = h1 - h2  # hamming distance
+    return 1.0 - (dist / max_dist)
