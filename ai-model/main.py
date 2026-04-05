@@ -59,3 +59,49 @@ def preprocess_pair(dslr: Image.Image, esp: Image.Image) -> dict:
         "clip_dslr": dslr,
         "clip_esp": esp,
     }
+
+
+# ------------------------------------------------------------------
+#  SIGNAL 1: ORB KEYPOINT MATCHING
+# ------------------------------------------------------------------
+
+def signal_orb(img1: Image.Image, img2: Image.Image,
+               max_keypoints: int = 1000, ratio_thresh: float = 0.75) -> float:
+    """
+    ORB keypoint detection + BFMatcher + RANSAC homography.
+    Returns 0-1 score based on inlier ratio.
+    """
+    gray1 = cv2.cvtColor(np.array(img1), cv2.COLOR_RGB2GRAY)
+    gray2 = cv2.cvtColor(np.array(img2), cv2.COLOR_RGB2GRAY)
+
+    orb = cv2.ORB_create(nfeatures=max_keypoints)
+    kp1, des1 = orb.detectAndCompute(gray1, None)
+    kp2, des2 = orb.detectAndCompute(gray2, None)
+
+    if des1 is None or des2 is None or len(kp1) < 4 or len(kp2) < 4:
+        return 0.0
+
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+    raw_matches = bf.knnMatch(des1, des2, k=2)
+
+    # Lowe's ratio test
+    good = []
+    for m, n in raw_matches:
+        if m.distance < ratio_thresh * n.distance:
+            good.append(m)
+
+    if len(good) < 4:
+        return 0.0
+
+    # RANSAC homography to filter outliers
+    pts1 = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+    pts2 = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    _, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+
+    if mask is None:
+        return 0.0
+
+    inliers = int(mask.sum())
+    min_kp = min(len(kp1), len(kp2))
+    score = inliers / max(min_kp, 1)
+    return min(score, 1.0)
