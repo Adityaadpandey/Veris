@@ -149,3 +149,35 @@ def signal_color_hist(img1: Image.Image, img2: Image.Image,
 
     avg = score / 3.0
     return max(0.0, min(avg, 1.0))
+
+
+# ------------------------------------------------------------------
+#  SIGNAL 4: CLIP SEMANTIC SIMILARITY
+# ------------------------------------------------------------------
+
+class CLIPSignal:
+    """
+    CLIP vision encoder cosine similarity.
+    Loads model once, reuse for multiple comparisons.
+    """
+    MODEL_ID = "openai/clip-vit-base-patch32"
+
+    def __init__(self, device: str = "cpu"):
+        self.device = device
+        self.model = CLIPModel.from_pretrained(self.MODEL_ID).to(device).eval()
+        self.processor = CLIPProcessor.from_pretrained(self.MODEL_ID)
+
+    def _encode(self, img: Image.Image) -> torch.Tensor:
+        pixel_values = self.processor(
+            images=img, return_tensors="pt"
+        ).pixel_values.to(self.device)
+        with torch.no_grad():
+            vision_out = self.model.vision_model(pixel_values=pixel_values)
+            feat = self.model.visual_projection(vision_out.pooler_output)
+        return F.normalize(feat, p=2, dim=1)
+
+    def score(self, img1: Image.Image, img2: Image.Image) -> float:
+        e1 = self._encode(img1)
+        e2 = self._encode(img2)
+        sim = (e1 * e2).sum().item()
+        return max(0.0, min(sim, 1.0))
