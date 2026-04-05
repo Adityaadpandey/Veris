@@ -56,3 +56,21 @@ def test_preprocess_pair_returns_correct_sizes():
     assert result["orb_esp"].size == (512, 512)
     assert result["small_dslr"].size == (256, 256)
     assert result["small_esp"].size == (256, 256)
+
+
+def test_orb_same_scene_scores_above_floor():
+    from main import signal_orb, preprocess_pair
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    pair = preprocess_pair(dslr, esp)
+    score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
+    assert 0.0 <= score <= 1.0
+    assert score > 0.03, f"Same scene ORB score {score} below floor"
+
+
+def test_orb_random_image_scores_low(dslr_image, random_image):
+    from main import signal_orb, preprocess_pair
+    pair = preprocess_pair(dslr_image, random_image)
+    score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
+    assert 0.0 <= score <= 1.0
+    assert score < 0.5, f"Random image ORB score {score} unexpectedly high"
