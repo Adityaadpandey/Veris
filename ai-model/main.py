@@ -124,3 +124,28 @@ def signal_ssim_edge(img1: Image.Image, img2: Image.Image) -> float:
 
     score = ssim(edges1, edges2)
     return max(0.0, min(score, 1.0))
+
+
+# ------------------------------------------------------------------
+#  SIGNAL 3: COLOR HISTOGRAM CORRELATION
+# ------------------------------------------------------------------
+
+def signal_color_hist(img1: Image.Image, img2: Image.Image,
+                      bins: int = 32) -> float:
+    """
+    HSV histogram correlation between two images.
+    Returns 0-1 score.
+    """
+    hsv1 = cv2.cvtColor(np.array(img1), cv2.COLOR_RGB2HSV)
+    hsv2 = cv2.cvtColor(np.array(img2), cv2.COLOR_RGB2HSV)
+
+    score = 0.0
+    for ch in range(3):
+        h1 = cv2.calcHist([hsv1], [ch], None, [bins], [0, 256])
+        h2 = cv2.calcHist([hsv2], [ch], None, [bins], [0, 256])
+        cv2.normalize(h1, h1)
+        cv2.normalize(h2, h2)
+        score += cv2.compareHist(h1, h2, cv2.HISTCMP_CORREL)
+
+    avg = score / 3.0
+    return max(0.0, min(avg, 1.0))
