@@ -65,8 +65,10 @@ echo ""
 echo "🔄 Starting backend server..."
 cd "$BACKEND_DIR"
 if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
-fi
+    set -a
+    source .env
+    set +a
+fii
 node server.js 2>&1 | tee /tmp/lensmint-backend.log &
 BACKEND_PID=$!
 echo "   Backend server started (PID: $BACKEND_PID)"
