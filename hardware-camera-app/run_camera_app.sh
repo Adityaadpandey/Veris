@@ -14,6 +14,7 @@ CLAIM_SERVER_URL="${CLAIM_SERVER_URL:-https://lensmint.onrender.com}"
 
 BACKEND_PID=""
 EMBEDDING_PID=""
+NGROK_PID=""
 
 cleanup() {
     echo ""
@@ -27,6 +28,11 @@ cleanup() {
     if [ ! -z "$EMBEDDING_PID" ]; then
         echo "Stopping embedding service (PID: $EMBEDDING_PID)..."
         kill $EMBEDDING_PID 2>/dev/null || true
+    fi
+
+    if [ ! -z "$NGROK_PID" ]; then
+        echo "Stopping ngrok tunnel (PID: $NGROK_PID)..."
+        kill $NGROK_PID 2>/dev/null || true
     fi
 
     if [ -d "$VENV_PATH" ]; then
@@ -87,6 +93,13 @@ for i in {1..30}; do
         sleep 1
     fi
 done
+
+echo ""
+echo "🔄 Starting ngrok tunnel..."
+ngrok http --url=https://set-daring-tadpole.ngrok-free.app 5000 2>&1 | tee /tmp/lensmint-ngrok.log &
+NGROK_PID=$!
+echo "   ngrok tunnel started (PID: $NGROK_PID)"
+echo "   Logs: /tmp/lensmint-ngrok.log"
 
 echo ""
 echo "🔄 Starting AI embedding service..."
@@ -152,6 +165,7 @@ echo "════════════════════════�
 echo "   Backend:    $BACKEND_URL"
 echo "   Embedding:  $EMBEDDING_URL"
 echo "   Claim Server: $CLAIM_SERVER_URL"
+echo "   ngrok:      https://set-daring-tadpole.ngrok-free.app → port 5000"
 echo ""
 echo "   Press Ctrl+C to stop all services"
 echo "═══════════════════════════════════════════════════════════════"
