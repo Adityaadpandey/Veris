@@ -74,7 +74,7 @@ if [ -f .env ]; then
     set -a
     source .env
     set +a
-fii
+fi
 node server.js 2>&1 | tee /tmp/lensmint-backend.log &
 BACKEND_PID=$!
 echo "   Backend server started (PID: $BACKEND_PID)"
