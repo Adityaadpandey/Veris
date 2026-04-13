@@ -17,6 +17,7 @@ import filecoinService from './filecoinService.js';
 import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
+import embeddingService from './embeddingService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -803,6 +804,23 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
               console.log(`   ✅ Original NFT minted! Token ID: ${mintResult.tokenId}, TX: ${mintResult.txHash}`);
               console.log(`   ✅ Claim is now OPEN - users can mint unlimited editions`);
 
+              // Store AI embedding for reverse image search
+              try {
+                const deviceInfo = dbService.getDevice(deviceAddress);
+                const embedding = await embeddingService.generateEmbedding(filepath);
+                dbService.storeEmbedding({
+                  token_id: mintResult.tokenId,
+                  clip_embedding: embedding.clip,
+                  phash: embedding.phash,
+                  wallet_address: ownerWallet,
+                  device_id: deviceInfo?.device_id || 'unknown',
+                  image_cid: filecoinCid
+                });
+                console.log(`   ✅ Embedding stored for token ${mintResult.tokenId}`);
+              } catch (embErr) {
+                console.warn(`   ⚠️ Embedding storage failed (search won't include this image): ${embErr.message}`);
+              }
+
             } catch (mintError) {
               console.error(`   ❌ Original NFT minting failed: ${mintError.message}`);
               console.error(`   ⚠️ Image uploaded but original NFT not minted - will retry later`);
@@ -846,6 +864,35 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+app.post('/api/search', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No image file provided' });
+    }
+
+    const available = await embeddingService.isAvailable();
+    if (!available) {
+      fs.unlinkSync(req.file.path);
+      return res.status(503).json({ success: false, error: 'Embedding service not available' });
+    }
+
+    const allEmbeddings = dbService.getAllEmbeddings();
+    if (allEmbeddings.length === 0) {
+      fs.unlinkSync(req.file.path);
+      return res.json({ success: true, results: [], message: 'No images indexed yet' });
+    }
+
+    const results = await embeddingService.search(req.file.path, allEmbeddings);
+    fs.unlinkSync(req.file.path);
+
+    res.json({ success: true, results });
+  } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    console.error('❌ Search failed:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
