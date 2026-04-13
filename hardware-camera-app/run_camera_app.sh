@@ -7,24 +7,32 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 VENV_PATH="${VENV_PATH:-$HOME/camera-env}"
 
 BACKEND_DIR="$PROJECT_ROOT/hardware-web3-service"
+EMBEDDING_DIR="$PROJECT_ROOT/ai-embedding-service"
 BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
+EMBEDDING_URL="${EMBEDDING_URL:-http://localhost:5001}"
 CLAIM_SERVER_URL="${CLAIM_SERVER_URL:-https://lensmint.onrender.com}"
 
 BACKEND_PID=""
+EMBEDDING_PID=""
 
 cleanup() {
     echo ""
     echo "Shutting down services..."
-    
+
     if [ ! -z "$BACKEND_PID" ]; then
         echo "Stopping backend server (PID: $BACKEND_PID)..."
         kill $BACKEND_PID 2>/dev/null || true
     fi
-    
+
+    if [ ! -z "$EMBEDDING_PID" ]; then
+        echo "Stopping embedding service (PID: $EMBEDDING_PID)..."
+        kill $EMBEDDING_PID 2>/dev/null || true
+    fi
+
     if [ -d "$VENV_PATH" ]; then
         deactivate 2>/dev/null || true
     fi
-    
+
     echo "Cleanup complete."
     exit 0
 }
@@ -79,6 +87,34 @@ for i in {1..30}; do
 done
 
 echo ""
+echo "🔄 Starting AI embedding service..."
+if [ -d "$EMBEDDING_DIR" ]; then
+    if [ -d "$VENV_PATH" ]; then
+        source "$VENV_PATH/bin/activate"
+    fi
+    cd "$EMBEDDING_DIR"
+    uvicorn main:app --port 5001 --log-level warning 2>&1 | tee /tmp/lensmint-embedding.log &
+    EMBEDDING_PID=$!
+    echo "   Embedding service started (PID: $EMBEDDING_PID)"
+    echo "   Logs: /tmp/lensmint-embedding.log"
+    echo "   Waiting for embedding service to initialize..."
+    sleep 5
+    for i in {1..15}; do
+        if curl -s "$EMBEDDING_URL/health" > /dev/null 2>&1; then
+            echo "   ✅ Embedding service is ready"
+            break
+        fi
+        if [ $i -eq 15 ]; then
+            echo "   ⚠️  Embedding service may not be ready (CLIP model still loading), continuing anyway..."
+        else
+            sleep 1
+        fi
+    done
+else
+    echo "   ⚠️  Embedding service directory not found at $EMBEDDING_DIR, skipping"
+fi
+
+echo ""
 echo "🔄 Checking external claim server..."
 for i in {1..10}; do
     if curl -s "$CLAIM_SERVER_URL/health" > /dev/null 2>&1; then
@@ -111,7 +147,8 @@ echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "📸 Starting Camera App"
 echo "═══════════════════════════════════════════════════════════════"
-echo "   Backend: $BACKEND_URL"
+echo "   Backend:    $BACKEND_URL"
+echo "   Embedding:  $EMBEDDING_URL"
 echo "   Claim Server: $CLAIM_SERVER_URL"
 echo ""
 echo "   Press Ctrl+C to stop all services"

@@ -120,11 +120,44 @@ class DBService {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS embeddings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_id TEXT NOT NULL,
+        clip_embedding TEXT NOT NULL,
+        phash TEXT NOT NULL,
+        wallet_address TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        image_cid TEXT NOT NULL,
+        minted_at INTEGER NOT NULL
+      )
+    `);
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_images_status ON images(status);
       CREATE INDEX IF NOT EXISTS idx_images_hash ON images(image_hash);
       CREATE INDEX IF NOT EXISTS idx_images_claim ON images(claim_id);
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
     `);
+  }
+
+  storeEmbedding({ token_id, clip_embedding, phash, wallet_address, device_id, image_cid }) {
+    const stmt = this.db.prepare(`
+      INSERT INTO embeddings (token_id, clip_embedding, phash, wallet_address, device_id, image_cid, minted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      String(token_id),
+      JSON.stringify(clip_embedding),
+      phash,
+      wallet_address,
+      device_id,
+      image_cid,
+      Math.floor(Date.now() / 1000)
+    );
+  }
+
+  getAllEmbeddings() {
+    return this.db.prepare('SELECT * FROM embeddings').all();
   }
 
   createImage(imageData) {
