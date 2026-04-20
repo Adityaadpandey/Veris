@@ -39,9 +39,20 @@ function VerisLogoMark({ size = 28 }) {
   )
 }
 
-function statusVariant(status) {
-  const map = { saved: 'saved', uploaded: 'uploaded', minted: 'minted', failed: 'failed' }
-  return map[status] || 'default'
+function imageState(img) {
+  if (img.status === 'minted') return 'minted'
+  if (img.status === 'uploaded' && img.claimId && !img.tokenId) return 'minting'
+  if (img.status === 'uploaded' && !img.claimId) return 'claim_failed'
+  if (img.status === 'saved') return 'upload_failed'
+  return img.status
+}
+
+function statusVariant(img) {
+  const s = imageState(img)
+  if (s === 'minted') return 'minted'
+  if (s === 'minting') return 'uploaded'
+  if (s === 'upload_failed' || s === 'claim_failed') return 'failed'
+  return 'default'
 }
 
 /* ── QR Modal ── */
@@ -85,9 +96,10 @@ function QRModal({ url, onClose, open }) {
 function FeaturedCard({ img, claimServerUrl, onRetry }) {
   const [showQR, setShowQR]   = useState(false)
   const [copying, setCopying] = useState(false)
-  const claimUrl = img.claimId    ? `${claimServerUrl}/claim/${img.claimId}` : null
+  const state    = imageState(img)
+  const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
   const ipfsUrl  = img.filecoinCid ? `https://gateway.lighthouse.storage/ipfs/${img.filecoinCid}` : null
-  const isLive   = img.status === 'saved' || img.status === 'uploaded'
+  const isLive   = state !== 'minted'
 
   const copyLink = () => {
     if (!claimUrl) return
@@ -97,11 +109,43 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
   }
 
   const time = (() => {
-    const iso = img.createdAt?.includes('T') || img.createdAt?.endsWith('Z')
+    if (!img.createdAt) return '—'
+    const iso = img.createdAt.includes('T') || img.createdAt.endsWith('Z')
       ? img.createdAt
-      : (img.createdAt || '').replace(' ', 'T') + 'Z'
-    return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : img.createdAt.replace(' ', 'T') + 'Z'
+    const d = new Date(iso)
+    if (isNaN(d)) return '—'
+    return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
   })()
+
+  const overlayText = {
+    minting:      'Uploaded · minting NFT…',
+    claim_failed: 'Uploaded · claim registration failed',
+    upload_failed: 'Captured · uploading to Filecoin…',
+  }[state]
+
+  const badgeText = {
+    minted:       'Minted',
+    minting:      'Minting',
+    claim_failed: 'Claim Failed',
+    upload_failed: 'Upload Failed',
+  }[state] || img.status
+
+  const overlayColor = (state === 'claim_failed' || state === 'upload_failed')
+    ? 'bg-[#fbbf24]/[0.07]'
+    : 'bg-brand/[0.07]'
+  const dotColor = (state === 'claim_failed' || state === 'upload_failed')
+    ? 'bg-[#fbbf24]'
+    : 'bg-brand'
+  const textColor = (state === 'claim_failed' || state === 'upload_failed')
+    ? 'text-[#fbbf24]'
+    : 'text-brand'
+
+  const statusMsg = {
+    minting:       'Minting in progress…',
+    claim_failed:  'Claim registration failed · retry to recover',
+    upload_failed: 'Upload failed · retry to recover',
+  }[state]
 
   return (
     <div className={`rounded-xl overflow-hidden col-span-2 border ${
@@ -113,17 +157,15 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
             onError={e => { e.target.style.display = 'none' }} />
         )}
         {isLive && (
-          <div className="absolute inset-0 flex items-center justify-center gap-3 bg-brand/[0.07]">
-            <div className="w-2 h-2 rounded-full bg-brand animate-pulse" style={{ boxShadow: '0 0 8px #E85002' }} />
-            <span className="text-sm font-semibold text-brand">
-              {img.status === 'uploaded' ? 'Uploaded · minting NFT…' : 'Just captured · uploading to Filecoin…'}
-            </span>
+          <div className={`absolute inset-0 flex items-center justify-center gap-3 ${overlayColor}`}>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${dotColor}`} />
+            <span className={`text-sm font-semibold ${textColor}`}>{overlayText}</span>
           </div>
         )}
-        <Badge variant={statusVariant(img.status)} className="absolute top-3 left-3 shadow-lg">
-          {img.status === 'saved' ? 'Uploading' : img.status?.charAt(0).toUpperCase() + img.status?.slice(1)}
+        <Badge variant={statusVariant(img)} className="absolute top-3 left-3 shadow-lg">
+          {badgeText}
         </Badge>
-        {img.status === 'minted' && img.ai_score != null && (
+        {state === 'minted' && img.ai_score != null && (
           <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm border border-[#34d399]/25 rounded-md px-2 py-1">
             <span className="text-[10px] font-bold text-[#34d399]">AI {img.ai_score}</span>
           </div>
@@ -134,7 +176,12 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
       </div>
       <div className="px-4 py-3 flex items-center gap-2">
         {isLive ? (
-          <span className="text-xs text-text-muted flex-1">Claim link available once minted</span>
+          <>
+            <span className="text-xs text-text-muted flex-1">{statusMsg}</span>
+            <Button size="sm" variant="secondary" className="gap-1.5 shrink-0" onClick={() => onRetry(img.id)}>
+              <RotateCcw size={12} /> Retry
+            </Button>
+          </>
         ) : (
           <>
             <span className="font-mono text-xs text-text-muted mr-2">#{img.id}</span>
@@ -168,7 +215,8 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
 function ImageCard({ img, claimServerUrl, onRetry }) {
   const [showQR, setShowQR]   = useState(false)
   const [copying, setCopying] = useState(false)
-  const claimUrl = img.claimId    ? `${claimServerUrl}/claim/${img.claimId}` : null
+  const state    = imageState(img)
+  const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
   const ipfsUrl  = img.filecoinCid ? `https://gateway.lighthouse.storage/ipfs/${img.filecoinCid}` : null
 
   const copyLink = () => {
@@ -179,20 +227,30 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
   }
 
   const time = (() => {
-    const iso = img.createdAt?.includes('T') || img.createdAt?.endsWith('Z')
+    if (!img.createdAt) return '—'
+    const iso = img.createdAt.includes('T') || img.createdAt.endsWith('Z')
       ? img.createdAt
-      : (img.createdAt || '').replace(' ', 'T') + 'Z'
-    return new Date(iso).toLocaleString('en-IN', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-    })
+      : img.createdAt.replace(' ', 'T') + 'Z'
+    const d = new Date(iso)
+    if (isNaN(d)) return '—'
+    return d.toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
   })()
 
+  const borderClass = state === 'upload_failed' || state === 'claim_failed'
+    ? 'border-[#fbbf24]/15'
+    : state === 'minting'
+    ? 'border-[#60a5fa]/15'
+    : 'border-white/[0.07] hover:border-white/15'
+
+  const badgeLabel = {
+    minted:       'Minted',
+    minting:      'Minting',
+    claim_failed: 'Claim Failed',
+    upload_failed: 'Upload Failed',
+  }[state] || img.status
+
   return (
-    <div className={`rounded-xl overflow-hidden border bg-[#0e0e0e] group transition-all duration-200 hover:-translate-y-0.5 ${
-      img.status === 'saved'
-        ? 'border-[#fbbf24]/15'
-        : 'border-white/[0.07] hover:border-white/15'
-    }`}>
+    <div className={`rounded-xl overflow-hidden border bg-[#0e0e0e] group transition-all duration-200 hover:-translate-y-0.5 ${borderClass}`}>
       <div className="relative aspect-[4/3] bg-[#141414] overflow-hidden">
         {ipfsUrl ? (
           <img src={ipfsUrl} alt="Captured"
@@ -203,10 +261,10 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
             <Camera size={22} className="text-white/15" strokeWidth={1} />
           </div>
         )}
-        <Badge variant={statusVariant(img.status)} className="absolute top-2.5 left-2.5 shadow-lg text-[9px]">
-          {img.status?.charAt(0).toUpperCase() + img.status?.slice(1)}
+        <Badge variant={statusVariant(img)} className="absolute top-2.5 left-2.5 shadow-lg text-[9px]">
+          {badgeLabel}
         </Badge>
-        {img.status === 'minted' && img.ai_score != null && (
+        {state === 'minted' && img.ai_score != null && (
           <div className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-sm border border-[#34d399]/25 rounded-md px-1.5 py-0.5">
             <span className="text-[9px] font-bold text-[#34d399]">AI {img.ai_score}</span>
           </div>
@@ -221,13 +279,19 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         {img.filecoinCid && (
           <div className="font-mono text-[9px] text-text-muted/60 truncate">{img.filecoinCid.slice(0, 20)}…</div>
         )}
-        {img.status === 'saved' && (
+        {state === 'upload_failed' && (
           <p className="text-[9px] text-[#fbbf24]">Upload failed · needs retry</p>
+        )}
+        {state === 'claim_failed' && (
+          <p className="text-[9px] text-[#fbbf24]">Claim registration failed · needs retry</p>
+        )}
+        {state === 'minting' && (
+          <p className="text-[9px] text-[#60a5fa]">Minting NFT on-chain…</p>
         )}
       </div>
 
       <div className="px-3 pb-3 flex gap-1.5">
-        {claimUrl && (
+        {claimUrl && state === 'minted' && (
           <>
             <button
               onClick={() => setShowQR(true)}
@@ -253,7 +317,15 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
             <ExternalLink size={10} />
           </a>
         )}
-        {img.status === 'saved' && (
+        {state === 'minting' && (
+          <button
+            onClick={() => onRetry(img.id)}
+            className="flex-1 flex items-center justify-center gap-1 bg-[#60a5fa]/[0.06] border border-[#60a5fa]/20 text-[#60a5fa] rounded-lg py-1.5 text-[10px] font-semibold hover:bg-[#60a5fa]/10 transition-colors"
+          >
+            <RotateCcw size={10} /> Force Mint
+          </button>
+        )}
+        {(state === 'upload_failed' || state === 'claim_failed') && (
           <button
             onClick={() => onRetry(img.id)}
             className="flex-1 flex items-center justify-center gap-1 bg-[#fbbf24]/[0.06] border border-[#fbbf24]/20 text-[#fbbf24] rounded-lg py-1.5 text-[10px] font-semibold hover:bg-[#fbbf24]/10 transition-colors"
@@ -347,6 +419,14 @@ export default function OwnerDashboard() {
     }
   }, [authenticated, fetchImages, fetchDeviceStatus])
 
+  // Auto-refresh every 8 s while any image is still being processed
+  useEffect(() => {
+    const hasPending = images.some(i => i.status === 'uploaded' || i.status === 'saved')
+    if (!authenticated || !hasPending) return
+    const id = setInterval(fetchImages, 8000)
+    return () => clearInterval(id)
+  }, [authenticated, images, fetchImages])
+
   const retryPending = async () => {
     setRetrying(true)
     setRetryResult(null)
@@ -368,17 +448,18 @@ export default function OwnerDashboard() {
   }
 
   const stats = {
-    total:    images.length,
-    minted:   images.filter(i => i.status === 'minted').length,
-    uploaded: images.filter(i => i.status === 'uploaded').length,
-    pending:  images.filter(i => i.status === 'saved').length,
+    total:      images.length,
+    minted:     images.filter(i => i.status === 'minted').length,
+    processing: images.filter(i => i.status === 'uploaded').length,
+    failed:     images.filter(i => i.status === 'saved').length,
   }
+  const retryableCount = images.filter(i => i.status !== 'minted').length
 
   const FILTER_TABS = [
-    { key: 'all',      label: 'All',       color: null,      count: images.length },
-    { key: 'minted',   label: 'Minted',    color: '#34d399', count: stats.minted   },
-    { key: 'uploaded', label: 'Uploading', color: '#60a5fa', count: stats.uploaded  },
-    { key: 'saved',    label: 'Pending',   color: '#fbbf24', count: stats.pending   },
+    { key: 'all',      label: 'All',        color: null,      count: images.length  },
+    { key: 'minted',   label: 'Minted',     color: '#34d399', count: stats.minted   },
+    { key: 'uploaded', label: 'Processing', color: '#60a5fa', count: stats.processing },
+    { key: 'saved',    label: 'Failed',     color: '#fbbf24', count: stats.failed   },
   ]
 
   // images[0] = latest shot (featured); rest go in the regular grid
@@ -476,9 +557,9 @@ export default function OwnerDashboard() {
             >
               <Icon size={15} strokeWidth={1.75} />
               {label}
-              {id === 'photos' && stats.pending > 0 && (
+              {id === 'photos' && retryableCount > 0 && (
                 <span className="ml-auto text-[9px] font-bold bg-[#fbbf24]/15 text-[#fbbf24] px-1.5 py-0.5 rounded-full">
-                  {stats.pending}
+                  {retryableCount}
                 </span>
               )}
             </button>
@@ -515,10 +596,10 @@ export default function OwnerDashboard() {
                 <Button variant="secondary" size="sm" onClick={fetchImages} disabled={loading} className="gap-1.5 text-xs">
                   <RotateCcw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
                 </Button>
-                {stats.pending > 0 && (
+                {retryableCount > 0 && (
                   <Button variant="primary" size="sm" onClick={retryPending} disabled={retrying} className="gap-1.5 text-xs">
                     <RotateCcw size={12} className={retrying ? 'animate-spin' : ''} />
-                    Retry {stats.pending} pending
+                    Retry {retryableCount} pending
                   </Button>
                 )}
               </div>
@@ -528,11 +609,11 @@ export default function OwnerDashboard() {
 
               {/* Stats */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard label="Total shots"  value={stats.total}    icon="📷" />
-                <StatCard label="Minted NFTs"  value={stats.minted}   icon="⛓" accent="#34d399" />
-                <StatCard label="Uploading"    value={stats.uploaded}  icon="🗂" accent="#60a5fa" />
-                <StatCard label="Pending"      value={stats.pending}   icon="⚠" accent="#fbbf24"
-                  sub={stats.pending > 0 ? 'needs retry' : undefined} />
+                <StatCard label="Total shots"  value={stats.total}      icon="📷" />
+                <StatCard label="Minted NFTs"  value={stats.minted}     icon="⛓" accent="#34d399" />
+                <StatCard label="Processing"   value={stats.processing} icon="🗂" accent="#60a5fa" />
+                <StatCard label="Failed"       value={stats.failed}     icon="⚠" accent="#fbbf24"
+                  sub={stats.failed > 0 ? 'needs retry' : undefined} />
               </div>
 
               {/* Retry result banner */}
