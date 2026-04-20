@@ -316,12 +316,18 @@ class Web3Service {
         console.warn(`   ⚠️ Gas estimation failed: ${gasError.message}`);
       }
 
+      const feeData = await this.provider.getFeeData();
+      const gasBump = (val) => val ? val * 120n / 100n : undefined;
       const tx = await this.lensMint.mintOriginal(
         recipient,
         ipfsHash,
         imageHash,
         signature,
-        maxEditions
+        maxEditions,
+        {
+          maxFeePerGas: gasBump(feeData.maxFeePerGas),
+          maxPriorityFeePerGas: gasBump(feeData.maxPriorityFeePerGas),
+        }
       );
 
       console.log(`🎨 Minting original photo NFT`);
@@ -391,7 +397,12 @@ class Web3Service {
       }
 
       console.log(`   📤 Calling contract.mintEdition(${normalizedRecipient}, ${originalTokenId})`);
-      const tx = await this.lensMint.mintEdition(normalizedRecipient, originalTokenId);
+      const feeData = await this.provider.getFeeData();
+      const gasBump = (val) => val ? val * 120n / 100n : undefined;
+      const tx = await this.lensMint.mintEdition(normalizedRecipient, originalTokenId, {
+        maxFeePerGas: gasBump(feeData.maxFeePerGas),
+        maxPriorityFeePerGas: gasBump(feeData.maxPriorityFeePerGas),
+      });
 
       console.log(`📸 Minting edition of token ${originalTokenId}`);
       console.log(`   Transaction: ${tx.hash}`);
