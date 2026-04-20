@@ -394,6 +394,11 @@ class DBService {
     return stmt.all(limit);
   }
 
+  setImageError(id, message) {
+    const stmt = this.db.prepare('UPDATE images SET error_message = ? WHERE id = ?');
+    stmt.run(message, id);
+  }
+
   close() {
     if (this.db) {
       this.db.close();
