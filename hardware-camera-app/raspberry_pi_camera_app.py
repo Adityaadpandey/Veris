@@ -436,6 +436,7 @@ class CameraController:
         self.sensor_size = None
         self.initialized = False
         self.camera_id = None
+        self.still_config = None
 
     def initialize(self):
         if not CAMERA_AVAILABLE:
@@ -463,6 +464,19 @@ class CameraController:
                 )
                 self.camera.configure(config)
                 print(f"Camera configured: preview {PREVIEW_SIZE[0]}x{PREVIEW_SIZE[1]} @ {PREVIEW_FRAMERATE}fps")
+
+                try:
+                    if os.getenv('PHOTO_SIZE'):
+                        self.still_config = self.camera.create_still_configuration(
+                            main={"size": PHOTO_SIZE}
+                        )
+                    else:
+                        self.still_config = self.camera.create_still_configuration()
+                    still_size = self.still_config["main"].get("size", "sensor-native")
+                    print(f"Still config prepared at {still_size} (switched in for capture)")
+                except Exception as e:
+                    print(f"Warning: could not build still config ({e}); stills will use preview stream")
+                    self.still_config = None
             except Exception as e:
                 print(f"Warning: could not apply preview config ({e}), falling back to defaults")
             self.camera.start()
@@ -568,7 +582,10 @@ class CameraController:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = CAPTURE_DIR / f"photo_{timestamp}.jpg"
 
-            request = self.camera.capture_request()
+            if self.still_config is not None:
+                request = self.camera.switch_mode_and_capture_request(self.still_config)
+            else:
+                request = self.camera.capture_request()
 
             if CAMERA_ROTATION != 0:
                 array = request.make_array("main")
@@ -582,7 +599,8 @@ class CameraController:
                     k = 0
                 if k > 0:
                     array = np.rot90(array, k=k)
-                    cv2.imwrite(str(filename), cv2.cvtColor(array, cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(str(filename), cv2.cvtColor(array, cv2.COLOR_RGB2BGR),
+                                [int(cv2.IMWRITE_JPEG_QUALITY), 95])
                 else:
                     request.save("main", str(filename))
             else:
