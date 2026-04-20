@@ -66,7 +66,7 @@ app.post('/create-claim', (req, res) => {
     const {
       claim_id, cid, metadata_cid,
       device_id, camera_id, image_hash, signature, device_address,
-      latitude, longitude, location_name
+      latitude, longitude, location_name, device_api_url
     } = req.body;
 
     if (!claim_id || !cid) {
@@ -82,7 +82,8 @@ app.post('/create-claim', (req, res) => {
       image_hash || null, signature || null, device_address || null,
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
-      location_name || null
+      location_name || null,
+      device_api_url || null
     );
 
     if (!claim) {
@@ -246,6 +247,48 @@ app.get('/check-claim', (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+app.get('/verify-claim/:claim_id', async (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const claim = dbService.getClaim(claim_id);
+
+    if (!claim) {
+      return res.status(404).json({ success: false, error: 'Claim not found' });
+    }
+
+    if (!claim.device_api_url) {
+      return res.json({
+        success: true,
+        verified: false,
+        reason: 'no_device_api',
+        checks: { imageFound: false, deviceRegistered: false, signatureValid: false, nftMinted: !!claim.token_id }
+      });
+    }
+
+    const verifyUrl = `${claim.device_api_url}/api/verify/${claim_id}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const upstream = await fetch(verifyUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await upstream.json();
+      res.json(data);
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      res.json({
+        success: false,
+        verified: false,
+        reason: 'device_unreachable',
+        error: fetchErr.message,
+        checks: { imageFound: false, deviceRegistered: false, signatureValid: false, nftMinted: !!claim.token_id }
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -494,6 +537,24 @@ app.get('/claim/:claim_id', (req, res) => {
           color: white;
           backdrop-filter: blur(10px);
         }
+        /* Verification badge */
+        .verify-badge {
+          margin: 16px 0;
+          border-radius: 12px;
+          padding: 14px 16px;
+          font-size: 13px;
+          border: 1px solid #e0e0e0;
+          background: #f9f9f9;
+        }
+        .verify-badge.loading { color: #666; }
+        .verify-badge.verified { background: #e8f5e9; border-color: #a5d6a7; color: #1b5e20; }
+        .verify-badge.partial { background: #fff8e1; border-color: #ffe082; color: #6d4c00; }
+        .verify-badge.unverified { background: #fce4ec; border-color: #f48fb1; color: #880e4f; }
+        .verify-badge.offline { background: #f3f3f3; border-color: #ccc; color: #555; }
+        .verify-title { font-weight: 700; font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .verify-checks { display: flex; flex-direction: column; gap: 4px; }
+        .verify-check { display: flex; align-items: center; gap: 6px; }
+        .check-icon { font-size: 14px; width: 18px; text-align: center; }
       </style>
     </head>
     <body>
@@ -540,9 +601,13 @@ app.get('/claim/:claim_id', (req, res) => {
           <button type="submit" id="submitBtn">Submit Wallet Address</button>
         </form>
 
+        <div id="verifyBadge" class="verify-badge loading">
+          <div class="verify-title">🔍 Checking hardware verification…</div>
+        </div>
+
         <div id="message"></div>
         <div class="claim-id">Claim ID: ${claim_id}</div>
-        
+
       </div>
 
       <script>
@@ -576,6 +641,50 @@ app.get('/claim/:claim_id', (req, res) => {
         const messageDiv = document.getElementById('message');
         const statusDiv = document.getElementById('status');
         const nftCard = document.getElementById('nftCard');
+        const verifyBadge = document.getElementById('verifyBadge');
+
+        function renderVerifyBadge(data) {
+          if (!data || !data.success && data.reason === 'no_device_api') {
+            verifyBadge.className = 'verify-badge offline';
+            verifyBadge.innerHTML = '<div class="verify-title">ℹ️ Verification not available</div><div>This claim was created before device verification was enabled.</div>';
+            return;
+          }
+          if (!data.success && data.reason === 'device_unreachable') {
+            verifyBadge.className = 'verify-badge offline';
+            verifyBadge.innerHTML = '<div class="verify-title">📡 Device offline</div><div>Cannot reach the originating camera device for real-time verification. The claim data is still on-chain.</div>';
+            return;
+          }
+
+          const c = data.checks || {};
+          const allGood = data.verified;
+          const anyGood = c.deviceRegistered || c.signatureValid;
+
+          verifyBadge.className = 'verify-badge ' + (allGood ? 'verified' : anyGood ? 'partial' : 'unverified');
+
+          const icon = allGood ? '✅' : anyGood ? '⚠️' : '❌';
+          const title = allGood ? 'Hardware Verified' : anyGood ? 'Partially Verified' : 'Verification Failed';
+
+          const check = (ok, label) =>
+            \`<div class="verify-check"><span class="check-icon">\${ok ? '✅' : '❌'}</span>\${label}</div>\`;
+
+          verifyBadge.innerHTML = \`
+            <div class="verify-title">\${icon} \${title}</div>
+            <div class="verify-checks">
+              \${check(c.imageFound, 'Photo found on originating device')}
+              \${check(c.signatureValid, 'Hardware signature valid')}
+              \${check(c.deviceRegistered, 'Device registered on-chain')}
+              \${check(c.nftMinted, 'NFT minted')}
+            </div>
+          \`;
+        }
+
+        fetch('/verify-claim/' + claimId)
+          .then(r => r.json())
+          .then(renderVerifyBadge)
+          .catch(() => {
+            verifyBadge.className = 'verify-badge offline';
+            verifyBadge.innerHTML = '<div class="verify-title">📡 Verification unavailable</div>';
+          });
 
         if (nftCard) {
           nftCard.addEventListener('mousemove', (e) => {
