@@ -114,7 +114,8 @@ except ImportError:
     QRCODE_AVAILABLE = False
     print("Warning: qrcode library not available. Install with: pip3 install qrcode[pil]")
 
-PREVIEW_SIZE = tuple(map(int, os.getenv('PREVIEW_SIZE', '640,480').split(',')))
+PREVIEW_SIZE = tuple(map(int, os.getenv('PREVIEW_SIZE', '1920,1080').split(',')))
+PREVIEW_FRAMERATE = float(os.getenv('PREVIEW_FRAMERATE', '30'))
 PHOTO_SIZE = tuple(map(int, os.getenv('PHOTO_SIZE', '1920,1080').split(',')))
 VIDEO_SIZE = tuple(map(int, os.getenv('VIDEO_SIZE', '1280,720').split(',')))
 
@@ -122,7 +123,7 @@ MIN_ZOOM = float(os.getenv('MIN_ZOOM', '1.0'))
 MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
 ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
 
-CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '90'))
+CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '270'))
 
 class ModernCard(FloatLayout):
     """Modern card component with glass-morphism effects and elevation."""
@@ -454,6 +455,16 @@ class CameraController:
             time.sleep(0.5)
             
             self.camera = Picamera2()
+            try:
+                config = self.camera.create_video_configuration(
+                    main={"size": PREVIEW_SIZE},
+                    controls={"FrameRate": PREVIEW_FRAMERATE},
+                    buffer_count=4,
+                )
+                self.camera.configure(config)
+                print(f"Camera configured: preview {PREVIEW_SIZE[0]}x{PREVIEW_SIZE[1]} @ {PREVIEW_FRAMERATE}fps")
+            except Exception as e:
+                print(f"Warning: could not apply preview config ({e}), falling back to defaults")
             self.camera.start()
 
             try:
