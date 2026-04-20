@@ -505,7 +505,7 @@ app.get('/claim/:claim_id', (req, res) => {
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
             <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img src="https://ipfs.io/ipfs/${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image" onerror="this.style.display='none'">
+            <img id="nftImage" src="https://gateway.lighthouse.storage/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
             <div class="nft-info">
               <div class="nft-name">LensMint Photo #${claim.token_id}</div>
               <div class="nft-description">Captured by LensMint Camera</div>
@@ -544,6 +544,30 @@ app.get('/claim/:claim_id', (req, res) => {
         <div class="claim-id">Claim ID: ${claim_id}</div>
         
       </div>
+
+      <script>
+        // Multi-gateway IPFS fallback for the NFT image
+        (function() {
+          const img = document.getElementById('nftImage');
+          if (!img) return;
+          const cid = img.dataset.cid;
+          const gateways = [
+            'https://gateway.lighthouse.storage/ipfs/',
+            'https://ipfs.io/ipfs/',
+            'https://cloudflare-ipfs.com/ipfs/',
+            'https://dweb.link/ipfs/'
+          ];
+          let idx = 0;
+          img.onerror = function() {
+            idx++;
+            if (idx < gateways.length) {
+              img.src = gateways[idx] + cid;
+            } else {
+              img.style.display = 'none';
+            }
+          };
+        })();
+      </script>
 
       <script>
         const claimId = '${claim_id}';
