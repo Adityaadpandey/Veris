@@ -944,6 +944,52 @@ app.get('/api/images/:id/photo', (req, res) => {
   }
 });
 
+app.get('/api/verify/:claimId', async (req, res) => {
+  try {
+    const { claimId } = req.params;
+    const image = dbService.getImageByClaimId(claimId);
+
+    if (!image) {
+      return res.status(404).json({ success: false, error: 'Claim not found on this device' });
+    }
+
+    const checks = {
+      imageFound: true,
+      deviceRegistered: false,
+      signatureValid: false,
+      nftMinted: !!image.token_id
+    };
+
+    if (image.device_address && web3Service.initialized) {
+      try {
+        checks.deviceRegistered = await web3Service.isDeviceActive(image.device_address);
+      } catch (_) {}
+    }
+
+    if (image.signature && image.image_hash && image.device_address) {
+      try {
+        const recovered = ethers.verifyMessage(image.image_hash, image.signature);
+        checks.signatureValid = recovered.toLowerCase() === image.device_address.toLowerCase();
+      } catch (_) {}
+    }
+
+    res.json({
+      success: true,
+      claimId,
+      imageHash: image.image_hash,
+      deviceAddress: image.device_address,
+      cameraId: image.camera_id,
+      timestamp: image.created_at,
+      tokenId: image.token_id || null,
+      txHash: image.tx_hash || null,
+      checks,
+      verified: checks.deviceRegistered && checks.signatureValid
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/images/:id', async (req, res) => {
   try {
     const { id } = req.params;
