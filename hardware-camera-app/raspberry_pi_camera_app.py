@@ -123,7 +123,7 @@ MIN_ZOOM = float(os.getenv('MIN_ZOOM', '1.0'))
 MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
 ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
 
-CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '90'))
+CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '-90'))
 
 class ModernCard(FloatLayout):
     """Modern card component with glass-morphism effects and elevation."""
