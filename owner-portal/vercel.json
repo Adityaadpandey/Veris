@@ -5,6 +5,10 @@
       "destination": "https://cognifyforms.com/:path*"
     },
     {
+      "source": "/esp32.html",
+      "destination": "/esp32.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
