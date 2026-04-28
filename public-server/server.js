@@ -566,7 +566,7 @@ app.get('/claim/:claim_id', (req, res) => {
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
             <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img id="nftImage" src="https://gateway.lighthouse.storage/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
+            <img id="nftImage" src="https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
             <div class="nft-info">
               <div class="nft-name">LensMint Photo #${claim.token_id}</div>
               <div class="nft-description">Captured by LensMint Camera</div>
@@ -617,9 +617,9 @@ app.get('/claim/:claim_id', (req, res) => {
           if (!img) return;
           const cid = img.dataset.cid;
           const gateways = [
-            'https://gateway.lighthouse.storage/ipfs/',
+            'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs/',
+            'https://w3s.link/ipfs/',
             'https://ipfs.io/ipfs/',
-            'https://cloudflare-ipfs.com/ipfs/',
             'https://dweb.link/ipfs/'
           ];
           let idx = 0;

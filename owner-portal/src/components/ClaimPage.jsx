@@ -24,6 +24,22 @@ const CLAIM_API = import.meta.env.DEV
   ? (import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001')
   : '/api/claim-server'
 
+const IPFS_GATEWAYS = [
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
+  'https://w3s.link/ipfs',
+  'https://ipfs.io/ipfs',
+  'https://dweb.link/ipfs',
+]
+const ipfsOnError = (cid) => (e) => {
+  const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
+  const next = idx + 1
+  if (next < IPFS_GATEWAYS.length) {
+    e.target.src = `${IPFS_GATEWAYS[next]}/${cid}`
+  } else {
+    e.target.style.display = 'none'
+  }
+}
+
 /* ── Veris logo mark ── */
 function VerisLogoMark({ size = 22 }) {
   return (
@@ -306,7 +322,7 @@ export default function ClaimPage() {
 
   const isOpen    = claim?.status === 'open'
   const isPending = claim?.status === 'pending'
-  const ipfsUrl   = claim?.cid ? `https://gateway.lighthouse.storage/ipfs/${claim.cid}` : null
+  const ipfsUrl   = claim?.cid ? `${IPFS_GATEWAYS[0]}/${claim.cid}` : null
   const etherscanTx    = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
   const etherscanToken = `https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69`
   const mapsUrl = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
@@ -342,7 +358,7 @@ export default function ClaimPage() {
                   src={ipfsUrl}
                   alt="Original capture"
                   className="w-full aspect-[4/3] object-cover"
-                  onError={e => { e.target.style.display = 'none' }}
+                  onError={ipfsOnError(claim.cid)}
                 />
               ) : (
                 <div className="aspect-[4/3] flex items-center justify-center text-white/10">
