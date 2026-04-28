@@ -29,6 +29,23 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id'
 const PORTAL_URL   = import.meta.env.VITE_PORTAL_URL   || window.location.origin
 
+const IPFS_GATEWAYS = [
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
+  'https://w3s.link/ipfs',
+  'https://ipfs.io/ipfs',
+  'https://dweb.link/ipfs',
+]
+const ipfsUrl = (cid) => cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
+const ipfsOnError = (cid) => (e) => {
+  const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
+  const next = idx + 1
+  if (next < IPFS_GATEWAYS.length) {
+    e.target.src = `${IPFS_GATEWAYS[next]}/${cid}`
+  } else {
+    e.target.style.display = 'none'
+  }
+}
+
 /* ── Veris logo mark ── */
 function VerisLogoMark({ size = 28 }) {
   return (
@@ -98,7 +115,7 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
   const [copying, setCopying] = useState(false)
   const state    = imageState(img)
   const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
-  const ipfsUrl  = img.filecoinCid ? `https://gateway.lighthouse.storage/ipfs/${img.filecoinCid}` : null
+  const imgSrc   = ipfsUrl(img.filecoinCid)
   const isLive   = state !== 'minted'
 
   const copyLink = () => {
@@ -152,9 +169,9 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
       isLive ? 'border-brand/25 bg-[#0e0e0e]' : 'border-white/[0.07] bg-[#0e0e0e]'
     }`}>
       <div className="relative aspect-video bg-[#141414] overflow-hidden">
-        {ipfsUrl && !isLive && (
-          <img src={ipfsUrl} alt="Captured" className="w-full h-full object-cover"
-            onError={e => { e.target.style.display = 'none' }} />
+        {imgSrc && !isLive && (
+          <img src={imgSrc} alt="Captured" className="w-full h-full object-cover"
+            onError={ipfsOnError(img.filecoinCid)} />
         )}
         {isLive && (
           <div className={`absolute inset-0 flex items-center justify-center gap-3 ${overlayColor}`}>
@@ -217,7 +234,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
   const [copying, setCopying] = useState(false)
   const state    = imageState(img)
   const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
-  const ipfsUrl  = img.filecoinCid ? `https://gateway.lighthouse.storage/ipfs/${img.filecoinCid}` : null
+  const imgSrc   = ipfsUrl(img.filecoinCid)
 
   const copyLink = () => {
     if (!claimUrl) return
@@ -252,10 +269,10 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
   return (
     <div className={`rounded-xl overflow-hidden border bg-[#0e0e0e] group transition-all duration-200 hover:-translate-y-0.5 ${borderClass}`}>
       <div className="relative aspect-[4/3] bg-[#141414] overflow-hidden">
-        {ipfsUrl ? (
-          <img src={ipfsUrl} alt="Captured"
+        {imgSrc ? (
+          <img src={imgSrc} alt="Captured"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={e => { e.target.style.display = 'none' }} />
+            onError={ipfsOnError(img.filecoinCid)} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Camera size={22} className="text-white/15" strokeWidth={1} />

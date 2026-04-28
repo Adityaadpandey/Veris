@@ -2,6 +2,13 @@ import { useState, useRef } from "react";
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
+const IPFS_GATEWAYS = [
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
+  'https://w3s.link/ipfs',
+  'https://ipfs.io/ipfs',
+  'https://dweb.link/ipfs',
+]
+
 function SimilarityBar({ score }) {
   const pct = Math.round(score * 100);
   const color = pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : "#ef4444";
@@ -26,7 +33,7 @@ function ResultCard({ result }) {
     ? new Date(result.minted_at * 1000).toLocaleDateString()
     : "Unknown";
   const ipfsUrl = result.image_cid
-    ? `https://gateway.lighthouse.storage/ipfs/${result.image_cid}`
+    ? `${IPFS_GATEWAYS[0]}/${result.image_cid}`
     : null;
 
   return (
