@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount } from 'wagmi'
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,11 +18,54 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
+  WifiOff,
+  ShieldCheck,
 } from 'lucide-react'
 
 const CLAIM_API = import.meta.env.DEV
   ? (import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001')
   : '/api/claim-server'
+
+const LENS_MINT_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
+const LENS_MINT_ABI = [
+  {
+    name: 'mintEdition',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_to',              type: 'address' },
+      { name: '_originalTokenId', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'getTokenMetadata',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_tokenId', type: 'uint256' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'deviceAddress',   type: 'address' },
+        { name: 'deviceId',        type: 'string'  },
+        { name: 'ipfsHash',        type: 'string'  },
+        { name: 'imageHash',       type: 'string'  },
+        { name: 'signature',       type: 'string'  },
+        { name: 'timestamp',       type: 'uint256' },
+        { name: 'maxEditions',     type: 'uint256' },
+        { name: 'isOriginal',      type: 'bool'    },
+        { name: 'originalTokenId', type: 'uint256' },
+      ],
+    }],
+  },
+]
+
+const cleanCid = (hash) => {
+  if (!hash) return null
+  if (hash.startsWith('ipfs://')) return hash.slice(7)
+  if (hash.startsWith('https://') || hash.startsWith('http://')) return null
+  return hash
+}
 
 const IPFS_GATEWAYS = [
   import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
@@ -247,8 +290,33 @@ export default function ClaimPage() {
   const [useManual, setUseManual] = useState(false)
   const [mintedEdition, setMintedEdition] = useState(null)
   const [accordionOpen, setAccordionOpen] = useState(false)
+  const [claimServerOffline, setClaimServerOffline] = useState(false)
 
   const walletAddress = address || wallets[0]?.address
+
+  // On-chain proof fetch — enabled once we have a token_id (from cache or live data)
+  const onChainTokenId = claim?.token_id ? BigInt(claim.token_id) : undefined
+  const { data: onChainMeta } = useReadContract({
+    address: LENS_MINT_ADDRESS,
+    abi: LENS_MINT_ABI,
+    functionName: 'getTokenMetadata',
+    args: onChainTokenId !== undefined ? [onChainTokenId] : undefined,
+    query: { enabled: onChainTokenId !== undefined },
+  })
+
+  // Direct on-chain mint (used when claim server is offline)
+  const { data: mintTxHash, writeContract, isPending: isMintPending, error: mintWriteError } = useWriteContract()
+  const { isLoading: isMintConfirming, isSuccess: isMintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash })
+
+  const mintOnChain = async (recipient) => {
+    if (!onChainTokenId) return
+    writeContract({
+      address: LENS_MINT_ADDRESS,
+      abi: LENS_MINT_ABI,
+      functionName: 'mintEdition',
+      args: [recipient, onChainTokenId],
+    })
+  }
 
   useEffect(() => {
     try {
@@ -269,11 +337,33 @@ export default function ClaimPage() {
 
   const fetchClaim = useCallback(async () => {
     try {
-      const res = await axios.get(`${CLAIM_API}/check-claim?claim_id=${claimId}`)
-      if (res.data.success) { setClaim(res.data); setNotFound(false) }
-      else setNotFound(true)
+      const res = await axios.get(`${CLAIM_API}/check-claim?claim_id=${claimId}`, { timeout: 6000 })
+      if (res.data.success) {
+        setClaim(res.data)
+        setNotFound(false)
+        setClaimServerOffline(false)
+        // Cache full claim data so we can serve it when the server is offline
+        try { localStorage.setItem(`veris_claim_data_${claimId}`, JSON.stringify(res.data)) } catch {}
+      } else {
+        setNotFound(true)
+      }
     } catch (e) {
-      if (e.response?.status === 404) setNotFound(true)
+      if (e.response?.status === 404) {
+        setNotFound(true)
+      } else {
+        // Server unreachable — try cache
+        try {
+          const cached = localStorage.getItem(`veris_claim_data_${claimId}`)
+          if (cached) {
+            setClaim(JSON.parse(cached))
+            setClaimServerOffline(true)
+          } else {
+            setNotFound(true)
+          }
+        } catch {
+          setNotFound(true)
+        }
+      }
     } finally {
       setLoading(false)
     }
@@ -320,12 +410,25 @@ export default function ClaimPage() {
     )
   }
 
-  const isOpen    = claim?.status === 'open'
+  const isOpen    = claim?.status === 'open' && !claimServerOffline
   const isPending = claim?.status === 'pending'
-  const ipfsUrl   = claim?.cid ? `${IPFS_GATEWAYS[0]}/${claim.cid}` : null
+
+  // Merge on-chain data over cached claim for proof display
+  const cid           = cleanCid(onChainMeta?.ipfsHash) || claim?.cid
+  const imageHash     = onChainMeta?.imageHash     || claim?.image_hash
+  const signature     = onChainMeta?.signature     || claim?.signature
+  const deviceAddress = onChainMeta?.deviceAddress || claim?.device_address
+  const deviceId      = onChainMeta?.deviceId      || claim?.camera_id || claim?.device_id
+  const capturedAt    = onChainMeta?.timestamp
+    ? new Date(Number(onChainMeta.timestamp) * 1000).toISOString()
+    : claim?.created_at
+
+  const ipfsUrl        = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
   const etherscanTx    = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
   const etherscanToken = `https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69`
-  const mapsUrl = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
+  const etherscanNft   = claim?.token_id ? `https://sepolia.etherscan.io/nft/${LENS_MINT_ADDRESS}/${claim.token_id}` : null
+  const mapsUrl        = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
+  const onChainVerified = !!onChainMeta
 
   return (
     <div className="min-h-screen flex items-start justify-center bg-black p-4 pt-10 pb-16">
@@ -338,12 +441,27 @@ export default function ClaimPage() {
             <span className="font-display font-bold text-white text-sm tracking-tight">Veris</span>
             <span className="text-text-muted text-xs">Protocol</span>
           </div>
-          <div className="flex items-center gap-1.5 bg-[#34d399]/[0.08] border border-[#34d399]/20 rounded-full px-3 py-1.5">
-            <span
-              className="w-1.5 h-1.5 rounded-full bg-[#34d399] animate-pulse"
-              style={{ boxShadow: '0 0 6px #34d399' }}
-            />
-            <span className="text-[11px] font-semibold text-[#34d399]">Verified Original</span>
+          <div className="flex items-center gap-2">
+            {claimServerOffline && (
+              <div className="flex items-center gap-1.5 bg-[#fbbf24]/[0.08] border border-[#fbbf24]/20 rounded-full px-3 py-1.5">
+                <WifiOff size={10} className="text-[#fbbf24]" />
+                <span className="text-[11px] font-semibold text-[#fbbf24]">Server offline</span>
+              </div>
+            )}
+            {onChainVerified ? (
+              <div className="flex items-center gap-1.5 bg-[#34d399]/[0.08] border border-[#34d399]/20 rounded-full px-3 py-1.5">
+                <ShieldCheck size={10} className="text-[#34d399]" />
+                <span className="text-[11px] font-semibold text-[#34d399]">On-chain verified</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-[#34d399]/[0.08] border border-[#34d399]/20 rounded-full px-3 py-1.5">
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-[#34d399] animate-pulse"
+                  style={{ boxShadow: '0 0 6px #34d399' }}
+                />
+                <span className="text-[11px] font-semibold text-[#34d399]">Verified Original</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -381,11 +499,16 @@ export default function ClaimPage() {
             <div className="space-y-2 text-[11px]">
               <div className="flex justify-between items-center">
                 <span className="text-text-muted uppercase tracking-wider text-[9px] font-medium">Captured</span>
-                <span className="text-text-primary font-medium">{fmt(claim?.created_at)}</span>
+                <span className="text-text-primary font-medium">{fmt(capturedAt)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-text-muted uppercase tracking-wider text-[9px] font-medium">Camera</span>
-                <span className="font-mono text-text-secondary text-[10px]">{claim?.camera_id || claim?.device_id || '—'}</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono text-text-secondary text-[10px]">{deviceId || '—'}</span>
+                  {onChainVerified && deviceId && (
+                    <ShieldCheck size={9} className="text-[#34d399]" title="Verified on-chain" />
+                  )}
+                </div>
               </div>
               {(claim?.location_name || claim?.latitude) && (
                 <div className="flex justify-between items-center">
@@ -404,8 +527,11 @@ export default function ClaimPage() {
               <div className="flex justify-between items-center">
                 <span className="text-text-muted uppercase tracking-wider text-[9px] font-medium">SHA-256</span>
                 <div className="flex items-center gap-1">
-                  <span className="font-mono text-text-secondary text-[10px]">{short(claim?.image_hash, 8)}</span>
-                  {claim?.image_hash && <CopyBtn text={claim.image_hash} />}
+                  <span className="font-mono text-text-secondary text-[10px]">{short(imageHash, 8)}</span>
+                  {imageHash && <CopyBtn text={imageHash} />}
+                  {onChainVerified && imageHash && (
+                    <ShieldCheck size={9} className="text-[#34d399]" title="Hash verified on-chain" />
+                  )}
                 </div>
               </div>
             </div>
@@ -420,7 +546,72 @@ export default function ClaimPage() {
 
             {/* CTA section */}
             <div className="mt-auto pt-2">
-              {mintedEdition ? (
+              {claimServerOffline && !mintedEdition ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fbbf24]/[0.06] border border-[#fbbf24]/15">
+                    <WifiOff size={10} className="text-[#fbbf24] shrink-0" />
+                    <p className="text-[10px] text-[#fbbf24]/80">
+                      Claim server offline · minting directly on Sepolia
+                    </p>
+                  </div>
+
+                  {isMintConfirmed ? (
+                    <div className="space-y-3 text-center py-1">
+                      <div className="w-10 h-10 rounded-xl border border-[#34d399]/20 bg-[#34d399]/10 flex items-center justify-center mx-auto">
+                        <CheckCircle2 size={20} className="text-[#34d399]" strokeWidth={1.5} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-display font-bold text-white">Edition Minted</p>
+                        <p className="text-[10px] text-text-muted mt-0.5">NFT is on its way to your wallet</p>
+                      </div>
+                      {mintTxHash && (
+                        <a href={`https://sepolia.etherscan.io/tx/${mintTxHash}`} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-brand text-xs hover:brightness-125">
+                          <ExternalLink size={11} /> View transaction
+                        </a>
+                      )}
+                    </div>
+                  ) : !authenticated ? (
+                    <Button variant="primary" className="w-full gap-2" onClick={login} disabled={!ready}>
+                      {ready ? <><Star size={13} /> Connect Wallet to Claim</> : 'Loading…'}
+                    </Button>
+                  ) : walletAddress ? (
+                    <>
+                      <div className="flex items-center gap-2 py-2 px-3 bg-black/30 rounded-lg border border-white/[0.07]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#34d399] shrink-0" />
+                        <span className="font-mono text-xs text-text-primary">
+                          {walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}
+                        </span>
+                      </div>
+                      <Button
+                        variant="primary"
+                        className="w-full gap-2"
+                        disabled={isMintPending || isMintConfirming || !onChainTokenId}
+                        onClick={() => mintOnChain(walletAddress)}
+                      >
+                        {isMintPending || isMintConfirming
+                          ? <><Loader2 size={13} className="animate-spin" /> {isMintConfirming ? 'Confirming…' : 'Confirm in wallet…'}</>
+                          : <><Star size={13} /> Claim Edition On-Chain</>}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="primary" className="w-full gap-2" onClick={login}>
+                      <Star size={13} /> Connect Wallet
+                    </Button>
+                  )}
+
+                  {mintWriteError && (
+                    <div className="bg-[#f87171]/10 text-[#f87171] text-xs px-3 py-2.5 rounded-lg border border-[#f87171]/20">
+                      {mintWriteError.shortMessage || mintWriteError.message}
+                    </div>
+                  )}
+                  {etherscanNft && (
+                    <p className="text-center text-[9px] text-text-muted">
+                      ERC-1155 · Sepolia · <a href={etherscanNft} target="_blank" rel="noreferrer" className="text-brand hover:brightness-125">View NFT</a>
+                    </p>
+                  )}
+                </div>
+              ) : mintedEdition ? (
                 <div className="space-y-3 text-center">
                   <div className="w-10 h-10 rounded-xl border border-[#34d399]/20 bg-[#34d399]/10 flex items-center justify-center mx-auto">
                     <CheckCircle2 size={20} className="text-[#34d399]" strokeWidth={1.5} />
@@ -521,33 +712,56 @@ export default function ClaimPage() {
           </button>
 
           {accordionOpen && (
-            <div className="px-6 pb-5 grid grid-cols-2 gap-2">
-              <ProofItem
-                label="Device Address"
-                value={short(claim?.device_address, 8)}
-                full={claim?.device_address}
-                link={claim?.device_address ? `https://sepolia.etherscan.io/address/${claim.device_address}` : null}
-                mono
-              />
-              <ProofItem label="IPFS CID" value={short(claim?.cid, 8)} full={claim?.cid} link={ipfsUrl} mono />
-              {claim?.token_id && (
-                <ProofItem label="Token ID" value={`#${claim.token_id}`} link={etherscanToken} />
+            <div className="px-6 pb-5 space-y-4">
+              {onChainVerified && (
+                <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-[#34d399]/[0.06] border border-[#34d399]/15">
+                  <ShieldCheck size={12} className="text-[#34d399] shrink-0" />
+                  <span className="text-[10px] text-[#34d399] font-medium">
+                    All proof fields read live from Sepolia · no trust required
+                  </span>
+                </div>
               )}
-              {etherscanTx && (
-                <ProofItem label="Mint Transaction" value="View on Etherscan" link={etherscanTx} />
-              )}
-              <ProofItem label="ECDSA Signature" value={short(claim?.signature, 8)} full={claim?.signature} mono />
-              <ProofItem label="Network" value="Sepolia Testnet" />
-              <ProofItem label="Contract" value="LensMintERC1155" link={etherscanToken} />
-              {claim?.recipient_address && (
+              <div className="grid grid-cols-2 gap-2">
                 <ProofItem
-                  label="Original Owner"
-                  value={short(claim.recipient_address, 8)}
-                  full={claim.recipient_address}
-                  link={`https://sepolia.etherscan.io/address/${claim.recipient_address}`}
+                  label="Device Address"
+                  value={short(deviceAddress, 8)}
+                  full={deviceAddress}
+                  link={deviceAddress ? `https://sepolia.etherscan.io/address/${deviceAddress}` : null}
                   mono
                 />
-              )}
+                <ProofItem label="IPFS CID" value={short(cid, 8)} full={cid} link={ipfsUrl} mono />
+                {claim?.token_id && (
+                  <ProofItem
+                    label="Token ID"
+                    value={`#${claim.token_id}`}
+                    link={etherscanNft || etherscanToken}
+                  />
+                )}
+                {etherscanTx && (
+                  <ProofItem label="Mint Transaction" value="View on Etherscan" link={etherscanTx} />
+                )}
+                <ProofItem label="ECDSA Signature" value={short(signature, 8)} full={signature} mono />
+                <ProofItem label="SHA-256 Hash" value={short(imageHash, 8)} full={imageHash} mono />
+                <ProofItem label="Network" value="Sepolia Testnet" />
+                <ProofItem label="Contract" value="LensMintERC1155" link={etherscanToken} />
+                {claim?.recipient_address && (
+                  <ProofItem
+                    label="Original Owner"
+                    value={short(claim.recipient_address, 8)}
+                    full={claim.recipient_address}
+                    link={`https://sepolia.etherscan.io/address/${claim.recipient_address}`}
+                    mono
+                  />
+                )}
+                {claimServerOffline && (
+                  <div className="col-span-2 flex items-center gap-1.5 mt-1">
+                    <WifiOff size={9} className="text-[#fbbf24]/60" />
+                    <span className="text-[9px] text-[#fbbf24]/60">
+                      Claim server offline · proof data sourced from on-chain
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

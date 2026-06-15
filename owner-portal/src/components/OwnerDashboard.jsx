@@ -1,5 +1,5 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount } from 'wagmi'
+import { useAccount, useReadContract, useReadContracts } from 'wagmi'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
@@ -23,11 +23,44 @@ import {
   LogOut,
   CircleAlert,
   QrCode,
+  WifiOff,
 } from 'lucide-react'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
-const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id'
-const PORTAL_URL   = import.meta.env.VITE_PORTAL_URL   || window.location.origin
+const BACKEND_URL      = import.meta.env.VITE_BACKEND_URL      || 'http://localhost:5000'
+const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001'
+const PRIVY_APP_ID     = import.meta.env.VITE_PRIVY_APP_ID     || 'your-privy-app-id'
+const PORTAL_URL       = import.meta.env.VITE_PORTAL_URL       || window.location.origin
+
+const LENS_MINT_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
+const LENS_MINT_ABI = [
+  {
+    name: 'totalTokens',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'getTokenMetadata',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_tokenId', type: 'uint256' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'deviceAddress', type: 'address' },
+        { name: 'deviceId',      type: 'string'  },
+        { name: 'ipfsHash',      type: 'string'  },
+        { name: 'imageHash',     type: 'string'  },
+        { name: 'signature',     type: 'string'  },
+        { name: 'timestamp',     type: 'uint256' },
+        { name: 'maxEditions',   type: 'uint256' },
+        { name: 'isOriginal',    type: 'bool'    },
+        { name: 'originalTokenId', type: 'uint256' },
+      ],
+    }],
+  },
+]
 
 const IPFS_GATEWAYS = [
   import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
@@ -191,35 +224,57 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
           <span className="text-[10px] text-text-muted">Latest shot · {time}</span>
         </div>
       </div>
-      <div className="px-4 py-3 flex items-center gap-2">
+      <div className="px-4 py-3 space-y-2">
         {isLive ? (
-          <>
+          <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted flex-1">{statusMsg}</span>
             <Button size="sm" variant="secondary" className="gap-1.5 shrink-0" onClick={() => onRetry(img.id)}>
               <RotateCcw size={12} /> Retry
             </Button>
-          </>
+          </div>
         ) : (
           <>
-            <span className="font-mono text-xs text-text-muted mr-2">#{img.id}</span>
             {claimUrl && (
-              <>
-                <Button size="sm" variant="primary" onClick={() => setShowQR(true)} className="gap-1.5">
-                  <QrCode size={12} /> QR Code
-                </Button>
-                <Button size="sm" variant="secondary" className="gap-1.5" onClick={copyLink}>
-                  {copying ? <Check size={12} /> : <Copy size={12} />}
-                  {copying ? 'Copied' : 'Copy Link'}
-                </Button>
-              </>
+              <a
+                href={claimUrl}
+                target="_blank" rel="noreferrer"
+                className="flex w-full items-center justify-center gap-2 bg-brand/10 border border-brand/25 text-brand rounded-lg py-2.5 text-xs font-semibold hover:bg-brand/18 transition-colors"
+              >
+                <ExternalLink size={12} /> View Claim Page
+              </a>
             )}
-            {img.txHash && (
-              <Button size="sm" variant="ghost" asChild className="ml-auto">
-                <a href={`https://sepolia.etherscan.io/tx/${img.txHash}`} target="_blank" rel="noreferrer" className="gap-1.5">
-                  <ExternalLink size={12} /> Etherscan
-                </a>
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-text-muted">#{img.id}</span>
+              {img.deviceId && (
+                <span className="text-[10px] text-text-muted/60 truncate max-w-[120px]">
+                  <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{img.deviceId}
+                </span>
+              )}
+              <div className="ml-auto flex gap-1.5">
+                {claimUrl && (
+                  <>
+                    <Button size="sm" variant="secondary" onClick={() => setShowQR(true)} className="gap-1.5">
+                      <QrCode size={12} /> QR
+                    </Button>
+                    <Button size="sm" variant="secondary" className="gap-1.5" onClick={copyLink}>
+                      {copying ? <Check size={12} /> : <Copy size={12} />}
+                      {copying ? 'Copied' : 'Copy'}
+                    </Button>
+                  </>
+                )}
+                {(img.txHash || img.nftUrl) && (
+                  <Button size="sm" variant="ghost" asChild>
+                    <a
+                      href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
+                      target="_blank" rel="noreferrer"
+                      className="gap-1.5"
+                    >
+                      <ExternalLink size={12} /> {img.txHash ? 'Etherscan' : 'View NFT'}
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -293,8 +348,16 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
           <span className="font-mono text-text-muted">#{img.id}</span>
           <span className="text-text-muted text-[10px]">{time}</span>
         </div>
+        {img.deviceId && (
+          <div className="text-[9px] text-text-muted/70 truncate">
+            <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{img.deviceId}
+          </div>
+        )}
         {img.filecoinCid && (
           <div className="font-mono text-[9px] text-text-muted/60 truncate">{img.filecoinCid.slice(0, 20)}…</div>
+        )}
+        {img.imageHash && !img.filecoinCid && (
+          <div className="font-mono text-[9px] text-text-muted/60 truncate">sha256: {img.imageHash.slice(0, 16)}…</div>
         )}
         {state === 'upload_failed' && (
           <p className="text-[9px] text-[#fbbf24]">Upload failed · needs retry</p>
@@ -307,37 +370,56 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         )}
       </div>
 
-      <div className="px-3 pb-3 flex gap-1.5">
+      <div className="px-3 pb-3 space-y-1.5">
         {claimUrl && state === 'minted' && (
           <>
-            <button
-              onClick={() => setShowQR(true)}
-              className="flex-1 flex items-center justify-center gap-1 bg-brand/[0.08] border border-brand/20 text-brand rounded-lg py-1.5 text-[10px] font-semibold hover:bg-brand/15 transition-colors"
+            <a
+              href={claimUrl}
+              target="_blank" rel="noreferrer"
+              className="flex w-full items-center justify-center gap-1.5 bg-brand/10 border border-brand/25 text-brand rounded-lg py-2 text-[10px] font-semibold hover:bg-brand/18 transition-colors"
             >
-              <QrCode size={10} /> QR
-            </button>
-            <button
-              onClick={copyLink}
-              className="flex-1 flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
-            >
-              {copying ? <Check size={10} className="text-[#34d399]" /> : <Copy size={10} />}
-              {copying ? 'Copied' : 'Link'}
-            </button>
+              <ExternalLink size={10} /> View Claim Page
+            </a>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setShowQR(true)}
+                className="flex-1 flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
+              >
+                <QrCode size={10} /> QR
+              </button>
+              <button
+                onClick={copyLink}
+                className="flex-1 flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
+              >
+                {copying ? <Check size={10} className="text-[#34d399]" /> : <Copy size={10} />}
+                {copying ? 'Copied' : 'Copy'}
+              </button>
+              {(img.txHash || img.nftUrl) && (
+                <a
+                  href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
+                  target="_blank" rel="noreferrer"
+                  className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg px-2.5 py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
+                  title={img.nftUrl && !img.txHash ? 'View NFT on Etherscan' : 'View transaction'}
+                >
+                  <ExternalLink size={10} />
+                </a>
+              )}
+            </div>
           </>
         )}
-        {img.txHash && (
+        {!claimUrl && (img.txHash || img.nftUrl) && (
           <a
-            href={`https://sepolia.etherscan.io/tx/${img.txHash}`}
+            href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
             target="_blank" rel="noreferrer"
-            className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg px-2 py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
+            className="flex w-full items-center justify-center gap-1.5 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-2 text-[10px] hover:text-white hover:border-white/15 transition-colors"
           >
-            <ExternalLink size={10} />
+            <ExternalLink size={10} /> {img.txHash ? 'View on Etherscan' : 'View NFT'}
           </a>
         )}
         {state === 'minting' && (
           <button
             onClick={() => onRetry(img.id)}
-            className="flex-1 flex items-center justify-center gap-1 bg-[#60a5fa]/[0.06] border border-[#60a5fa]/20 text-[#60a5fa] rounded-lg py-1.5 text-[10px] font-semibold hover:bg-[#60a5fa]/10 transition-colors"
+            className="flex w-full items-center justify-center gap-1 bg-[#60a5fa]/[0.06] border border-[#60a5fa]/20 text-[#60a5fa] rounded-lg py-2 text-[10px] font-semibold hover:bg-[#60a5fa]/10 transition-colors"
           >
             <RotateCcw size={10} /> Force Mint
           </button>
@@ -345,7 +427,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         {(state === 'upload_failed' || state === 'claim_failed') && (
           <button
             onClick={() => onRetry(img.id)}
-            className="flex-1 flex items-center justify-center gap-1 bg-[#fbbf24]/[0.06] border border-[#fbbf24]/20 text-[#fbbf24] rounded-lg py-1.5 text-[10px] font-semibold hover:bg-[#fbbf24]/10 transition-colors"
+            className="flex w-full items-center justify-center gap-1 bg-[#fbbf24]/[0.06] border border-[#fbbf24]/20 text-[#fbbf24] rounded-lg py-2 text-[10px] font-semibold hover:bg-[#fbbf24]/10 transition-colors"
           >
             <RotateCcw size={10} /> Retry
           </button>
@@ -401,28 +483,93 @@ export default function OwnerDashboard() {
   const { address }  = useAccount()
   const navigate = useNavigate()
 
-  const [images,      setImages]      = useState([])
-  const [loading,     setLoading]     = useState(false)
-  const [retrying,    setRetrying]    = useState(false)
-  const [deviceStatus, setDeviceStatus] = useState(null)
-  const [retryResult, setRetryResult] = useState(null)
-  const [filter,      setFilter]      = useState('all')
-  const [tab,         setTab]         = useState('photos')
+  const [images,        setImages]        = useState([])
+  const [loading,       setLoading]       = useState(false)
+  const [retrying,      setRetrying]      = useState(false)
+  const [deviceStatus,  setDeviceStatus]  = useState(null)
+  const [retryResult,   setRetryResult]   = useState(null)
+  const [filter,        setFilter]        = useState('all')
+  const [tab,           setTab]           = useState('photos')
+  const [backendOffline, setBackendOffline] = useState(false)
+  const [resolvedClaimMap, setResolvedClaimMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('veris_token_claim_map') || '{}') } catch { return {} }
+  })
+
+  // On-chain fallback: read totalTokens then batch-fetch metadata
+  const { data: totalTokens } = useReadContract({
+    address: LENS_MINT_ADDRESS,
+    abi: LENS_MINT_ABI,
+    functionName: 'totalTokens',
+    query: { enabled: backendOffline },
+  })
+
+  const tokenIds = totalTokens ? Array.from({ length: Number(totalTokens) }, (_, i) => i + 1) : []
+
+  const { data: onChainMeta, isLoading: onChainLoading } = useReadContracts({
+    contracts: tokenIds.map(id => ({
+      address: LENS_MINT_ADDRESS,
+      abi: LENS_MINT_ABI,
+      functionName: 'getTokenMetadata',
+      args: [BigInt(id)],
+    })),
+    query: { enabled: backendOffline && tokenIds.length > 0 },
+  })
+
+  const cleanCid = (hash) => {
+    if (!hash) return null
+    if (hash.startsWith('ipfs://')) return hash.slice(7)
+    if (hash.startsWith('https://') || hash.startsWith('http://')) return null
+    return hash
+  }
+
+  const onChainImages = backendOffline && onChainMeta
+    ? onChainMeta
+        .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
+        .filter(({ result }) => result?.isOriginal)
+        .map(({ result: m, id }) => ({
+          id,
+          status:      'minted',
+          filecoinCid: cleanCid(m.ipfsHash),
+          createdAt:   new Date(Number(m.timestamp) * 1000).toISOString(),
+          claimId:     resolvedClaimMap[id] || null,
+          tokenId:     id,
+          txHash:      null,
+          ai_score:    null,
+          deviceId:    m.deviceId || null,
+          imageHash:   m.imageHash || null,
+          nftUrl:      `https://sepolia.etherscan.io/nft/${LENS_MINT_ADDRESS}/${id}`,
+        }))
+    : []
 
   const walletAddress = address || wallets[0]?.address
 
   const fetchImages = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`${BACKEND_URL}/api/images/list`)
-      if (res.data.success) setImages(res.data.images || [])
-    } catch (_) {}
+      const res = await axios.get(`${BACKEND_URL}/api/images/list`, { timeout: 6000 })
+      if (res.data.success) {
+        const imgs = res.data.images || []
+        setImages(imgs)
+        setBackendOffline(false)
+        // Persist tokenId → claimId so on-chain fallback can still link to claim pages
+        try {
+          setResolvedClaimMap(prev => {
+            const next = { ...prev }
+            imgs.forEach(img => { if (img.tokenId && img.claimId) next[img.tokenId] = img.claimId })
+            localStorage.setItem('veris_token_claim_map', JSON.stringify(next))
+            return next
+          })
+        } catch {}
+      }
+    } catch (_) {
+      setBackendOffline(true)
+    }
     setLoading(false)
   }, [])
 
   const fetchDeviceStatus = useCallback(async () => {
     try {
-      const res = await axios.get(`${BACKEND_URL}/api/device/status`)
+      const res = await axios.get(`${BACKEND_URL}/api/device/status`, { timeout: 6000 })
       setDeviceStatus(res.data)
     } catch (_) {
       setDeviceStatus(null)
@@ -435,6 +582,30 @@ export default function OwnerDashboard() {
       fetchDeviceStatus()
     }
   }, [authenticated, fetchImages, fetchDeviceStatus])
+
+  // When offline and on-chain images are loaded, fetch any missing claimIds from the public server
+  useEffect(() => {
+    if (!backendOffline || !onChainImages.length) return
+    const missing = onChainImages.filter(img => img.tokenId && !resolvedClaimMap[img.tokenId])
+    if (!missing.length) return
+    Promise.allSettled(
+      missing.map(img =>
+        axios.get(`${CLAIM_SERVER_URL}/claim/by-token/${img.tokenId}`, { timeout: 5000 })
+          .then(r => r.data.success ? { tokenId: img.tokenId, claimId: r.data.claim_id } : null)
+          .catch(() => null)
+      )
+    ).then(results => {
+      const additions = {}
+      results.forEach(r => { if (r.status === 'fulfilled' && r.value) additions[r.value.tokenId] = r.value.claimId })
+      if (!Object.keys(additions).length) return
+      setResolvedClaimMap(prev => {
+        const next = { ...prev, ...additions }
+        try { localStorage.setItem('veris_token_claim_map', JSON.stringify(next)) } catch {}
+        return next
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendOffline, onChainMeta])
 
   // Auto-refresh every 8 s while any image is still being processed
   useEffect(() => {
@@ -464,23 +635,25 @@ export default function OwnerDashboard() {
     } catch (_) {}
   }
 
+  const activeImages = backendOffline ? onChainImages : images
+
   const stats = {
-    total:      images.length,
-    minted:     images.filter(i => i.status === 'minted').length,
-    processing: images.filter(i => i.status === 'uploaded').length,
-    failed:     images.filter(i => i.status === 'saved').length,
+    total:      activeImages.length,
+    minted:     activeImages.filter(i => i.status === 'minted').length,
+    processing: activeImages.filter(i => i.status === 'uploaded').length,
+    failed:     activeImages.filter(i => i.status === 'saved').length,
   }
   const retryableCount = images.filter(i => i.status !== 'minted').length
 
   const FILTER_TABS = [
-    { key: 'all',      label: 'All',        color: null,      count: images.length  },
+    { key: 'all',      label: 'All',        color: null,      count: activeImages.length  },
     { key: 'minted',   label: 'Minted',     color: '#34d399', count: stats.minted   },
     { key: 'uploaded', label: 'Processing', color: '#60a5fa', count: stats.processing },
     { key: 'saved',    label: 'Failed',     color: '#fbbf24', count: stats.failed   },
   ]
 
-  // images[0] = latest shot (featured); rest go in the regular grid
-  const [featuredImg, ...restImages] = images
+  // activeImages[0] = latest shot (featured); rest go in the regular grid
+  const [featuredImg, ...restImages] = activeImages
   const filtered = filter === 'all'
     ? restImages
     : restImages.filter(i => i.status === filter)
@@ -624,6 +797,20 @@ export default function OwnerDashboard() {
 
             <div className="p-8 flex flex-col gap-6 max-w-7xl w-full mx-auto">
 
+              {/* Offline banner */}
+              {backendOffline && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[#fbbf24]/25 bg-[#fbbf24]/[0.06] text-sm">
+                  <div className="flex items-center gap-2.5">
+                    <WifiOff size={14} className="text-[#fbbf24] shrink-0" />
+                    <span className="text-[#fbbf24] font-medium">Camera offline</span>
+                    <span className="text-[#fbbf24]/60 text-xs">· showing on-chain data from Sepolia</span>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-xs text-[#fbbf24]/70 hover:text-[#fbbf24] shrink-0" onClick={fetchImages} disabled={loading}>
+                    <RotateCcw size={11} className={loading ? 'animate-spin mr-1' : 'mr-1'} /> Retry
+                  </Button>
+                </div>
+              )}
+
               {/* Stats */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="Total shots"  value={stats.total}      icon="📷" />
@@ -676,19 +863,33 @@ export default function OwnerDashboard() {
               </div>
 
               {/* Grid */}
-              {loading ? (
+              {(loading || (backendOffline && onChainLoading)) ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   <div className="col-span-2 rounded-xl aspect-video bg-white/[0.03] animate-pulse" />
                   {Array.from({ length: 6 }).map((_, i) => <ImageCardSkeleton key={i} />)}
                 </div>
-              ) : images.length === 0 ? (
+              ) : activeImages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
-                  <div className="w-14 h-14 rounded-2xl border border-white/[0.08] flex items-center justify-center">
-                    <Camera size={24} className="text-white/20" strokeWidth={1} />
+                  <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center ${
+                    backendOffline ? 'border-[#fbbf24]/20 bg-[#fbbf24]/[0.06]' : 'border-white/[0.08]'
+                  }`}>
+                    {backendOffline
+                      ? <WifiOff size={24} className="text-[#fbbf24]/50" strokeWidth={1} />
+                      : <Camera size={24} className="text-white/20" strokeWidth={1} />
+                    }
                   </div>
                   <div>
-                    <p className="text-text-secondary font-medium">No images yet</p>
-                    <p className="text-text-muted text-sm mt-1">Capture a photo on the camera to get started.</p>
+                    {backendOffline ? (
+                      <>
+                        <p className="text-text-secondary font-medium">Camera offline · no on-chain tokens found</p>
+                        <p className="text-text-muted text-sm mt-1">Connect the camera and capture a photo to mint your first NFT.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-text-secondary font-medium">No images yet</p>
+                        <p className="text-text-muted text-sm mt-1">Capture a photo on the camera to get started.</p>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -849,15 +1050,19 @@ export default function OwnerDashboard() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
-                <div className="w-14 h-14 rounded-2xl border border-white/[0.08] flex items-center justify-center">
-                  <CircleAlert size={22} className="text-white/20" strokeWidth={1} />
+                <div className="w-14 h-14 rounded-2xl border border-[#fbbf24]/20 bg-[#fbbf24]/[0.06] flex items-center justify-center">
+                  <WifiOff size={22} className="text-[#fbbf24]/60" strokeWidth={1} />
                 </div>
                 <div>
-                  <p className="text-text-secondary font-medium">Cannot reach camera service</p>
+                  <p className="text-text-secondary font-medium">Camera hardware offline</p>
                   <p className="text-text-muted text-sm mt-1">
-                    Make sure <code className="text-brand font-mono text-xs">{BACKEND_URL}</code> is running.
+                    Cannot reach <code className="text-brand font-mono text-xs">{BACKEND_URL}</code>
                   </p>
+                  <p className="text-text-muted text-xs mt-1">Make sure the Raspberry Pi and ngrok tunnel are running.</p>
                 </div>
+                <Button variant="secondary" size="sm" onClick={fetchDeviceStatus} className="gap-1.5 mt-2">
+                  <RotateCcw size={12} /> Retry connection
+                </Button>
               </div>
             )}
           </div>
