@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/claim-server/:path*",
-      "destination": "https://cognifyforms.com/:path*"
+      "destination": "https://api.veris.live/:path*"
     },
     {
       "source": "/esp32.html",
