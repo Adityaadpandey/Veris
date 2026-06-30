@@ -67,10 +67,11 @@ const cleanCid = (hash) => {
 }
 
 const IPFS_GATEWAYS = [
-  import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
+  `${CLAIM_API}/api/image`,
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
   'https://w3s.link/ipfs',
-  'https://ipfs.io/ipfs',
   'https://dweb.link/ipfs',
+  'https://ipfs.io/ipfs',
 ]
 const ipfsOnError = (cid) => (e) => {
   const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
@@ -475,7 +476,7 @@ export default function ClaimPage() {
                   src={ipfsUrl}
                   alt="Original capture"
                   className="w-full aspect-[4/3] object-cover"
-                  onError={ipfsOnError(claim.cid)}
+                  onError={ipfsOnError(cid)}
                 />
               ) : (
                 <div className="aspect-[4/3] flex items-center justify-center text-white/10">

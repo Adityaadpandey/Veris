@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 5001;
 app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
+const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
 
 let FRONTEND_URL = process.env.FRONTEND_URL || CLAIM_SERVER_URL;
 if (FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1')) {
@@ -566,7 +567,7 @@ app.get('/claim/:claim_id', (req, res) => {
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
             <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img id="nftImage" src="https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
+            <img id="nftImage" src="https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
             <div class="nft-info">
               <div class="nft-name">LensMint Photo #${claim.token_id}</div>
               <div class="nft-description">Captured by LensMint Camera</div>
@@ -617,10 +618,10 @@ app.get('/claim/:claim_id', (req, res) => {
           if (!img) return;
           const cid = img.dataset.cid;
           const gateways = [
-            'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs/',
+            'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/',
             'https://w3s.link/ipfs/',
-            'https://ipfs.io/ipfs/',
-            'https://dweb.link/ipfs/'
+            'https://dweb.link/ipfs/',
+            'https://ipfs.io/ipfs/'
           ];
           let idx = 0;
           img.onerror = function() {
@@ -1045,6 +1046,30 @@ app.post('/complete-claim', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'LensMint Claim Server' });
+});
+
+app.get('/api/image/:cid', async (req, res) => {
+  const { cid } = req.params;
+  if (!cid || !/^[a-zA-Z0-9]+$/.test(cid)) {
+    return res.status(400).json({ error: 'Invalid CID' });
+  }
+  try {
+    const upstream = await fetch(`${LIGHTHOUSE_GATEWAY}/${cid}`);
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: 'Image not available' });
+    }
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    upstream.body.pipeTo(new WritableStream({
+      write(chunk) { res.write(chunk); },
+      close() { res.end(); },
+      abort(err) { res.destroy(err); }
+    }));
+  } catch (err) {
+    res.status(502).json({ error: 'Failed to fetch image from storage' });
+  }
 });
 
 app.listen(PORT, async () => {
