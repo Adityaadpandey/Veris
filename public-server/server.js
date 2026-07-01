@@ -1,10 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 const dbService = require('./dbService');
+const geminiService = require('./geminiService');
+const { cosineSimilarity } = geminiService;
+const { enrichClaim } = require('./enrichService');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -14,6 +18,13 @@ app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
+const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.6');
+
+// In-memory upload handling for the semantic search endpoint (10MB cap).
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 let FRONTEND_URL = process.env.FRONTEND_URL || CLAIM_SERVER_URL;
 if (FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1')) {
@@ -105,6 +116,11 @@ app.post('/create-claim', (req, res) => {
       status: claim.status
     });
 
+    // Fire-and-forget AI enrichment — never blocks or fails claim creation.
+    enrichClaim(claim.claim_id, claim.cid).catch(err =>
+      console.error(`❌ Unexpected enrichment error for ${claim.claim_id}:`, err.message)
+    );
+
   } catch (error) {
     console.error('❌ Error creating claim:', error);
     res.status(500).json({
@@ -134,12 +150,16 @@ app.get('/api/metadata/:claim_id', (req, res) => {
       });
     }
 
+    let parsedTags = [];
+    try { parsedTags = claim.tags ? JSON.parse(claim.tags) : []; } catch { parsedTags = []; }
+
     const metadata = {
       name: `LensMint Photo ${claim.token_id ? `#${claim.token_id}` : ''}`,
-      description: 'Captured by LensMint Camera',
+      description: claim.description || 'Captured by LensMint Camera',
       image: `ipfs://${claim.cid}`,
       external_url: `${FRONTEND_URL}/claim/${claim_id}`,
       attributes: [
+        ...parsedTags.map(tag => ({ trait_type: 'Tag', value: tag })),
         ...(claim.device_id ? [{
           trait_type: 'Device ID',
           value: claim.device_id
@@ -170,6 +190,8 @@ app.get('/api/metadata/:claim_id', (req, res) => {
         }
       ],
       properties: {
+        ...(claim.description && { aiDescription: claim.description }),
+        ...(parsedTags.length && { tags: parsedTags }),
         ...(claim.device_id && { deviceId: claim.device_id }),
         ...(claim.camera_id && { cameraId: claim.camera_id }),
         ...(claim.device_address && { deviceAddress: claim.device_address }),
@@ -237,6 +259,9 @@ app.get('/check-claim', (req, res) => {
       latitude: claim.latitude || null,
       longitude: claim.longitude || null,
       location_name: claim.location_name || null,
+      description: claim.description || null,
+      tags: (() => { try { return claim.tags ? JSON.parse(claim.tags) : []; } catch { return []; } })(),
+      ai_status: claim.ai_status || null,
       created_at: claim.created_at,
       claimed_at: claim.claimed_at || null,
       completed_at: claim.completed_at || null
@@ -1044,8 +1069,125 @@ app.post('/complete-claim', (req, res) => {
   }
 });
 
+// Re-run AI enrichment for a claim (recovers failed/missing enrichment).
+app.post('/api/enrich/:claim_id', async (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const claim = dbService.getClaim(claim_id);
+    if (!claim) {
+      return res.status(404).json({ success: false, error: 'Claim not found' });
+    }
+    if (!geminiService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
+    }
+    await enrichClaim(claim.claim_id, claim.cid);
+    const updated = dbService.getClaim(claim_id);
+    res.json({
+      success: updated.ai_status === 'done',
+      claim_id,
+      ai_status: updated.ai_status,
+      ai_error: updated.ai_error || null,
+      description: updated.description || null
+    });
+  } catch (error) {
+    console.error('❌ Error enriching claim:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Semantic reverse-image search: upload an image, find similar verified photos.
+app.post('/api/search', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'No image uploaded' });
+    }
+    if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, error: 'Uploaded file must be an image' });
+    }
+    if (!geminiService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'Search is temporarily unavailable (Gemini not configured)' });
+    }
+
+    const { description: queryDescription, embedding: queryEmbedding } =
+      await geminiService.processImage(req.file.buffer, req.file.mimetype);
+
+    const rows = dbService.getAllEmbeddings();
+    const scored = rows.map(row => {
+      let stored;
+      try { stored = JSON.parse(row.embedding); } catch { stored = null; }
+      const similarity = stored ? cosineSimilarity(queryEmbedding, stored) : 0;
+      let tags = [];
+      try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
+      return {
+        claim_id: row.claim_id,
+        token_id: row.token_id || null,
+        cid: row.cid,
+        recipient_address: row.recipient_address || null,
+        device_id: row.device_id || null,
+        created_at: row.created_at,
+        description: row.description || null,
+        tags,
+        similarity: Math.round(similarity * 100) / 100,
+        claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
+      };
+    });
+
+    const results = scored
+      .filter(r => r.similarity >= SEARCH_MIN_SCORE)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 5);
+
+    res.json({ success: true, query_description: queryDescription, results });
+  } catch (error) {
+    console.error('❌ Error during search:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Similar verified photos for a given claim (used on the claim page).
+app.get('/api/similar/:claim_id', (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const limit = Math.min(parseInt(req.query.limit || '4', 10) || 4, 12);
+
+    const self = dbService.getEmbedding(claim_id);
+    if (!self || !self.embedding) {
+      return res.json({ success: true, results: [] });
+    }
+
+    let selfEmbedding;
+    try { selfEmbedding = JSON.parse(self.embedding); } catch { selfEmbedding = null; }
+    if (!selfEmbedding) {
+      return res.json({ success: true, results: [] });
+    }
+
+    const rows = dbService.getAllEmbeddings().filter(r => r.claim_id !== claim_id);
+    const results = rows.map(row => {
+      let stored;
+      try { stored = JSON.parse(row.embedding); } catch { stored = null; }
+      const similarity = stored ? cosineSimilarity(selfEmbedding, stored) : 0;
+      return {
+        claim_id: row.claim_id,
+        token_id: row.token_id || null,
+        cid: row.cid,
+        description: row.description || null,
+        similarity: Math.round(similarity * 100) / 100,
+        claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
+      };
+    })
+      .filter(r => r.similarity >= SEARCH_MIN_SCORE)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('❌ Error getting similar photos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'LensMint Claim Server' });
+  res.json({ status: 'ok', service: 'LensMint Claim Server', gemini: geminiService.isAvailable() });
 });
 
 app.get('/api/image/:cid', async (req, res) => {
@@ -1072,6 +1214,18 @@ app.get('/api/image/:cid', async (req, res) => {
   }
 });
 
+// JSON error handler — keeps multer (e.g. file-too-large) and any other
+// thrown errors from returning Express's default HTML 500 page.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err instanceof multer.MulterError) {
+    const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 10MB)' : err.message;
+    return res.status(400).json({ success: false, error: msg });
+  }
+  console.error('❌ Unhandled error:', err);
+  res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+});
+
 app.listen(PORT, async () => {
   await initializeServices();
   
@@ -1093,6 +1247,10 @@ app.listen(PORT, async () => {
   console.log(`   - POST /claim/:claim_id/submit`);
   console.log(`   - POST /complete-claim`);
   console.log(`   - GET  /api/metadata/:claim_id`);
+  console.log(`   - POST /api/search  (semantic image search)`);
+  console.log(`   - GET  /api/similar/:claim_id`);
+  console.log(`   - POST /api/enrich/:claim_id`);
+  console.log(`🤖 Gemini enrichment: ${geminiService.isAvailable() ? 'enabled' : 'DISABLED (set GEMINI_API_KEY)'}`);
   console.log('═══════════════════════════════════════');
 });
 
