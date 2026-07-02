@@ -9,18 +9,29 @@ const IPFS_GATEWAYS = [
   'https://dweb.link/ipfs',
 ]
 
-function SimilarityBar({ score }) {
+function SimilarityBar({ score, visual, content }) {
   const pct = Math.round(score * 100);
   const color = pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : "#ef4444";
   return (
     <div style={{ marginBottom: 4 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: "#9ca3af" }}>Similarity</span>
+        <span style={{ fontSize: 13, color: "#9ca3af" }}>Match</span>
         <span style={{ fontSize: 15, fontWeight: 700, color }}>{pct}%</span>
       </div>
       <div style={{ background: "#1f2937", borderRadius: 4, height: 6, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, background: color, height: "100%", borderRadius: 4, transition: "width 0.6s ease" }} />
       </div>
+      {/* Transparent breakdown: the headline is a blend of these two signals. */}
+      {(visual != null || content != null) && (
+        <div style={{ display: "flex", gap: 12, marginTop: 5, fontSize: 10, color: "#6b7280" }}>
+          {visual != null && (
+            <span>Visual (look) <b style={{ color: "#9ca3af" }}>{Math.round(visual * 100)}%</b></span>
+          )}
+          {content != null && (
+            <span>Content (subject) <b style={{ color: "#9ca3af" }}>{Math.round(content * 100)}%</b></span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -59,6 +70,37 @@ function VerdictBanner({ verdict, aiHint }) {
             <a href={`/claim/${verdict.claim_id}`} style={{ fontSize: 12, color: s.accent, textDecoration: "none" }}>
               View on-chain claim →
             </a>
+          )}
+        </div>
+      )}
+
+      {verdict.changes && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
+            What changed vs the original · non-authoritative
+          </div>
+          {verdict.changes.summary && (
+            <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.5, marginBottom: 8 }}>
+              {verdict.changes.summary}
+            </div>
+          )}
+          {verdict.changes.items?.length > 0 ? (
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {verdict.changes.items.map((c, i) => (
+                <li key={i} style={{ fontSize: 12, color: "#fbbf24", lineHeight: 1.5, marginBottom: 2 }}>{c}</li>
+              ))}
+            </ul>
+          ) : (
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>
+              No visible content changes detected — the difference is likely re-saving or compression.
+            </div>
+          )}
+          {verdict.changes.change_type && (
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 10, color: "#9ca3af", background: "#1f2937", border: "1px solid #374151", borderRadius: 999, padding: "2px 8px" }}>
+                {verdict.changes.change_type.replace(/_/g, " ")}
+              </span>
+            </div>
           )}
         </div>
       )}
@@ -111,7 +153,7 @@ function ResultCard({ result }) {
           />
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <SimilarityBar score={result.similarity} />
+          <SimilarityBar score={result.similarity} visual={result.visual_similarity} content={result.content_similarity} />
           {result.description && (
             <p style={{ fontSize: 12, color: "#9ca3af", margin: "8px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               {result.description}
@@ -302,7 +344,7 @@ export default function SearchPage() {
               Visually similar verified photos
             </div>
             <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 12 }}>
-              Content similarity for discovery — not an authenticity check.
+              Ranked by a blend of visual look (perceptual hash) and subject matter — for discovery, not an authenticity check.
             </div>
             {results.length === 0 ? (
               <div style={{ fontSize: 13, color: "#6b7280" }}>No visually similar verified photos found.</div>

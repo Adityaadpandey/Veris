@@ -364,7 +364,7 @@ class ClaimDBService {
     const stmt = this.db.prepare(`
       SELECT e.claim_id, e.cid, e.embedding, e.dim,
              c.token_id, c.recipient_address, c.device_id, c.status,
-             c.description, c.tags, c.created_at
+             c.description, c.tags, c.phash, c.created_at
       FROM image_embeddings e
       JOIN claims c ON e.claim_id = c.claim_id
     `);
