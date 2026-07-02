@@ -23,22 +23,39 @@ const EMBED_DIM = parseInt(process.env.GEMINI_EMBED_DIM || '768', 10);
 const REQUEST_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT || '30000', 10);
 
 const DESCRIBE_PROMPT =
-  'You are describing a photograph for a verifiable-photo search index. ' +
+  'You are analyzing a photograph for a verifiable-photo index. ' +
   'Write a detailed, factual description of what the photo shows: subjects, ' +
-  'setting, colors, lighting, mood, and any notable objects or text. Do not ' +
-  'speculate about who took it or whether it is AI-generated. Also produce a ' +
-  'short one-line caption and a list of concise lowercase tags (single words ' +
-  'or short phrases) covering the main subjects and themes.';
+  'setting, colors, lighting, mood, and any notable objects or text. Also ' +
+  'produce a short one-line caption and a list of concise lowercase tags ' +
+  '(single words or short phrases) covering the main subjects and themes. ' +
+  'Finally, give a NON-AUTHORITATIVE visual assessment of whether the image ' +
+  'looks AI-generated or digitally manipulated: set likely_ai_generated to ' +
+  'true only if there are clear visual artifacts (impossible anatomy, warped ' +
+  'text, inconsistent lighting/shadows, blended edges), otherwise false, and ' +
+  'briefly justify it in ai_assessment. This is only a visual hint, not proof.';
 
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
     description: { type: 'string' },
     caption: { type: 'string' },
-    tags: { type: 'array', items: { type: 'string' } }
+    tags: { type: 'array', items: { type: 'string' } },
+    likely_ai_generated: { type: 'boolean' },
+    ai_assessment: { type: 'string' }
   },
-  required: ['description', 'caption', 'tags']
+  required: ['description', 'caption', 'tags', 'likely_ai_generated', 'ai_assessment']
 };
+
+// L2-normalize a vector. gemini-embedding-001 does NOT return unit-length
+// vectors when outputDimensionality < 3072, so we normalize ourselves; this
+// also lets stored vectors be compared with a plain dot product if needed.
+function l2normalize(vec) {
+  let norm = 0;
+  for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
+  norm = Math.sqrt(norm);
+  if (norm === 0) return vec;
+  return vec.map(v => v / norm);
+}
 
 function cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
@@ -135,16 +152,19 @@ class GeminiService {
     const tags = Array.isArray(parsed.tags)
       ? parsed.tags.map(t => String(t).trim().toLowerCase()).filter(Boolean)
       : [];
-    return { description, caption, tags };
+    const likelyAiGenerated = Boolean(parsed.likely_ai_generated);
+    const aiAssessment = (parsed.ai_assessment || '').trim();
+    return { description, caption, tags, likelyAiGenerated, aiAssessment };
   }
 
-  async embedText(text) {
+  async embedText(text, taskType = 'SEMANTIC_SIMILARITY') {
     if (!this.isAvailable()) throw new Error('GEMINI_API_KEY is not configured');
     if (!text || !text.trim()) throw new Error('Cannot embed empty text');
     const url = `${GEMINI_API_BASE}/models/${EMBED_MODEL}:embedContent`;
     const body = {
       model: `models/${EMBED_MODEL}`,
       content: { parts: [{ text }] },
+      taskType,
       outputDimensionality: EMBED_DIM
     };
     const data = await postJson(url, body);
@@ -152,7 +172,9 @@ class GeminiService {
     if (!Array.isArray(values) || values.length === 0) {
       throw new Error('Gemini embedding returned no vector');
     }
-    return values;
+    // Truncated (<3072) embeddings are not unit-length; normalize for correct
+    // cosine behaviour and consistent stored vectors.
+    return l2normalize(values);
   }
 
   /**
@@ -161,12 +183,20 @@ class GeminiService {
    */
   async processImage(imageBuffer, mimeType = 'image/jpeg') {
     return this._enqueue(async () => {
-      const { description, caption, tags } = await this.describeImage(imageBuffer, mimeType);
-      const embedding = await this.embedText(description);
+      const { description, caption, tags, likelyAiGenerated, aiAssessment } =
+        await this.describeImage(imageBuffer, mimeType);
+      // Embed a content-dense string (caption + tags) rather than the full
+      // prose description. Prose shares boilerplate ("the photograph shows…",
+      // colours, "lighting") across unrelated images, which inflates cosine
+      // similarity. Caption + tags carry the distinguishing subject matter.
+      const embedInput = [caption, tags.join(', ')].filter(Boolean).join('. ') || description;
+      const embedding = await this.embedText(embedInput, 'SEMANTIC_SIMILARITY');
       return {
         description,
         caption,
         tags,
+        likelyAiGenerated,
+        aiAssessment,
         embedding,
         model: `${VISION_MODEL}+${EMBED_MODEL}`,
         dim: embedding.length

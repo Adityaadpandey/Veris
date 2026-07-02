@@ -18,7 +18,7 @@ app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
-const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.6');
+const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 
 // In-memory upload handling for the semantic search endpoint (10MB cap).
 const upload = multer({
