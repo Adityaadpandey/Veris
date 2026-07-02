@@ -11,6 +11,7 @@
 
 const dbService = require('./dbService');
 const geminiService = require('./geminiService');
+const { dHash } = require('./imageHash');
 
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
 
@@ -60,6 +61,16 @@ async function enrichClaim(claim_id, cid) {
   try {
     dbService.setClaimAI(claim_id, { ai_status: 'pending', ai_error: '' });
     const { buffer, mimeType } = await fetchImageBuffer(cid);
+
+    // Deterministic perceptual hash for the tamper check. Computed and stored
+    // independently of Gemini so verification works even if description fails.
+    try {
+      const phash = await dHash(buffer);
+      dbService.setClaimAI(claim_id, { phash });
+    } catch (hashErr) {
+      console.warn(`⚠️  Could not compute perceptual hash for ${claim_id}: ${hashErr.message}`);
+    }
+
     const result = await geminiService.processImage(buffer, mimeType);
     dbService.setClaimAI(claim_id, {
       description: result.description,
