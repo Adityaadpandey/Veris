@@ -8,7 +8,7 @@ require('dotenv').config();
 const dbService = require('./dbService');
 const geminiService = require('./geminiService');
 const { cosineSimilarity } = geminiService;
-const { enrichClaim } = require('./enrichService');
+const { enrichClaim, fetchImageBuffer } = require('./enrichService');
 const { sha256Hex, dHash, hammingDistance } = require('./imageHash');
 
 const app = express();
@@ -23,6 +23,36 @@ const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 // Max Hamming distance (out of 64 bits) for a perceptual hash to count as the
 // SAME source image (altered copy). Small = strict. Tunable without redeploy.
 const PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
+
+// The "similar photos" list blends two independent signals:
+//   • visual  — deterministic perceptual-hash (dHash) closeness. Captures
+//               composition/framing, so a DIFFERENT ANGLE of the same scene
+//               scores LOW even when the content is alike.
+//   • content — Gemini text-embedding cosine. Captures subject matter, so two
+//               different desks both described as "cluttered desk with laptop"
+//               score HIGH even though the photos look nothing alike.
+// Ranking by content alone made unrelated-but-similar-subject photos rank at
+// ~87%. Weighting VISUAL heavily fixes that while keeping content as a signal.
+// Both sub-scores are returned to the client, so the headline number is never
+// a black box.
+const SEARCH_VISUAL_WEIGHT = Math.min(Math.max(
+  parseFloat(process.env.SEARCH_VISUAL_WEIGHT || '0.7'), 0), 1);
+const SEARCH_CONTENT_WEIGHT = 1 - SEARCH_VISUAL_WEIGHT;
+
+// Combine visual + content into a single 0..1 headline score. When a candidate
+// has no perceptual hash yet (e.g. not backfilled), fall back to content only.
+function blendedSimilarity(visual, content) {
+  const c = Math.max(0, Math.min(1, content)); // cosine can be slightly <0
+  if (visual === null || visual === undefined) {
+    return { score: c, visual: null, content: c };
+  }
+  const v = Math.max(0, Math.min(1, visual));
+  return {
+    score: SEARCH_VISUAL_WEIGHT * v + SEARCH_CONTENT_WEIGHT * c,
+    visual: v,
+    content: c
+  };
+}
 
 // In-memory upload handling for the semantic search endpoint (10MB cap).
 const upload = multer({
@@ -1153,6 +1183,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
             + 'It has been re-encoded, cropped, edited, or AI-modified, so it is not the authentic original.',
           bit_distance: best.dist,
           visual_match: Math.round((1 - best.dist / 64) * 100),
+          original_cid: best.row.cid || null,
           claim_url: `${FRONTEND_URL}/claim/${best.row.claim_id}`
         };
       }
@@ -1174,11 +1205,35 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           authoritative: false
         };
 
+        // For an altered copy, describe WHAT changed vs the on-chain original by
+        // showing Gemini both images side by side. Non-authoritative, best-effort.
+        if (verdict.type === 'altered_copy' && verdict.original_cid) {
+          try {
+            const { buffer: origBuffer } = await fetchImageBuffer(verdict.original_cid);
+            const diff = await geminiService.compareImages(origBuffer, buffer, req.file.mimetype);
+            verdict.changes = {
+              summary: diff.summary || null,
+              items: diff.changes,
+              change_type: diff.changeType,
+              authoritative: false
+            };
+          } catch (diffErr) {
+            console.warn('⚠️  Could not compare altered copy to original:', diffErr.message);
+          }
+        }
+
         const rows = dbService.getAllEmbeddings();
         similar = rows.map(row => {
           let stored;
           try { stored = JSON.parse(row.embedding); } catch { stored = null; }
-          const similarity = stored ? cosineSimilarity(q.embedding, stored) : 0;
+          const content = stored ? cosineSimilarity(q.embedding, stored) : 0;
+          // Deterministic visual closeness via perceptual hash (if both exist).
+          let visual = null;
+          if (uploadPhash && row.phash) {
+            const dist = hammingDistance(uploadPhash, row.phash);
+            if (Number.isFinite(dist)) visual = 1 - dist / 64;
+          }
+          const blend = blendedSimilarity(visual, content);
           let tags = [];
           try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
           return {
@@ -1190,7 +1245,9 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
             created_at: row.created_at,
             description: row.description || null,
             tags,
-            similarity: Math.round(similarity * 100) / 100,
+            similarity: Math.round(blend.score * 100) / 100,
+            visual_similarity: blend.visual === null ? null : Math.round(blend.visual * 100) / 100,
+            content_similarity: Math.round(blend.content * 100) / 100,
             claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
           };
         })
@@ -1234,17 +1291,29 @@ app.get('/api/similar/:claim_id', (req, res) => {
       return res.json({ success: true, results: [] });
     }
 
-    const rows = dbService.getAllEmbeddings().filter(r => r.claim_id !== claim_id);
+    const allRows = dbService.getAllEmbeddings();
+    const selfRow = allRows.find(r => r.claim_id === claim_id);
+    const selfPhash = selfRow ? selfRow.phash : null;
+
+    const rows = allRows.filter(r => r.claim_id !== claim_id);
     const results = rows.map(row => {
       let stored;
       try { stored = JSON.parse(row.embedding); } catch { stored = null; }
-      const similarity = stored ? cosineSimilarity(selfEmbedding, stored) : 0;
+      const content = stored ? cosineSimilarity(selfEmbedding, stored) : 0;
+      let visual = null;
+      if (selfPhash && row.phash) {
+        const dist = hammingDistance(selfPhash, row.phash);
+        if (Number.isFinite(dist)) visual = 1 - dist / 64;
+      }
+      const blend = blendedSimilarity(visual, content);
       return {
         claim_id: row.claim_id,
         token_id: row.token_id || null,
         cid: row.cid,
         description: row.description || null,
-        similarity: Math.round(similarity * 100) / 100,
+        similarity: Math.round(blend.score * 100) / 100,
+        visual_similarity: blend.visual === null ? null : Math.round(blend.visual * 100) / 100,
+        content_similarity: Math.round(blend.content * 100) / 100,
         claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
       };
     })
