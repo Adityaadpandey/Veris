@@ -9,6 +9,7 @@ const dbService = require('./dbService');
 const geminiService = require('./geminiService');
 const { cosineSimilarity } = geminiService;
 const { enrichClaim } = require('./enrichService');
+const { sha256Hex, dHash, hammingDistance } = require('./imageHash');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -19,6 +20,9 @@ app.use(express.json());
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
 const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
+// Max Hamming distance (out of 64 bits) for a perceptual hash to count as the
+// SAME source image (altered copy). Small = strict. Tunable without redeploy.
+const PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
 
 // In-memory upload handling for the semantic search endpoint (10MB cap).
 const upload = multer({
@@ -1095,7 +1099,14 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
   }
 });
 
-// Semantic reverse-image search: upload an image, find similar verified photos.
+// Verify & Search: upload an image, get a deterministic authenticity verdict
+// (exact hash / altered copy / no match) plus similar verified photos.
+//
+// Layers, in order of authority:
+//   1. exact  — SHA-256 == an on-chain image_hash  -> authentic original (proof)
+//   2. tamper — perceptual hash within PHASH_MAX_DISTANCE -> altered copy (deterministic)
+//   3. similar— Gemini embedding cosine match       -> similar content (fuzzy, labeled)
+//   4. ai_hint— Gemini vision guess                 -> AI-generated hint (non-authoritative)
 app.post('/api/search', upload.single('image'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
@@ -1104,40 +1115,102 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
     if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
       return res.status(400).json({ success: false, error: 'Uploaded file must be an image' });
     }
-    if (!geminiService.isAvailable()) {
-      return res.status(503).json({ success: false, error: 'Search is temporarily unavailable (Gemini not configured)' });
+
+    const buffer = req.file.buffer;
+
+    // ── Layer 1 & 2: deterministic hashing (no external service needed) ──────
+    const uploadSha = sha256Hex(buffer);
+    let uploadPhash = null;
+    try { uploadPhash = await dHash(buffer); } catch (e) {
+      console.warn('⚠️  Could not compute perceptual hash for upload:', e.message);
     }
 
-    const { description: queryDescription, embedding: queryEmbedding } =
-      await geminiService.processImage(req.file.buffer, req.file.mimetype);
+    let verdict = { type: 'no_match', message: 'This image does not match any verified photo on-chain.' };
 
-    const rows = dbService.getAllEmbeddings();
-    const scored = rows.map(row => {
-      let stored;
-      try { stored = JSON.parse(row.embedding); } catch { stored = null; }
-      const similarity = stored ? cosineSimilarity(queryEmbedding, stored) : 0;
-      let tags = [];
-      try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
-      return {
-        claim_id: row.claim_id,
-        token_id: row.token_id || null,
-        cid: row.cid,
-        recipient_address: row.recipient_address || null,
-        device_id: row.device_id || null,
-        created_at: row.created_at,
-        description: row.description || null,
-        tags,
-        similarity: Math.round(similarity * 100) / 100,
-        claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
+    const exact = dbService.getClaimByImageHash(uploadSha);
+    if (exact) {
+      verdict = {
+        type: 'authentic_original',
+        claim_id: exact.claim_id,
+        token_id: exact.token_id || null,
+        message: 'Authentic original — byte-for-byte identical to the verified on-chain image.',
+        image_hash: uploadSha,
+        claim_url: `${FRONTEND_URL}/claim/${exact.claim_id}`
       };
+    } else if (uploadPhash) {
+      // Closest perceptual match among claims that have a phash.
+      let best = null;
+      for (const row of dbService.getClaimsWithPhash()) {
+        const dist = hammingDistance(uploadPhash, row.phash);
+        if (best === null || dist < best.dist) best = { row, dist };
+      }
+      if (best && best.dist <= PHASH_MAX_DISTANCE) {
+        verdict = {
+          type: 'altered_copy',
+          claim_id: best.row.claim_id,
+          token_id: best.row.token_id || null,
+          message: 'Altered copy — this matches a verified on-chain image but is NOT byte-identical. '
+            + 'It has been re-encoded, cropped, edited, or AI-modified, so it is not the authentic original.',
+          bit_distance: best.dist,
+          visual_match: Math.round((1 - best.dist / 64) * 100),
+          claim_url: `${FRONTEND_URL}/claim/${best.row.claim_id}`
+        };
+      }
+    }
+
+    // ── Layers 3 & 4: Gemini description, embedding search, AI hint ──────────
+    // Best-effort: if Gemini is down, the hash verdict above is still returned.
+    let queryDescription = null;
+    let aiHint = null;
+    let similar = [];
+
+    if (geminiService.isAvailable()) {
+      try {
+        const q = await geminiService.processImage(buffer, req.file.mimetype);
+        queryDescription = q.description || null;
+        aiHint = {
+          likely_ai_generated: Boolean(q.likelyAiGenerated),
+          note: q.aiAssessment || null,
+          authoritative: false
+        };
+
+        const rows = dbService.getAllEmbeddings();
+        similar = rows.map(row => {
+          let stored;
+          try { stored = JSON.parse(row.embedding); } catch { stored = null; }
+          const similarity = stored ? cosineSimilarity(q.embedding, stored) : 0;
+          let tags = [];
+          try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
+          return {
+            claim_id: row.claim_id,
+            token_id: row.token_id || null,
+            cid: row.cid,
+            recipient_address: row.recipient_address || null,
+            device_id: row.device_id || null,
+            created_at: row.created_at,
+            description: row.description || null,
+            tags,
+            similarity: Math.round(similarity * 100) / 100,
+            claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
+          };
+        })
+          .filter(r => r.similarity >= SEARCH_MIN_SCORE)
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, 5);
+      } catch (e) {
+        console.warn('⚠️  Gemini enrichment of query failed (hash verdict still returned):', e.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      verdict,
+      ai_hint: aiHint,
+      query_description: queryDescription,
+      // `results` kept as an alias for backward-compat with any old client.
+      results: similar,
+      similar
     });
-
-    const results = scored
-      .filter(r => r.similarity >= SEARCH_MIN_SCORE)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 5);
-
-    res.json({ success: true, query_description: queryDescription, results });
   } catch (error) {
     console.error('❌ Error during search:', error);
     res.status(500).json({ success: false, error: error.message });
