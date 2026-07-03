@@ -75,6 +75,8 @@ async function enrichClaim(claim_id, cid) {
     dbService.setClaimAI(claim_id, {
       description: result.description,
       tags: result.tags,
+      likely_ai_generated: result.likelyAiGenerated,
+      ai_assessment: result.aiAssessment,
       ai_status: 'done',
       ai_error: ''
     });
