@@ -121,9 +121,6 @@ function VerdictBanner({ verdict, aiHint }) {
 }
 
 function ResultCard({ result }) {
-  const shortWallet = result.recipient_address
-    ? `${result.recipient_address.slice(0, 6)}...${result.recipient_address.slice(-4)}`
-    : "Unclaimed";
   const mintDate = result.created_at
     ? new Date((result.created_at.includes("T") ? result.created_at : result.created_at.replace(" ", "T") + "Z")).toLocaleDateString()
     : "Unknown";
@@ -172,11 +169,7 @@ function ResultCard({ result }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginTop: 12 }}>
-        <div>
-          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Owner</div>
-          <div style={{ fontSize: 12, color: "#e5e7eb", fontFamily: "monospace" }}>{shortWallet}</div>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginTop: 12 }}>
         <div>
           <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Token ID</div>
           <div style={{ fontSize: 12, color: "#e5e7eb" }}>{result.token_id ? `#${result.token_id}` : "—"}</div>
