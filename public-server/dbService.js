@@ -90,7 +90,9 @@ class ClaimDBService {
       { name: 'tags', type: 'TEXT' },        // JSON array string
       { name: 'ai_status', type: 'TEXT' },   // 'pending' | 'done' | 'failed'
       { name: 'ai_error', type: 'TEXT' },
-      { name: 'phash', type: 'TEXT' }        // 64-bit perceptual hash (16 hex chars)
+      { name: 'phash', type: 'TEXT' },       // 64-bit perceptual hash (16 hex chars)
+      { name: 'likely_ai_generated', type: 'INTEGER' }, // 0/1 non-authoritative hint
+      { name: 'ai_assessment', type: 'TEXT' }           // one-line justification for the hint
     ];
 
     columnsToAdd.forEach(col => {
@@ -318,7 +320,7 @@ class ClaimDBService {
 
   // ── AI enrichment (Gemini descriptions + embeddings) ──────────────────────
 
-  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null } = {}) {
+  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, likely_ai_generated = null, ai_assessment = null } = {}) {
     const fields = [];
     const values = [];
 
@@ -330,6 +332,8 @@ class ClaimDBService {
     if (ai_status !== null) { fields.push('ai_status = ?'); values.push(ai_status); }
     if (ai_error !== null) { fields.push('ai_error = ?'); values.push(ai_error); }
     if (phash !== null) { fields.push('phash = ?'); values.push(phash); }
+    if (likely_ai_generated !== null) { fields.push('likely_ai_generated = ?'); values.push(likely_ai_generated ? 1 : 0); }
+    if (ai_assessment !== null) { fields.push('ai_assessment = ?'); values.push(ai_assessment); }
 
     if (fields.length === 0) return this.getClaim(claim_id);
 
