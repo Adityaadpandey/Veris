@@ -68,6 +68,13 @@ const cleanCid = (hash) => {
   return hash
 }
 
+// Display-only branding: rewrite legacy "lensmint" naming to "veris" for UI
+// text. Note: this is cosmetic and may not match the raw on-chain value.
+const deBrand = (v) =>
+  typeof v === 'string'
+    ? v.replace(/lensmint/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
+    : v
+
 const IPFS_GATEWAYS = [
   `${CLAIM_API}/api/image`,
   import.meta.env.VITE_IPFS_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
@@ -195,16 +202,30 @@ function ProvenanceScore({ imageHash, signature, deviceId, txHash, cid, onChainV
         ))}
       </div>
 
-      {/* AI-generation hint — separate, explicitly non-authoritative */}
+      {/* AI-generation hint — compact, explicitly non-authoritative */}
       {aiHint && aiHint.assessed && (
         <div className="mt-3 pt-3 border-t border-white/[0.06]">
-          <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">
-            AI-generation hint · non-authoritative
-          </p>
-          <p className={`text-[10px] leading-relaxed ${aiHint.likely ? 'text-[#fbbf24]' : 'text-text-secondary'}`}>
-            {aiHint.likely ? '⚠︎ May be AI-generated / manipulated' : '✓ No AI-generation artifacts detected'}
-            {aiHint.note ? ` — ${aiHint.note}` : ''}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`text-[9px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${
+                aiHint.likely
+                  ? 'text-[#fbbf24] bg-[#fbbf24]/[0.08] border border-[#fbbf24]/20'
+                  : 'text-[#34d399] bg-[#34d399]/[0.08] border border-[#34d399]/20'
+              }`}
+            >
+              {aiHint.likely ? '⚠︎ Possible AI' : '✓ No AI artifacts'}
+            </span>
+            <span className="text-[8px] text-text-muted uppercase tracking-wider">non-authoritative</span>
+          </div>
+          {aiHint.note && (
+            <p
+              className="text-[10px] leading-relaxed text-text-muted mt-1.5 overflow-hidden"
+              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+              title={aiHint.note}
+            >
+              {aiHint.note}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -278,7 +299,10 @@ function ProofItem({ label, value, full, link, mono }) {
 
 /* ── AI description + tag chips ── */
 function AiDescription({ description, tags, pending }) {
+  const [expanded, setExpanded] = useState(false)
   if (!description && !pending) return null
+  // Only offer a toggle when the text is long enough to be worth collapsing.
+  const isLong = (description?.length || 0) > 180
   return (
     <div className="bg-brand/[0.04] border border-brand/15 rounded-xl p-3.5 space-y-2.5">
       <div className="flex items-center gap-1.5">
@@ -286,7 +310,22 @@ function AiDescription({ description, tags, pending }) {
         <span className="text-[10px] font-semibold text-brand uppercase tracking-wider">AI Description</span>
       </div>
       {description ? (
-        <p className="text-[11px] leading-relaxed text-text-secondary">{description}</p>
+        <div>
+          <p
+            className="text-[11px] leading-relaxed text-text-secondary overflow-hidden"
+            style={!expanded && isLong ? { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' } : undefined}
+          >
+            {description}
+          </p>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="mt-1 text-[10px] font-semibold text-brand hover:brightness-125 transition"
+            >
+              {expanded ? 'Read less' : 'Read more'}
+            </button>
+          )}
+        </div>
       ) : (
         <p className="text-[11px] text-text-muted italic">Generating description…</p>
       )}
@@ -563,11 +602,13 @@ export default function ClaimPage() {
       <div className="max-w-2xl w-full rounded-2xl border border-white/[0.07] bg-[#0e0e0e] overflow-hidden animate-[floatIn_0.5s_ease-out]">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
           <div className="flex items-center gap-2">
             <VerisLogoMark size={20} />
             <span className="font-display font-bold text-white text-sm tracking-tight">Veris</span>
-            <span className="text-text-muted text-xs">Protocol</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-text-muted border border-white/[0.08] rounded-full px-2 py-0.5">
+              Protocol
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {claimServerOffline && (
@@ -598,12 +639,12 @@ export default function ClaimPage() {
 
           {/* Left: Photo + meta */}
           <div className="p-5 flex flex-col gap-4">
-            <div className="relative rounded-xl overflow-hidden border border-white/[0.07] bg-[#141414]">
+            <div className="group relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#141414] ring-1 ring-inset ring-white/[0.03] shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
               {ipfsUrl ? (
                 <img
                   src={ipfsUrl}
                   alt="Original capture"
-                  className="w-full aspect-[4/3] object-cover"
+                  className="w-full aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                   onError={ipfsOnError(cid)}
                 />
               ) : (
@@ -615,11 +656,13 @@ export default function ClaimPage() {
                   </svg>
                 </div>
               )}
-              <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm border border-[#34d399]/25 rounded-md px-2 py-1">
-                <CheckCircle2 size={9} className="text-[#34d399]" />
+              {/* Scrim so the badges stay legible over any photo */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+              <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-[#34d399]/30 rounded-lg px-2.5 py-1">
+                <CheckCircle2 size={10} className="text-[#34d399]" strokeWidth={2.5} />
                 <span className="text-[9px] font-bold text-[#34d399] uppercase tracking-wide">Original · Not AI</span>
               </div>
-              <div className="absolute top-2.5 right-2.5 bg-black/70 backdrop-blur-sm border border-brand/25 rounded-md px-2 py-1">
+              <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/60 backdrop-blur-md border border-brand/30 rounded-lg px-2.5 py-1">
                 <span className="text-[9px] font-bold text-brand">⛓ On-Chain</span>
               </div>
             </div>
@@ -632,7 +675,7 @@ export default function ClaimPage() {
               <div className="flex justify-between items-center">
                 <span className="text-text-muted uppercase tracking-wider text-[9px] font-medium">Camera</span>
                 <div className="flex items-center gap-1">
-                  <span className="font-mono text-text-secondary text-[10px]">{deviceId || '—'}</span>
+                  <span className="font-mono text-text-secondary text-[10px]">{deBrand(deviceId) || '—'}</span>
                   {onChainVerified && deviceId && (
                     <ShieldCheck size={9} className="text-[#34d399]" title="Verified on-chain" />
                   )}
@@ -673,6 +716,10 @@ export default function ClaimPage() {
 
           {/* Right: Stats + CTA */}
           <div className="p-5 flex flex-col gap-3">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck size={11} className="text-brand" />
+              <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Verification</span>
+            </div>
             <ProvenanceScore
               imageHash={imageHash}
               signature={signature}
@@ -709,7 +756,7 @@ export default function ClaimPage() {
             />
 
             {/* CTA section */}
-            <div className="mt-auto pt-2">
+            <div className="mt-auto pt-4 border-t border-white/[0.06]">
               {claimServerOffline && !mintedEdition ? (
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fbbf24]/[0.06] border border-[#fbbf24]/15">
@@ -742,10 +789,11 @@ export default function ClaimPage() {
                   ) : walletAddress ? (
                     <>
                       <div className="flex items-center gap-2 py-2 px-3 bg-black/30 rounded-lg border border-white/[0.07]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#34d399] shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#34d399] shrink-0" style={{ boxShadow: '0 0 6px #34d399' }} />
                         <span className="font-mono text-xs text-text-primary">
                           {walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}
                         </span>
+                        <span className="ml-auto text-[9px] uppercase tracking-wider text-text-muted">Connected</span>
                       </div>
                       <Button
                         variant="primary"
@@ -850,7 +898,11 @@ export default function ClaimPage() {
                       {error}
                     </div>
                   )}
-                  <p className="text-center text-[9px] text-text-muted">ERC-1155 · Sepolia Testnet · Free</p>
+                  <div className="flex items-center justify-center gap-1.5 pt-0.5">
+                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">ERC-1155</span>
+                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">Sepolia</span>
+                    <span className="text-[9px] font-bold text-[#34d399] bg-[#34d399]/[0.08] border border-[#34d399]/20 rounded-full px-2 py-0.5">Free · Gasless</span>
+                  </div>
                 </div>
               ) : isPending ? (
                 <div className="text-center space-y-2 py-2">
@@ -910,7 +962,7 @@ export default function ClaimPage() {
                 <ProofItem label="ECDSA Signature" value={short(signature, 8)} full={signature} mono />
                 <ProofItem label="SHA-256 Hash" value={short(imageHash, 8)} full={imageHash} mono />
                 <ProofItem label="Network" value="Sepolia Testnet" />
-                <ProofItem label="Contract" value="LensMintERC1155" link={etherscanToken} />
+                <ProofItem label="Contract" value="Veris ERC-1155" link={etherscanToken} />
                 {claim?.recipient_address && (
                   <ProofItem
                     label="Original Owner"

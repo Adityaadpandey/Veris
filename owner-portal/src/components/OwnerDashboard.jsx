@@ -31,6 +31,13 @@ const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localh
 const PRIVY_APP_ID     = import.meta.env.VITE_PRIVY_APP_ID     || 'your-privy-app-id'
 const PORTAL_URL       = import.meta.env.VITE_PORTAL_URL       || window.location.origin
 
+// Display-only branding: rewrite legacy "lensmint" naming to "veris" for UI
+// text (cosmetic; may not match the raw on-chain value).
+const deBrand = (v) =>
+  typeof v === 'string'
+    ? v.replace(/lensmint/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
+    : v
+
 const LENS_MINT_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
 const LENS_MINT_ABI = [
   {
@@ -247,7 +254,7 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
               <span className="font-mono text-xs text-text-muted">#{img.id}</span>
               {img.deviceId && (
                 <span className="text-[10px] text-text-muted/60 truncate max-w-[120px]">
-                  <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{img.deviceId}
+                  <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{deBrand(img.deviceId)}
                 </span>
               )}
               <div className="ml-auto flex gap-1.5">
@@ -350,7 +357,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         </div>
         {img.deviceId && (
           <div className="text-[9px] text-text-muted/70 truncate">
-            <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{img.deviceId}
+            <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{deBrand(img.deviceId)}
           </div>
         )}
         {img.filecoinCid && (
@@ -727,7 +734,7 @@ export default function OwnerDashboard() {
             <p className={`text-[10px] font-semibold ${isOnline ? 'text-[#34d399]' : 'text-text-muted'}`}>
               {isOnline ? 'Camera Online' : deviceStatus === null ? 'Connecting…' : 'Camera Offline'}
             </p>
-            {deviceId && <p className="text-[9px] text-text-muted truncate">{deviceId}</p>}
+            {deviceId && <p className="text-[9px] text-text-muted truncate">{deBrand(deviceId)}</p>}
           </div>
         </div>
 
@@ -947,7 +954,7 @@ export default function OwnerDashboard() {
                       <>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-text-secondary">Device ID</span>
-                          <span className="font-mono text-text-primary text-xs">{deviceStatus.device.deviceId || '—'}</span>
+                          <span className="font-mono text-text-primary text-xs">{deBrand(deviceStatus.device.deviceId) || "—"}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-text-secondary">Registered</span>

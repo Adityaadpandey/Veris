@@ -1,7 +1,7 @@
 {
-  "name": "lensmint-owner-portal",
+  "name": "veris-owner-portal",
   "version": "1.0.0",
-  "description": "Owner portal for LensMint with Privy integration",
+  "description": "Owner portal for Veris with Privy integration",
   "type": "module",
   "scripts": {
     "dev": "vite",
