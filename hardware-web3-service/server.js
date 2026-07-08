@@ -7,16 +7,16 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import os from 'os';
-import { ethers } from 'ethers';
+import { PublicKey } from '@solana/web3.js';
+import nacl from 'tweetnacl';
 
 dotenv.config();
 
 import dbService from './dbService.js';
-import web3Service from './web3Service.js';
+import solanaService from './solanaService.js';
 import filecoinService from './filecoinService.js';
 import claimClient from './claimClient.js';
-import privyService from './privyService.js';
-import deploymentService from './deploymentService.js';
+import { hexToBytes, isValidSolanaAddress } from './pdas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,17 +78,17 @@ async function initializeServices() {
     dbService.initialize();
     console.log('✅ Database initialized');
 
-    await web3Service.initialize();
+    await solanaService.initialize();
 
-    if (web3Service.deviceWallet) {
-      await filecoinService.initialize(web3Service.deviceWallet);
+    if (solanaService.deviceKeypair) {
+      await filecoinService.initialize(solanaService.getAddress());
       if (filecoinService.initialized) {
         console.log('✅ Filecoin service initialized');
       } else {
         console.warn('⚠️ Filecoin service not available');
       }
     } else {
-      console.warn('⚠️ Device wallet not available, Filecoin service disabled');
+      console.warn('⚠️ Device keypair not available, Filecoin service disabled');
     }
 
     const claimHealth = await claimClient.healthCheck();
@@ -96,13 +96,6 @@ async function initializeServices() {
       console.log('✅ Claim server connected');
     } else {
       console.warn('⚠️ Claim server not available');
-    }
-
-    privyService.initialize();
-    if (privyService.initialized) {
-      console.log('✅ Privy service initialized');
-    } else {
-      console.warn('⚠️ Privy service not available');
     }
 
     servicesInitialized = true;
@@ -171,25 +164,20 @@ function startClaimPolling() {
           let recipientAddress = request.wallet_address;
           if (typeof recipientAddress === 'string') {
             recipientAddress = recipientAddress.trim();
-            if (!recipientAddress.startsWith('0x')) {
+            if (!isValidSolanaAddress(recipientAddress)) {
               console.error(`   ❌ Invalid address format: ${recipientAddress}`);
               processingEditionRequests.delete(request.id);
               continue;
             }
-            if (recipientAddress.length !== 42) {
-              console.error(`   ❌ Invalid address length: ${recipientAddress.length} (expected 42)`);
-              processingEditionRequests.delete(request.id);
-              continue;
-            }
           }
-          
-          const originalTokenId = Number(request.original_token_id);
-          if (isNaN(originalTokenId)) {
+
+          const originalTokenId = request.original_token_id;
+          if (!originalTokenId || !isValidSolanaAddress(String(originalTokenId))) {
             console.error(`   ❌ Invalid token ID: ${request.original_token_id}`);
             processingEditionRequests.delete(request.id);
             continue;
           }
-          
+
           try {
             await claimClient.updateEditionRequest(request.id, {
               status: 'processing'
@@ -197,8 +185,8 @@ function startClaimPolling() {
           } catch (e) {
             console.warn(`   ⚠️ Could not mark request as processing: ${e.message}`);
           }
-          
-          const mintResult = await web3Service.mintEdition(
+
+          const mintResult = await solanaService.mintEdition(
             recipientAddress,
             originalTokenId
           );
@@ -249,10 +237,10 @@ app.get('/api/status', async (req, res) => {
     // Get device info if available
     let deviceInfo = null;
     let deviceBalance = null;
-    if (web3Service.deviceWallet) {
+    if (solanaService.deviceKeypair) {
       try {
-        deviceInfo = await web3Service.getDeviceInfo(web3Service.deviceWallet.address);
-        deviceBalance = await web3Service.getDeviceBalance();
+        deviceInfo = await solanaService.getDeviceInfo(solanaService.getAddress());
+        deviceBalance = await solanaService.getDeviceBalance();
       } catch (error) {
         // Device not registered yet
       }
@@ -263,7 +251,7 @@ app.get('/api/status', async (req, res) => {
       status: 'online',
       services: {
         database: servicesInitialized,
-        blockchain: web3Service.initialized,
+        blockchain: solanaService.initialized,
         filecoin: filecoinService.initialized,
         claimServer: claimHealth.status === 'ok'
       },
@@ -284,52 +272,66 @@ app.get('/api/balance', async (req, res) => {
     const { address } = req.query;
     console.log(`\n💰 [BALANCE CHECK] Request from: ${address || 'unknown'}`);
 
-    if (!web3Service.deviceWallet) {
-      console.log('   ❌ Device wallet not initialized');
+    if (!solanaService.deviceKeypair) {
+      console.log('   ❌ Device keypair not initialized');
       return res.status(400).json({
         success: false,
         error: 'Device wallet not initialized'
       });
     }
 
-    console.log('   🔍 Checking ETH balance...');
-    console.log(`   📍 Wallet address: ${web3Service.deviceWallet.address}`);
-    const ethBalance = await web3Service.getDeviceBalance();
-    
-    if (!ethBalance) {
-      console.log('   ❌ Failed to get ETH balance');
+    console.log('   🔍 Checking SOL balance...');
+    console.log(`   📍 Wallet address: ${solanaService.getAddress()}`);
+    const solBalance = await solanaService.getDeviceBalance();
+
+    if (!solBalance) {
+      console.log('   ❌ Failed to get SOL balance');
       return res.status(500).json({
         success: false,
-        error: 'Failed to get ETH balance'
+        error: 'Failed to get SOL balance'
       });
     }
 
-    const balanceEth = parseFloat(ethBalance.balance);
-    const minEthBalance = parseFloat(process.env.MIN_ETH_BALANCE || '0.01');
-    const hasEnoughEth = balanceEth >= minEthBalance;
-    
-    console.log(`   📊 ETH Balance: ${balanceEth} ETH`);
-    console.log(`   📊 ETH Required: ${minEthBalance} ETH`);
-    console.log(`   ${hasEnoughEth ? '✅' : '⚠️'} ETH Status: ${hasEnoughEth ? 'Sufficient' : 'Low - needs funding'}`);
+    const balanceSol = parseFloat(solBalance.balance);
+    // NOTE: field name kept as MIN_ETH_BALANCE-compatible SOL threshold —
+    // the Raspberry Pi app reads response keys named `eth`/`balanceEth`
+    // verbatim (raspberry_pi_camera_app.py ~L1193, L1362); only the *values*
+    // become SOL. Default threshold is 0.05 SOL per the migration plan.
+    const minSolBalance = parseFloat(process.env.MIN_SOL_BALANCE || '0.05');
+    const hasEnoughSol = balanceSol >= minSolBalance;
+
+    console.log(`   📊 SOL Balance: ${balanceSol} SOL`);
+    console.log(`   📊 SOL Required: ${minSolBalance} SOL`);
+    console.log(`   ${hasEnoughSol ? '✅' : '⚠️'} SOL Status: ${hasEnoughSol ? 'Sufficient' : 'Low - needs funding'}`);
 
     const lighthouseReady = filecoinService.initialized;
     console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set LIGHTHOUSE_API_KEY)'}`);
 
-    const allFunded = hasEnoughEth && lighthouseReady;
-    const needsFunding = !hasEnoughEth || !lighthouseReady;
-    
+    const allFunded = hasEnoughSol && lighthouseReady;
+    const needsFunding = !hasEnoughSol || !lighthouseReady;
+
     console.log(`   ${allFunded ? '✅' : '⚠️'} Overall Status: ${allFunded ? 'All balances sufficient' : 'Some balances need funding'}`);
     console.log(`💰 [BALANCE CHECK] Complete - Returning response\n`);
 
     res.json({
       success: true,
-      address: ethBalance.address,
+      address: solBalance.address,
+      // Legacy key names kept for Raspberry Pi app compatibility — values
+      // are now SOL, not ETH. `sol`/`balanceSol` are the same data under
+      // non-legacy names for new consumers.
       eth: {
-        balance: ethBalance.balance,
-        balanceEth: balanceEth,
-        minBalance: minEthBalance,
-        hasEnoughBalance: hasEnoughEth,
-        needsFunding: !hasEnoughEth
+        balance: solBalance.balance,
+        balanceEth: balanceSol,
+        minBalance: minSolBalance,
+        hasEnoughBalance: hasEnoughSol,
+        needsFunding: !hasEnoughSol
+      },
+      sol: {
+        balance: solBalance.balance,
+        balanceSol: balanceSol,
+        minBalance: minSolBalance,
+        hasEnoughBalance: hasEnoughSol,
+        needsFunding: !hasEnoughSol
       },
       lighthouse: {
         initialized: lighthouseReady,
@@ -359,16 +361,15 @@ app.post('/api/device/register', async (req, res) => {
       firmwareVersion
     } = req.body;
 
-    if (!deviceAddress || !publicKey || !deviceId || !cameraId) {
+    if (!deviceAddress || !deviceId || !cameraId) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: deviceAddress, publicKey, deviceId, cameraId'
+        error: 'Missing required fields: deviceAddress, deviceId, cameraId'
       });
     }
 
-    const result = await web3Service.registerDevice({
+    const result = await solanaService.registerDevice({
       deviceAddress,
-      publicKey,
       deviceId,
       cameraId,
       model: model || 'Raspberry Pi',
@@ -413,10 +414,10 @@ app.post('/api/device/ensure-registered', async (req, res) => {
     console.log(`   Device ID: ${deviceId}`);
     console.log(`   Camera ID: ${cameraId}`);
 
-    if (!deviceAddress || !publicKey || !deviceId || !cameraId) {
+    if (!deviceAddress || !deviceId || !cameraId) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: deviceAddress, publicKey, deviceId, cameraId'
+        error: 'Missing required fields: deviceAddress, deviceId, cameraId'
       });
     }
 
@@ -429,18 +430,18 @@ app.post('/api/device/ensure-registered', async (req, res) => {
     console.log(`\n🔍 Step 1: Checking device registration status...`);
     try {
       // Use isDeviceActive which is more reliable
-      const isActive = await web3Service.isDeviceActive(deviceAddress);
+      const isActive = await solanaService.isDeviceActive(deviceAddress);
       console.log(`   📊 isDeviceActive result: ${isActive}`);
-      
+
       if (isActive) {
         // Device is registered and active
         registered = true;
         activated = true;
         console.log(`   ✅ Device ${deviceAddress} is registered and active`);
-        
+
         // Get full device info for logging
         try {
-          const deviceInfo = await web3Service.getDeviceInfo(deviceAddress);
+          const deviceInfo = await solanaService.getDeviceInfo(deviceAddress);
           if (deviceInfo) {
             console.log(`   📊 Registration details:`);
             console.log(`      - Device ID: ${deviceInfo.deviceId}`);
@@ -455,18 +456,18 @@ app.post('/api/device/ensure-registered', async (req, res) => {
       } else {
         // Device is not active - check if it's registered at all
         console.log(`   📊 Device is not active, checking registration status...`);
-        const deviceInfo = await web3Service.getDeviceInfo(deviceAddress);
-        
-        if (deviceInfo && deviceInfo.deviceAddress && deviceInfo.deviceAddress !== '0x0000000000000000000000000000000000000000') {
+        const deviceInfo = await solanaService.getDeviceInfo(deviceAddress);
+
+        if (deviceInfo) {
           // Device is registered but inactive
           registered = true;
           activated = false;
           console.log(`   ⚠️ Device ${deviceAddress} is registered but INACTIVE`);
           console.log(`   🔄 Activating device...`);
-          
+
           try {
             // Activate the device
-            const updateResult = await web3Service.updateDevice(
+            const updateResult = await solanaService.updateDevice(
               deviceAddress,
               firmwareVersion || '1.0.0',
               true
@@ -475,10 +476,10 @@ app.post('/api/device/ensure-registered', async (req, res) => {
             activated = true;
             console.log(`   ✅ Activation transaction submitted: ${activationTx}`);
             console.log(`   ⏳ Waiting for transaction confirmation...`);
-            console.log(`   ✅ Device ${deviceAddress} activated in block ${updateResult.blockNumber}`);
+            console.log(`   ✅ Device ${deviceAddress} activated`);
           } catch (updateError) {
             if (updateError.message?.includes('not registered')) {
-              console.warn(`   ⚠️ Activation failed: Device not registered (contract state mismatch)`);
+              console.warn(`   ⚠️ Activation failed: Device not registered (program state mismatch)`);
               console.warn(`   🔄 Will try to register device instead...`);
               registered = false; // Mark as not registered so we register it
             } else {
@@ -503,24 +504,23 @@ app.post('/api/device/ensure-registered', async (req, res) => {
       console.log(`   Camera ID: ${cameraId}`);
       console.log(`   Model: ${model || 'Raspberry Pi'}`);
       console.log(`   Firmware: ${firmwareVersion || '1.0.0'}`);
-      
+
       try {
         console.log(`   🔄 Calling registerDevice()...`);
-        const result = await web3Service.registerDevice({
+        const result = await solanaService.registerDevice({
           deviceAddress,
-          publicKey,
           deviceId,
           cameraId,
           model: model || 'Raspberry Pi',
           firmwareVersion: firmwareVersion || '1.0.0'
         });
-        
+
         registrationTx = result.txHash;
         registered = true;
         activated = true; // Registration sets isActive to true
         console.log(`   ✅ Registration transaction submitted: ${registrationTx}`);
         console.log(`   ⏳ Waiting for transaction confirmation...`);
-        console.log(`   ✅ Device registered in block ${result.blockNumber}`);
+        console.log(`   ✅ Device registered`);
         console.log(`   ✅ Device is automatically set to ACTIVE on registration`);
 
         // Cache device info in database
@@ -534,19 +534,19 @@ app.post('/api/device/ensure-registered', async (req, res) => {
         console.log(`   💾 Device info cached in database`);
       } catch (error) {
         console.log(`   ❌ Registration error: ${error.message}`);
-        
+
         // Check if error is "already registered"
-        if (error.message?.includes('already registered') || error.message?.includes('Device already registered')) {
+        if (error.message?.includes('already registered') || error.message?.includes('Device already registered') || error.message?.includes('already in use')) {
           console.log(`   ℹ️ Device appears to be already registered (race condition?)`);
           registered = true;
-          
+
           // Try to activate if not active
           try {
             console.log(`   🔄 Re-checking device status...`);
-            const deviceInfo = await web3Service.getDeviceInfo(deviceAddress);
+            const deviceInfo = await solanaService.getDeviceInfo(deviceAddress);
             if (deviceInfo && !deviceInfo.isActive) {
               console.log(`   🔄 Device is registered but inactive, activating...`);
-              const updateResult = await web3Service.updateDevice(
+              const updateResult = await solanaService.updateDevice(
                 deviceAddress,
                 firmwareVersion || '1.0.0',
                 true
@@ -611,7 +611,7 @@ app.post('/api/device/update', async (req, res) => {
       });
     }
 
-    const result = await web3Service.updateDevice(
+    const result = await solanaService.updateDevice(
       deviceAddress,
       firmwareVersion || '1.0.0',
       isActive
@@ -773,7 +773,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
           if (ownerWallet) {
             console.log(`   🎨 Minting original NFT to owner wallet: ${ownerWallet}`);
             try {
-              const mintResult = await web3Service.mintOriginal({
+              const mintResult = await solanaService.mintOriginal({
                 recipient: ownerWallet,
                 ipfsHash: filecoinCid,
                 imageHash: imageHash,
@@ -919,16 +919,18 @@ app.get('/api/verify/:claimId', async (req, res) => {
       nftMinted: !!image.token_id
     };
 
-    if (image.device_address && web3Service.initialized) {
+    if (image.device_address && solanaService.initialized) {
       try {
-        checks.deviceRegistered = await web3Service.isDeviceActive(image.device_address);
+        checks.deviceRegistered = await solanaService.isDeviceActive(image.device_address);
       } catch (_) {}
     }
 
     if (image.signature && image.image_hash && image.device_address) {
       try {
-        const recovered = ethers.verifyMessage(image.image_hash, image.signature);
-        checks.signatureValid = recovered.toLowerCase() === image.device_address.toLowerCase();
+        const imageHashBytes = hexToBytes(image.image_hash, 32, 'image_hash');
+        const sigBytes = hexToBytes(image.signature, 64, 'signature');
+        const devicePubkeyBytes = new PublicKey(image.device_address).toBytes();
+        checks.signatureValid = nacl.sign.detached.verify(imageHashBytes, sigBytes, devicePubkeyBytes);
       } catch (_) {}
     }
 
@@ -1015,8 +1017,8 @@ app.post('/api/mint-pending', async (req, res) => {
     if (!ownerWallet) {
       return res.status(400).json({ success: false, error: 'OWNER_WALLET_ADDRESS not set in .env' });
     }
-    if (!web3Service.initialized) {
-      return res.status(503).json({ success: false, error: 'Web3 service not initialized' });
+    if (!solanaService.initialized) {
+      return res.status(503).json({ success: false, error: 'Solana service not initialized' });
     }
 
     // Find images that are uploaded (have filecoin_cid + claim_id) but no token_id
@@ -1029,7 +1031,7 @@ app.post('/api/mint-pending', async (req, res) => {
     for (const image of uploaded) {
       const result = { id: image.id, claimId: image.claim_id, status: 'failed' };
       try {
-        const mintResult = await web3Service.mintOriginal({
+        const mintResult = await solanaService.mintOriginal({
           recipient: ownerWallet,
           ipfsHash: image.filecoin_cid,
           imageHash: image.image_hash,
@@ -1074,8 +1076,8 @@ app.post('/api/retry-pending', async (req, res) => {
   if (!ownerWallet) {
     return res.status(400).json({ success: false, error: 'OWNER_WALLET_ADDRESS not set in .env' });
   }
-  if (!web3Service.initialized) {
-    return res.status(503).json({ success: false, error: 'Web3 service not initialized' });
+  if (!solanaService.initialized) {
+    return res.status(503).json({ success: false, error: 'Solana service not initialized' });
   }
 
   try {
@@ -1162,7 +1164,7 @@ app.post('/api/retry-pending', async (req, res) => {
 
         // Phase 2: uploaded + claimId + no tokenId → mint
         if (image._phase === 2) {
-          const mintResult = await web3Service.mintOriginal({
+          const mintResult = await solanaService.mintOriginal({
             recipient: ownerWallet,
             ipfsHash: image.filecoin_cid,
             imageHash: image.image_hash,
@@ -1241,125 +1243,6 @@ app.get('/status', (req, res) => {
   });
 });
 
-
-// Privy Session Signer Endpoints
-app.post('/api/privy/create-session-signer', async (req, res) => {
-  try {
-    if (!privyService.initialized) {
-      return res.status(503).json({
-        success: false,
-        error: 'Privy service not initialized'
-      });
-    }
-
-    const { walletAddress, userId } = req.body;
-
-    if (!walletAddress || !userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: walletAddress, userId'
-      });
-    }
-
-    const sessionSigner = await privyService.createSessionSigner(walletAddress, userId);
-
-    res.json({
-      success: true,
-      sessionSigner: {
-        id: sessionSigner.id,
-        permissions: sessionSigner.permissions
-      },
-      signerAddress: sessionSigner.address
-    });
-  } catch (error) {
-    console.error('❌ Error creating session signer:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-app.post('/api/privy/mint-with-signer', async (req, res) => {
-  try {
-    if (!privyService.initialized) {
-      return res.status(503).json({
-        success: false,
-        error: 'Privy service not initialized'
-      });
-    }
-
-    const {
-      recipient,
-      ipfsHash,
-      imageHash,
-      signature,
-      maxEditions,
-      sessionSignerId
-    } = req.body;
-
-    if (!sessionSignerId || !recipient || !ipfsHash || !imageHash || !signature) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields'
-      });
-    }
-
-    if (!web3Service.initialized || !web3Service.lensMint) {
-      return res.status(503).json({
-        success: false,
-        error: 'Web3 service not initialized'
-      });
-    }
-
-    // Get contract ABI and address
-    const lensMintAddress = deploymentService.getLensMintAddress() || process.env.LENSMINT_ERC1155_ADDRESS;
-    
-    if (!lensMintAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'LensMint contract address not configured'
-      });
-    }
-
-    // Get contract ABI
-    const lensMintABI = deploymentService.getLensMintABI() || web3Service.getLensMintABI();
-    const lensMintInterface = new ethers.Interface(lensMintABI);
-    
-    // Prepare transaction data
-    const transaction = {
-      to: lensMintAddress,
-      data: lensMintInterface.encodeFunctionData('mintOriginal', [
-        recipient,
-        ipfsHash,
-        imageHash,
-        signature,
-        maxEditions || 0
-      ])
-    };
-
-    // Send transaction using Privy session signer with gas sponsorship
-    const result = await privyService.sendTransaction(sessionSignerId, transaction);
-
-    console.log(`🎨 Minted NFT using Privy session signer`);
-    console.log(`   Transaction: ${result.txHash}`);
-    console.log(`   Block: ${result.blockNumber}`);
-
-    res.json({
-      success: true,
-      txHash: result.txHash,
-      blockNumber: result.blockNumber,
-      message: 'NFT minted successfully with gas sponsorship'
-    });
-  } catch (error) {
-    console.error('❌ Error minting with session signer:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
 async function startServer() {
   await initializeServices();
 
@@ -1383,8 +1266,7 @@ async function startServer() {
     console.log(`   - GET  /api/claims/check`);
     console.log(`   - GET  /api/proofs/:claim_id`);
     console.log(`   - GET  /api/proofs/token/:token_id`);
-    console.log(`   - POST /api/privy/create-session-signer`);
-    console.log(`   - POST /api/privy/mint-with-signer`);
+    console.log(`   - GET  /api/balance`);
     console.log('═══════════════════════════════════════');
   });
 }
