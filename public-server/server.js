@@ -10,6 +10,7 @@ const geminiService = require('./geminiService');
 const { cosineSimilarity } = geminiService;
 const { enrichClaim, fetchImageBuffer } = require('./enrichService');
 const { sha256Hex, dHash, hammingDistance } = require('./imageHash');
+const { isValidSolanaAddress } = require('./solanaAddress.js');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -378,6 +379,14 @@ app.get('/claim/:claim_id', (req, res) => {
     `);
   }
 
+  // token_id stores the on-chain PhotoRecord address (base58); shorten for display
+  const shortTokenId = claim.token_id
+    ? `${String(claim.token_id).slice(0, 4)}…${String(claim.token_id).slice(-4)}`
+    : null;
+  const tokenExplorerUrl = claim.token_id
+    ? `https://explorer.solana.com/address/${claim.token_id}?cluster=devnet`
+    : null;
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -622,18 +631,18 @@ app.get('/claim/:claim_id', (req, res) => {
     <body>
       <div class="container">
         <h1>🎨 Claim Your NFT</h1>
-        <p class="subtitle">Enter your wallet address to receive your LensMint photo NFT</p>
+        <p class="subtitle">Enter your Solana wallet address to receive your LensMint photo NFT</p>
         
         ${claim.token_id ? `
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
-            <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img id="nftImage" src="https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
+            <div class="nft-token-id">Token ${shortTokenId}</div>
+            <img id="nftImage" src="https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo ${shortTokenId}" class="nft-image">
             <div class="nft-info">
-              <div class="nft-name">LensMint Photo #${claim.token_id}</div>
+              <div class="nft-name">LensMint Photo ${shortTokenId}</div>
               <div class="nft-description">Captured by LensMint Camera</div>
               <div class="nft-attributes">
-                <div class="nft-attribute"><strong>Token ID:</strong> ${claim.token_id}</div>
+                <div class="nft-attribute"><strong>Token ID:</strong> <a href="${tokenExplorerUrl}" target="_blank" rel="noopener">${claim.token_id}</a></div>
                 ${claim.status === 'open' ? '<div class="nft-attribute"><strong>Status:</strong> Open for Editions</div>' : ''}
               </div>
             </div>
@@ -650,13 +659,13 @@ app.get('/claim/:claim_id', (req, res) => {
 
         <form id="claimForm" ${claim.status === 'open' ? '' : 'style="display:none;"'}>
           <div class="form-group">
-            <label for="walletAddress">Wallet Address (0x...)</label>
+            <label for="walletAddress">Solana Wallet Address</label>
             <input
               type="text"
               id="walletAddress"
               name="walletAddress"
-              placeholder="0x..."
-              pattern="^0x[a-fA-F0-9]{40}$"
+              placeholder="Solana address (base58)"
+              pattern="^[1-9A-HJ-NP-Za-km-z]{32,44}$"
               required
             />
           </div>
@@ -802,8 +811,8 @@ app.get('/claim/:claim_id', (req, res) => {
           
           const walletAddress = document.getElementById('walletAddress').value.trim();
           
-          if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-            showMessage('Please enter a valid Ethereum address (0x followed by 40 hex characters)', 'error');
+          if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(walletAddress)) {
+            showMessage('Please enter a valid Solana address (base58, 32-44 characters)', 'error');
             return;
           }
 
@@ -862,10 +871,10 @@ app.post('/claim/:claim_id/submit', (req, res) => {
       });
     }
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+    if (!isValidSolanaAddress(wallet_address)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid Ethereum address format'
+        error: 'Invalid Solana address format'
       });
     }
 
@@ -968,10 +977,10 @@ app.post('/create-edition-request', (req, res) => {
       });
     }
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+    if (!isValidSolanaAddress(wallet_address)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid Ethereum address format'
+        error: 'Invalid Solana address format'
       });
     }
 
