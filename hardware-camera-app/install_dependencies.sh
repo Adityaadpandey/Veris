@@ -123,7 +123,7 @@ if [ "$use_venv" = "y" ] || [ "$use_venv" = "Y" ]; then
     echo ""
     echo "Installing additional libraries..."
     pip install smbus2 || echo "Warning: smbus2 install failed"
-    pip install ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
+    pip install pynacl base58 || echo "Warning: pynacl/base58 install failed (required for hardware identity)"
 
     echo ""
     echo -e "${GREEN}Virtual environment created at: $VENV_PATH${NC}"
@@ -146,7 +146,7 @@ else
     echo ""
     echo "Installing additional libraries..."
     pip3 install --user smbus2 || echo "Warning: smbus2 install failed"
-    pip3 install --user ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
+    pip3 install --user pynacl base58 || echo "Warning: pynacl/base58 install failed (required for hardware identity)"
 fi
 echo ""
 
