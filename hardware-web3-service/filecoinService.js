@@ -7,17 +7,20 @@ class FilecoinService {
   constructor() {
     this.initialized = false;
     this.apiKey = null;
-    this.wallet = null;
+    // Just a label for status/logging — Lighthouse auth is API-key based,
+    // not tied to any on-chain keypair, so this only ever needs the address
+    // string (not a signing wallet object).
+    this.deviceAddress = null;
   }
 
-  async initialize(deviceWallet) {
+  async initialize(deviceAddress) {
     this.apiKey = process.env.LIGHTHOUSE_API_KEY;
     if (!this.apiKey) {
       console.warn('⚠️  LIGHTHOUSE_API_KEY not set. Filecoin upload disabled.');
       this.initialized = false;
       return false;
     }
-    this.wallet = deviceWallet || null;
+    this.deviceAddress = deviceAddress || null;
     this.initialized = true;
     console.log('✅ Filecoin service initialized (Lighthouse IPFS)');
     return true;
@@ -95,7 +98,7 @@ class FilecoinService {
     return {
       connected: true,
       provider: 'Lighthouse',
-      address: this.wallet?.address || 'N/A'
+      address: this.deviceAddress || 'N/A'
     };
   }
 

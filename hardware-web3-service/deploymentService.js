@@ -5,101 +5,98 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Resolves the Anchor program's deployment.json + IDL, checked in under
+// solana-program/ at the repo root. Paths are resolved relative to this
+// service's directory so it works regardless of CWD, with env overrides
+// for flexibility (e.g. running from a different checkout layout).
 class DeploymentService {
   constructor() {
     this.deployment = null;
+    this.idl = null;
     this.deploymentPath = null;
+    this.idlPath = null;
+  }
+
+  _candidatePaths(envVar, relativeSuffix) {
+    return [
+      process.env[envVar] ? path.resolve(process.env[envVar]) : null,
+      path.join(__dirname, '..', 'solana-program', relativeSuffix),
+      path.join(__dirname, 'solana-program', relativeSuffix),
+      path.join(process.cwd(), 'solana-program', relativeSuffix),
+    ].filter(Boolean);
   }
 
   loadDeployment() {
-    // Try multiple possible paths for deployment.json
-    const possiblePaths = [
-      path.join(__dirname, 'deployment.json'),
-      process.env.DEPLOYMENT_JSON_PATH ? path.resolve(process.env.DEPLOYMENT_JSON_PATH) : null,
-      path.join(__dirname, '../contracts/deployment.json'),
-      path.join(__dirname, '../../deployment.json')
-    ].filter(Boolean);
+    if (this.deployment) return true;
 
-    for (const deploymentPath of possiblePaths) {
+    for (const candidate of this._candidatePaths('SOLANA_DEPLOYMENT_PATH', 'deployment.json')) {
       try {
-        if (fs.existsSync(deploymentPath)) {
-          const content = fs.readFileSync(deploymentPath, 'utf8');
-          this.deployment = JSON.parse(content);
-          this.deploymentPath = deploymentPath;
-          console.log(`✅ Loaded deployment from: ${deploymentPath}`);
+        if (fs.existsSync(candidate)) {
+          this.deployment = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+          this.deploymentPath = candidate;
+          console.log(`✅ Loaded Solana deployment from: ${candidate}`);
           return true;
         }
       } catch (error) {
-        console.warn(`⚠️  Could not load deployment from ${deploymentPath}:`, error.message);
+        console.warn(`⚠️  Could not load deployment from ${candidate}:`, error.message);
       }
     }
 
+    console.warn('⚠️  solana-program/deployment.json not found in any known location');
     return false;
   }
 
-  getContractAddress(contractName) {
-    if (!this.deployment) {
-      if (!this.loadDeployment()) {
-        return null;
+  loadIdl() {
+    if (this.idl) return true;
+
+    for (const candidate of this._candidatePaths('VERIS_IDL_PATH', path.join('idl', 'veris.json'))) {
+      try {
+        if (fs.existsSync(candidate)) {
+          this.idl = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+          this.idlPath = candidate;
+          console.log(`✅ Loaded veris IDL from: ${candidate}`);
+          return true;
+        }
+      } catch (error) {
+        console.warn(`⚠️  Could not load IDL from ${candidate}:`, error.message);
       }
     }
 
-    const contract = this.deployment.contracts?.[contractName];
-    return contract?.address || null;
-  }
-
-  getContractABI(contractName) {
-    if (!this.deployment) {
-      if (!this.loadDeployment()) {
-        return null;
-      }
-    }
-
-    const contract = this.deployment.contracts?.[contractName];
-    return contract?.abi || null;
+    console.warn('⚠️  solana-program/idl/veris.json not found in any known location');
+    return false;
   }
 
   getDeployment() {
-    if (!this.deployment) {
-      if (!this.loadDeployment()) {
-        return null;
-      }
-    }
-
+    if (!this.deployment && !this.loadDeployment()) return null;
     return this.deployment;
   }
 
-  getNetwork() {
-    if (!this.deployment) {
-      if (!this.loadDeployment()) {
-        return null;
-      }
-    }
+  getIdl() {
+    if (!this.idl && !this.loadIdl()) return null;
+    return this.idl;
+  }
 
-    return {
-      network: this.deployment.network,
-      chainId: this.deployment.chainId
-    };
+  getProgramId() {
+    const deployment = this.getDeployment();
+    if (deployment?.programId) return deployment.programId;
+    const idl = this.getIdl();
+    return idl?.address || process.env.VERIS_PROGRAM_ID || null;
+  }
+
+  getCluster() {
+    return this.getDeployment()?.cluster || process.env.SOLANA_CLUSTER || 'devnet';
+  }
+
+  getRpcUrl() {
+    return (
+      this.getDeployment()?.rpcUrl ||
+      process.env.SOLANA_RPC_URL ||
+      'https://api.devnet.solana.com'
+    );
   }
 
   isLoaded() {
-    return this.deployment !== null;
-  }
-
-  getDeviceRegistryAddress() {
-    return this.getContractAddress('DeviceRegistry');
-  }
-
-  getLensMintAddress() {
-    return this.getContractAddress('LensMintERC1155');
-  }
-
-  getDeviceRegistryABI() {
-    return this.getContractABI('DeviceRegistry');
-  }
-
-  getLensMintABI() {
-    return this.getContractABI('LensMintERC1155');
+    return this.deployment !== null && this.idl !== null;
   }
 }
 
