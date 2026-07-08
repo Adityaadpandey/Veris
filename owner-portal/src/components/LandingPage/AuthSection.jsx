@@ -1,9 +1,10 @@
-import { usePrivy } from '@privy-io/react-auth'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import AuthCanvas from './AuthCanvas'
 import styles from './AuthSection.module.css'
 
 export default function AuthSection() {
-  const { login } = usePrivy()
+  const { setVisible } = useWalletModal()
+  const login = () => setVisible(true)
 
   return (
     <section className={styles.section}>
@@ -31,7 +32,7 @@ export default function AuthSection() {
         <div className={styles.orRow}><span>OR</span></div>
 
         <button className={`${styles.walletBtn} glass`} onClick={login}>
-          Connect Wallet via Privy
+          Connect Solana Wallet
         </button>
 
         <p className={styles.notice}>
