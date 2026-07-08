@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
+import { PublicKey, SystemProgram } from '@solana/web3.js'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { getProgram, fetchPhotoRecord, editionPda, explorerUrl, isValidSolanaAddress, PROGRAM_ID } from '@/lib/veris'
 import {
   CheckCircle2,
   XCircle,
@@ -27,40 +29,6 @@ import {
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
   || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
 
-const LENS_MINT_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
-const LENS_MINT_ABI = [
-  {
-    name: 'mintEdition',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: '_to',              type: 'address' },
-      { name: '_originalTokenId', type: 'uint256' },
-    ],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    name: 'getTokenMetadata',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: '_tokenId', type: 'uint256' }],
-    outputs: [{
-      type: 'tuple',
-      components: [
-        { name: 'deviceAddress',   type: 'address' },
-        { name: 'deviceId',        type: 'string'  },
-        { name: 'ipfsHash',        type: 'string'  },
-        { name: 'imageHash',       type: 'string'  },
-        { name: 'signature',       type: 'string'  },
-        { name: 'timestamp',       type: 'uint256' },
-        { name: 'maxEditions',     type: 'uint256' },
-        { name: 'isOriginal',      type: 'bool'    },
-        { name: 'originalTokenId', type: 'uint256' },
-      ],
-    }],
-  },
-]
-
 const cleanCid = (hash) => {
   if (!hash) return null
   if (hash.startsWith('ipfs://')) return hash.slice(7)
@@ -74,6 +42,14 @@ const deBrand = (v) =>
   typeof v === 'string'
     ? v.replace(/lensmint/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
     : v
+
+// Fixed-length on-chain byte arrays (image_hash, signature) decode to plain
+// number arrays via the Anchor borsh coder — render them as hex for display.
+const bytesToHex = (bytes) => {
+  if (!bytes) return null
+  const arr = Array.isArray(bytes) ? bytes : Array.from(bytes)
+  return arr.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
 
 const IPFS_GATEWAYS = [
   `${CLAIM_API}/api/image`,
@@ -115,7 +91,7 @@ function VerisLogoMark({ size = 22 }) {
  * is shown separately and clearly marked non-authoritative. */
 const PROVENANCE_FACTORS = [
   { key: 'hash',   label: 'SHA-256 image hash recorded', points: 30 },
-  { key: 'sig',    label: 'Hardware ECDSA signature',     points: 25 },
+  { key: 'sig',    label: 'Hardware Ed25519 signature',  points: 25 },
   { key: 'device', label: 'Camera device identity',       points: 20 },
   { key: 'mint',   label: 'Minted on-chain (tx)',         points: 15 },
   { key: 'ipfs',   label: 'Stored on IPFS / Filecoin',    points: 10 },
@@ -434,9 +410,10 @@ function short(str, len = 12) {
 
 export default function ClaimPage() {
   const { claimId } = useParams()
-  const { ready, authenticated, login } = usePrivy()
-  const { wallets } = useWallets()
-  const { address } = useAccount()
+  const { connection } = useConnection()
+  const wallet = useWallet()
+  const { publicKey, connected, connecting, sendTransaction } = wallet
+  const { setVisible: setWalletModalVisible } = useWalletModal()
 
   const [claim, setClaim] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -450,30 +427,67 @@ export default function ClaimPage() {
   const [claimServerOffline, setClaimServerOffline] = useState(false)
   const [similar, setSimilar] = useState([])
 
-  const walletAddress = address || wallets[0]?.address
+  const walletAddress = publicKey?.toBase58()
 
-  // On-chain proof fetch — enabled once we have a token_id (from cache or live data)
-  const onChainTokenId = claim?.token_id ? BigInt(claim.token_id) : undefined
-  const { data: onChainMeta } = useReadContract({
-    address: LENS_MINT_ADDRESS,
-    abi: LENS_MINT_ABI,
-    functionName: 'getTokenMetadata',
-    args: onChainTokenId !== undefined ? [onChainTokenId] : undefined,
-    query: { enabled: onChainTokenId !== undefined },
-  })
+  // The claim server addresses photos by their PhotoRecord PDA (base58).
+  const photoRecordPubkey = useMemo(() => {
+    if (!claim?.token_id) return null
+    try { return new PublicKey(claim.token_id) } catch { return null }
+  }, [claim?.token_id])
+
+  // On-chain proof fetch — reads the PhotoRecord account directly.
+  const [onChainMeta, setOnChainMeta] = useState(null)
+  const [onChainLoading, setOnChainLoading] = useState(false)
+
+  const refreshOnChainMeta = useCallback(async () => {
+    if (!claim?.token_id) { setOnChainMeta(null); return }
+    setOnChainLoading(true)
+    const record = await fetchPhotoRecord(connection, claim.token_id)
+    setOnChainMeta(record)
+    setOnChainLoading(false)
+  }, [claim?.token_id, connection])
+
+  useEffect(() => { refreshOnChainMeta() }, [refreshOnChainMeta])
 
   // Direct on-chain mint (used when claim server is offline)
-  const { data: mintTxHash, writeContract, isPending: isMintPending, error: mintWriteError } = useWriteContract()
-  const { isLoading: isMintConfirming, isSuccess: isMintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash })
+  const [mintSubmitting, setMintSubmitting] = useState(false)
+  const [mintConfirming, setMintConfirming] = useState(false)
+  const [mintSignature, setMintSignature] = useState(null)
+  const [mintWriteError, setMintWriteError] = useState(null)
+  const isMintPending = mintSubmitting
+  const isMintConfirming = mintConfirming
+  const isMintConfirmed = !!mintSignature
 
   const mintOnChain = async (recipient) => {
-    if (!onChainTokenId) return
-    writeContract({
-      address: LENS_MINT_ADDRESS,
-      abi: LENS_MINT_ABI,
-      functionName: 'mintEdition',
-      args: [recipient, onChainTokenId],
-    })
+    if (!photoRecordPubkey || !onChainMeta || !publicKey) return
+    setMintWriteError(null)
+    setMintSubmitting(true)
+    try {
+      const program = getProgram(connection, wallet)
+      const currentCount = BigInt(onChainMeta.editionCount.toString())
+      const edition = editionPda(photoRecordPubkey, currentCount + 1n)
+      const tx = await program.methods
+        .mintEdition(new PublicKey(recipient))
+        .accounts({
+          photoRecord: photoRecordPubkey,
+          edition,
+          payer: publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .transaction()
+      const sig = await sendTransaction(tx, connection)
+      setMintSubmitting(false)
+      setMintConfirming(true)
+      const latest = await connection.getLatestBlockhash()
+      await connection.confirmTransaction({ signature: sig, ...latest }, 'confirmed')
+      setMintSignature(sig)
+      refreshOnChainMeta()
+    } catch (e) {
+      setMintWriteError(e)
+    } finally {
+      setMintSubmitting(false)
+      setMintConfirming(false)
+    }
   }
 
   useEffect(() => {
@@ -545,7 +559,7 @@ export default function ClaimPage() {
   const submit = async () => {
     const recipient = useManual ? manualAddress.trim() : walletAddress
     if (!recipient) { setError('No wallet address. Connect a wallet or enter one manually.'); return }
-    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) { setError('Invalid Ethereum address.'); return }
+    if (!isValidSolanaAddress(recipient)) { setError('Invalid Solana address.'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -581,20 +595,21 @@ export default function ClaimPage() {
   const isPending = claim?.status === 'pending'
 
   // Merge on-chain data over cached claim for proof display
-  const cid           = cleanCid(onChainMeta?.ipfsHash) || claim?.cid
-  const imageHash     = onChainMeta?.imageHash     || claim?.image_hash
-  const signature     = onChainMeta?.signature     || claim?.signature
-  const deviceAddress = onChainMeta?.deviceAddress || claim?.device_address
+  const cid           = cleanCid(onChainMeta?.cid) || claim?.cid
+  const imageHash     = bytesToHex(onChainMeta?.imageHash) || claim?.image_hash
+  const signature     = bytesToHex(onChainMeta?.signature) || claim?.signature
+  const deviceAddress = onChainMeta?.devicePubkey?.toBase58() || claim?.device_address
   const deviceId      = onChainMeta?.deviceId      || claim?.camera_id || claim?.device_id
-  const capturedAt    = onChainMeta?.timestamp
-    ? new Date(Number(onChainMeta.timestamp) * 1000).toISOString()
+  const capturedAt    = onChainMeta?.capturedAt != null
+    ? new Date(Number(onChainMeta.capturedAt.toString()) * 1000).toISOString()
     : claim?.created_at
 
-  const ipfsUrl        = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
-  const etherscanTx    = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
-  const etherscanToken = `https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69`
-  const etherscanNft   = claim?.token_id ? `https://sepolia.etherscan.io/nft/${LENS_MINT_ADDRESS}/${claim.token_id}` : null
-  const mapsUrl        = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
+  const ipfsUrl         = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
+  const explorerTx      = claim?.tx_hash ? explorerUrl(claim.tx_hash, 'tx') : null
+  const explorerMintTx  = mintSignature ? explorerUrl(mintSignature, 'tx') : null
+  const explorerProgram = explorerUrl(PROGRAM_ID.toBase58(), 'address')
+  const explorerPhoto   = claim?.token_id ? explorerUrl(claim.token_id, 'address') : null
+  const mapsUrl         = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
   const onChainVerified = !!onChainMeta
 
   return (
@@ -735,7 +750,7 @@ export default function ClaimPage() {
             />
             <ProofStatCard
               icon={Lock}
-              title="ECDSA Signed"
+              title="Ed25519 Signed"
               verified={!!signature}
               sub={signature ? (onChainVerified ? 'Hardware key · verified on-chain' : 'Hardware key · on record') : 'No signature on record'}
               color="green"
@@ -744,7 +759,7 @@ export default function ClaimPage() {
               icon={Zap}
               title="On-Chain Verified"
               verified={onChainVerified}
-              sub={onChainVerified ? 'Sepolia · live contract read' : 'Not yet readable on-chain'}
+              sub={onChainVerified ? 'Solana Devnet · live account read' : 'Not yet readable on-chain'}
               color="orange"
             />
             <ProofStatCard
@@ -762,7 +777,7 @@ export default function ClaimPage() {
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fbbf24]/[0.06] border border-[#fbbf24]/15">
                     <WifiOff size={10} className="text-[#fbbf24] shrink-0" />
                     <p className="text-[10px] text-[#fbbf24]/80">
-                      Claim server offline · minting directly on Sepolia
+                      Claim server offline · minting directly on Solana Devnet
                     </p>
                   </div>
 
@@ -775,16 +790,16 @@ export default function ClaimPage() {
                         <p className="text-sm font-display font-bold text-white">Edition Minted</p>
                         <p className="text-[10px] text-text-muted mt-0.5">NFT is on its way to your wallet</p>
                       </div>
-                      {mintTxHash && (
-                        <a href={`https://sepolia.etherscan.io/tx/${mintTxHash}`} target="_blank" rel="noreferrer"
+                      {explorerMintTx && (
+                        <a href={explorerMintTx} target="_blank" rel="noreferrer"
                           className="inline-flex items-center gap-1.5 text-brand text-xs hover:brightness-125">
                           <ExternalLink size={11} /> View transaction
                         </a>
                       )}
                     </div>
-                  ) : !authenticated ? (
-                    <Button variant="primary" className="w-full gap-2" onClick={login} disabled={!ready}>
-                      {ready ? <><Star size={13} /> Connect Wallet to Claim</> : 'Loading…'}
+                  ) : !connected ? (
+                    <Button variant="primary" className="w-full gap-2" onClick={() => setWalletModalVisible(true)} disabled={connecting}>
+                      {connecting ? 'Connecting…' : <><Star size={13} /> Connect Wallet to Claim</>}
                     </Button>
                   ) : walletAddress ? (
                     <>
@@ -798,7 +813,7 @@ export default function ClaimPage() {
                       <Button
                         variant="primary"
                         className="w-full gap-2"
-                        disabled={isMintPending || isMintConfirming || !onChainTokenId}
+                        disabled={isMintPending || isMintConfirming || !onChainMeta}
                         onClick={() => mintOnChain(walletAddress)}
                       >
                         {isMintPending || isMintConfirming
@@ -807,19 +822,19 @@ export default function ClaimPage() {
                       </Button>
                     </>
                   ) : (
-                    <Button variant="primary" className="w-full gap-2" onClick={login}>
+                    <Button variant="primary" className="w-full gap-2" onClick={() => setWalletModalVisible(true)}>
                       <Star size={13} /> Connect Wallet
                     </Button>
                   )}
 
                   {mintWriteError && (
                     <div className="bg-[#f87171]/10 text-[#f87171] text-xs px-3 py-2.5 rounded-lg border border-[#f87171]/20">
-                      {mintWriteError.shortMessage || mintWriteError.message}
+                      {mintWriteError.message || String(mintWriteError)}
                     </div>
                   )}
-                  {etherscanNft && (
+                  {explorerPhoto && (
                     <p className="text-center text-[9px] text-text-muted">
-                      ERC-1155 · Sepolia · <a href={etherscanNft} target="_blank" rel="noreferrer" className="text-brand hover:brightness-125">View NFT</a>
+                      Veris Program · Solana Devnet · <a href={explorerPhoto} target="_blank" rel="noreferrer" className="text-brand hover:brightness-125">View Record</a>
                     </p>
                   )}
                 </div>
@@ -846,9 +861,9 @@ export default function ClaimPage() {
                 <div className="space-y-2.5">
                   {!useManual ? (
                     <>
-                      {!authenticated ? (
-                        <Button variant="primary" className="w-full gap-2" onClick={login} disabled={!ready}>
-                          {ready ? <><Star size={13} /> Connect Wallet to Claim</> : 'Loading…'}
+                      {!connected ? (
+                        <Button variant="primary" className="w-full gap-2" onClick={() => setWalletModalVisible(true)} disabled={connecting}>
+                          {connecting ? 'Connecting…' : <><Star size={13} /> Connect Wallet to Claim</>}
                         </Button>
                       ) : walletAddress ? (
                         <>
@@ -865,7 +880,7 @@ export default function ClaimPage() {
                           </Button>
                         </>
                       ) : (
-                        <Button variant="primary" className="w-full gap-2" onClick={login}>
+                        <Button variant="primary" className="w-full gap-2" onClick={() => setWalletModalVisible(true)}>
                           <Star size={13} /> Connect Wallet
                         </Button>
                       )}
@@ -877,7 +892,7 @@ export default function ClaimPage() {
                     <>
                       <Input
                         type="text"
-                        placeholder="0x..."
+                        placeholder="Solana address (base58)"
                         value={manualAddress}
                         onChange={e => setManualAddress(e.target.value)}
                         className="font-mono h-10 text-sm"
@@ -899,8 +914,8 @@ export default function ClaimPage() {
                     </div>
                   )}
                   <div className="flex items-center justify-center gap-1.5 pt-0.5">
-                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">ERC-1155</span>
-                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">Sepolia</span>
+                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">Veris Program</span>
+                    <span className="text-[9px] font-medium text-text-muted bg-white/[0.03] border border-white/[0.07] rounded-full px-2 py-0.5">Solana Devnet</span>
                     <span className="text-[9px] font-bold text-[#34d399] bg-[#34d399]/[0.08] border border-[#34d399]/20 rounded-full px-2 py-0.5">Free · Gasless</span>
                   </div>
                 </div>
@@ -936,7 +951,7 @@ export default function ClaimPage() {
                 <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-[#34d399]/[0.06] border border-[#34d399]/15">
                   <ShieldCheck size={12} className="text-[#34d399] shrink-0" />
                   <span className="text-[10px] text-[#34d399] font-medium">
-                    All proof fields read live from Sepolia · no trust required
+                    All proof fields read live from Solana Devnet · no trust required
                   </span>
                 </div>
               )}
@@ -945,30 +960,32 @@ export default function ClaimPage() {
                   label="Device Address"
                   value={short(deviceAddress, 8)}
                   full={deviceAddress}
-                  link={deviceAddress ? `https://sepolia.etherscan.io/address/${deviceAddress}` : null}
+                  link={deviceAddress ? explorerUrl(deviceAddress, 'address') : null}
                   mono
                 />
                 <ProofItem label="IPFS CID" value={short(cid, 8)} full={cid} link={ipfsUrl} mono />
                 {claim?.token_id && (
                   <ProofItem
-                    label="Token ID"
-                    value={`#${claim.token_id}`}
-                    link={etherscanNft || etherscanToken}
+                    label="Photo Record"
+                    value={short(claim.token_id, 8)}
+                    full={claim.token_id}
+                    link={explorerPhoto}
+                    mono
                   />
                 )}
-                {etherscanTx && (
-                  <ProofItem label="Mint Transaction" value="View on Etherscan" link={etherscanTx} />
+                {explorerTx && (
+                  <ProofItem label="Mint Transaction" value="View on Solana Explorer" link={explorerTx} />
                 )}
-                <ProofItem label="ECDSA Signature" value={short(signature, 8)} full={signature} mono />
+                <ProofItem label="Ed25519 Signature" value={short(signature, 8)} full={signature} mono />
                 <ProofItem label="SHA-256 Hash" value={short(imageHash, 8)} full={imageHash} mono />
-                <ProofItem label="Network" value="Sepolia Testnet" />
-                <ProofItem label="Contract" value="Veris ERC-1155" link={etherscanToken} />
+                <ProofItem label="Network" value="Solana Devnet" />
+                <ProofItem label="Contract" value="Veris Program" link={explorerProgram} />
                 {claim?.recipient_address && (
                   <ProofItem
                     label="Original Owner"
                     value={short(claim.recipient_address, 8)}
                     full={claim.recipient_address}
-                    link={`https://sepolia.etherscan.io/address/${claim.recipient_address}`}
+                    link={explorerUrl(claim.recipient_address, 'address')}
                     mono
                   />
                 )}
