@@ -1,0 +1,815 @@
+{
+  "address": "6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23",
+  "metadata": {
+    "name": "veris",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "deactivate_device",
+      "discriminator": [
+        110,
+        153,
+        249,
+        89,
+        238,
+        111,
+        127,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "device",
+          "writable": true
+        },
+        {
+          "name": "signer",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "mint_edition",
+      "discriminator": [
+        39,
+        134,
+        130,
+        9,
+        6,
+        175,
+        171,
+        14
+      ],
+      "accounts": [
+        {
+          "name": "photo_record",
+          "writable": true
+        },
+        {
+          "name": "edition",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "mint_photo",
+      "discriminator": [
+        1,
+        223,
+        246,
+        76,
+        1,
+        130,
+        232,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "device"
+        },
+        {
+          "name": "device_signer",
+          "signer": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "photo_record",
+          "writable": true
+        },
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "instructions_sysvar"
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "image_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "cid",
+          "type": "string"
+        },
+        {
+          "name": "signature",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "captured_at",
+          "type": "i64"
+        },
+        {
+          "name": "max_editions",
+          "type": "u64"
+        },
+        {
+          "name": "owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "register_device",
+      "discriminator": [
+        210,
+        151,
+        56,
+        68,
+        22,
+        158,
+        90,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "device",
+          "writable": true
+        },
+        {
+          "name": "device_id_index",
+          "writable": true
+        },
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "device_pubkey",
+          "type": "pubkey"
+        },
+        {
+          "name": "device_id",
+          "type": "string"
+        },
+        {
+          "name": "camera_id",
+          "type": "string"
+        },
+        {
+          "name": "model",
+          "type": "string"
+        },
+        {
+          "name": "firmware_version",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "transfer_edition",
+      "discriminator": [
+        136,
+        78,
+        201,
+        92,
+        193,
+        196,
+        113,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "edition",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "transfer_photo",
+      "discriminator": [
+        189,
+        5,
+        8,
+        7,
+        39,
+        164,
+        54,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "photo_record",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_device",
+      "discriminator": [
+        30,
+        154,
+        166,
+        184,
+        200,
+        216,
+        194,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "device",
+          "writable": true
+        },
+        {
+          "name": "signer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "firmware_version",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "is_active",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Device",
+      "discriminator": [
+        153,
+        248,
+        23,
+        39,
+        83,
+        45,
+        68,
+        128
+      ]
+    },
+    {
+      "name": "DeviceIdIndex",
+      "discriminator": [
+        85,
+        150,
+        123,
+        33,
+        101,
+        70,
+        29,
+        13
+      ]
+    },
+    {
+      "name": "Edition",
+      "discriminator": [
+        234,
+        117,
+        249,
+        74,
+        7,
+        99,
+        235,
+        167
+      ]
+    },
+    {
+      "name": "PhotoRecord",
+      "discriminator": [
+        175,
+        231,
+        202,
+        245,
+        6,
+        141,
+        4,
+        219
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DeviceRegistered",
+      "discriminator": [
+        221,
+        90,
+        2,
+        153,
+        72,
+        98,
+        71,
+        181
+      ]
+    },
+    {
+      "name": "DeviceUpdated",
+      "discriminator": [
+        19,
+        61,
+        200,
+        102,
+        163,
+        178,
+        2,
+        158
+      ]
+    },
+    {
+      "name": "EditionMinted",
+      "discriminator": [
+        196,
+        202,
+        48,
+        141,
+        184,
+        40,
+        152,
+        245
+      ]
+    },
+    {
+      "name": "EditionTransferred",
+      "discriminator": [
+        173,
+        236,
+        192,
+        29,
+        90,
+        155,
+        10,
+        166
+      ]
+    },
+    {
+      "name": "PhotoMinted",
+      "discriminator": [
+        65,
+        211,
+        45,
+        135,
+        3,
+        244,
+        232,
+        112
+      ]
+    },
+    {
+      "name": "PhotoTransferred",
+      "discriminator": [
+        229,
+        82,
+        30,
+        200,
+        14,
+        214,
+        139,
+        99
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "DeviceNotActive",
+      "msg": "Device is not active"
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Unauthorized signer"
+    },
+    {
+      "code": 6002,
+      "name": "MaxEditionsReached",
+      "msg": "Maximum editions reached"
+    },
+    {
+      "code": 6003,
+      "name": "MissingEd25519Verification",
+      "msg": "Missing ed25519 verification instruction"
+    },
+    {
+      "code": 6004,
+      "name": "SignatureMismatch",
+      "msg": "Ed25519 signature does not match"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidInput",
+      "msg": "Invalid input"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_photos",
+            "type": "u64"
+          },
+          {
+            "name": "total_devices",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Device",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "device_id",
+            "type": "string"
+          },
+          {
+            "name": "camera_id",
+            "type": "string"
+          },
+          {
+            "name": "model",
+            "type": "string"
+          },
+          {
+            "name": "firmware_version",
+            "type": "string"
+          },
+          {
+            "name": "registered_at",
+            "type": "i64"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "registered_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DeviceIdIndex",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DeviceRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "device_id",
+            "type": "string"
+          },
+          {
+            "name": "registered_by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DeviceUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Edition",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "photo",
+            "type": "pubkey"
+          },
+          {
+            "name": "number",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "minted_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EditionMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "edition",
+            "type": "pubkey"
+          },
+          {
+            "name": "photo",
+            "type": "pubkey"
+          },
+          {
+            "name": "number",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EditionTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "edition",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PhotoMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "photo",
+            "type": "pubkey"
+          },
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "image_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "cid",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PhotoRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "device_id",
+            "type": "string"
+          },
+          {
+            "name": "cid",
+            "type": "string"
+          },
+          {
+            "name": "image_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "signature",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "captured_at",
+            "type": "i64"
+          },
+          {
+            "name": "minted_at",
+            "type": "i64"
+          },
+          {
+            "name": "max_editions",
+            "type": "u64"
+          },
+          {
+            "name": "edition_count",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PhotoTransferred",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "photo",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}
