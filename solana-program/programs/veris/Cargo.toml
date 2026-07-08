@@ -24,6 +24,10 @@ custom-panic = []
 anchor-lang = "0.32.1"
 solana-sha256-hasher = "2.3.0"
 
+# Lockfile deps need edition2024 (cargo >= 1.85); default platform-tools v1.51 ships cargo 1.84
+[package.metadata.solana]
+tools-version = "v1.52"
+
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
