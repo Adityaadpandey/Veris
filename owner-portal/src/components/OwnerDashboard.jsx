@@ -1,5 +1,5 @@
-import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount, useReadContract, useReadContracts } from 'wagmi'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
@@ -25,10 +25,10 @@ import {
   QrCode,
   WifiOff,
 } from 'lucide-react'
+import { fetchOwnedRecords, explorerUrl, PROGRAM_ID } from '@/lib/veris'
 
 const BACKEND_URL      = import.meta.env.VITE_BACKEND_URL      || 'http://localhost:5000'
 const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001'
-const PRIVY_APP_ID     = import.meta.env.VITE_PRIVY_APP_ID     || 'your-privy-app-id'
 const PORTAL_URL       = import.meta.env.VITE_PORTAL_URL       || window.location.origin
 
 // Display-only branding: rewrite legacy "lensmint" naming to "veris" for UI
@@ -38,36 +38,19 @@ const deBrand = (v) =>
     ? v.replace(/lensmint/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
     : v
 
-const LENS_MINT_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
-const LENS_MINT_ABI = [
-  {
-    name: 'totalTokens',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    name: 'getTokenMetadata',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: '_tokenId', type: 'uint256' }],
-    outputs: [{
-      type: 'tuple',
-      components: [
-        { name: 'deviceAddress', type: 'address' },
-        { name: 'deviceId',      type: 'string'  },
-        { name: 'ipfsHash',      type: 'string'  },
-        { name: 'imageHash',     type: 'string'  },
-        { name: 'signature',     type: 'string'  },
-        { name: 'timestamp',     type: 'uint256' },
-        { name: 'maxEditions',   type: 'uint256' },
-        { name: 'isOriginal',    type: 'bool'    },
-        { name: 'originalTokenId', type: 'uint256' },
-      ],
-    }],
-  },
-]
+// Fixed-length on-chain byte arrays decode to plain number arrays via the
+// Anchor borsh coder — render them as hex for display.
+const bytesToHex = (bytes) => {
+  if (!bytes) return null
+  const arr = Array.isArray(bytes) ? bytes : Array.from(bytes)
+  return arr.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+const short = (str, len = 4) => {
+  if (!str) return '—'
+  if (str.length <= len * 2 + 3) return str
+  return `${str.slice(0, len)}…${str.slice(-len)}`
+}
 
 const IPFS_GATEWAYS = [
   import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
@@ -272,11 +255,11 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
                 {(img.txHash || img.nftUrl) && (
                   <Button size="sm" variant="ghost" asChild>
                     <a
-                      href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
+                      href={img.txHash ? explorerUrl(img.txHash, 'tx') : img.nftUrl}
                       target="_blank" rel="noreferrer"
                       className="gap-1.5"
                     >
-                      <ExternalLink size={12} /> {img.txHash ? 'Etherscan' : 'View NFT'}
+                      <ExternalLink size={12} /> {img.txHash ? 'Explorer' : 'View Record'}
                     </a>
                   </Button>
                 )}
@@ -403,10 +386,10 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
               </button>
               {(img.txHash || img.nftUrl) && (
                 <a
-                  href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
+                  href={img.txHash ? explorerUrl(img.txHash, 'tx') : img.nftUrl}
                   target="_blank" rel="noreferrer"
                   className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg px-2.5 py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
-                  title={img.nftUrl && !img.txHash ? 'View NFT on Etherscan' : 'View transaction'}
+                  title={img.nftUrl && !img.txHash ? 'View record on Solana Explorer' : 'View transaction'}
                 >
                   <ExternalLink size={10} />
                 </a>
@@ -416,11 +399,11 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         )}
         {!claimUrl && (img.txHash || img.nftUrl) && (
           <a
-            href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
+            href={img.txHash ? explorerUrl(img.txHash, 'tx') : img.nftUrl}
             target="_blank" rel="noreferrer"
             className="flex w-full items-center justify-center gap-1.5 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-2 text-[10px] hover:text-white hover:border-white/15 transition-colors"
           >
-            <ExternalLink size={10} /> {img.txHash ? 'View on Etherscan' : 'View NFT'}
+            <ExternalLink size={10} /> {img.txHash ? 'View on Explorer' : 'View Record'}
           </a>
         )}
         {state === 'minting' && (
@@ -485,9 +468,8 @@ function ImageCardSkeleton() {
 }
 
 export default function OwnerDashboard() {
-  const { ready, authenticated, login, logout, user } = usePrivy()
-  const { wallets } = useWallets()
-  const { address }  = useAccount()
+  const { connection } = useConnection()
+  const { publicKey, connected, disconnect } = useWallet()
   const navigate = useNavigate()
 
   const [images,        setImages]        = useState([])
@@ -498,57 +480,53 @@ export default function OwnerDashboard() {
   const [filter,        setFilter]        = useState('all')
   const [tab,           setTab]           = useState('photos')
   const [backendOffline, setBackendOffline] = useState(false)
+  const [ownedRecords,  setOwnedRecords]  = useState(null)
+  const [onChainLoading, setOnChainLoading] = useState(false)
   const [resolvedClaimMap, setResolvedClaimMap] = useState(() => {
     try { return JSON.parse(localStorage.getItem('veris_token_claim_map') || '{}') } catch { return {} }
   })
 
-  // On-chain fallback: read totalTokens then batch-fetch metadata
-  const { data: totalTokens } = useReadContract({
-    address: LENS_MINT_ADDRESS,
-    abi: LENS_MINT_ABI,
-    functionName: 'totalTokens',
-    query: { enabled: backendOffline },
-  })
+  // On-chain fallback: read every PhotoRecord owned by the connected wallet.
+  useEffect(() => {
+    if (!backendOffline || !publicKey) { setOwnedRecords(null); return }
+    let cancelled = false
+    setOnChainLoading(true)
+    fetchOwnedRecords(connection, publicKey)
+      .then(r => { if (!cancelled) setOwnedRecords(r) })
+      .catch(() => { if (!cancelled) setOwnedRecords({ photos: [], editions: [] }) })
+      .finally(() => { if (!cancelled) setOnChainLoading(false) })
+    return () => { cancelled = true }
+  }, [backendOffline, publicKey, connection])
 
-  const tokenIds = totalTokens ? Array.from({ length: Number(totalTokens) }, (_, i) => i + 1) : []
+  const onChainImages = backendOffline && ownedRecords
+    ? ownedRecords.photos
+        .map(({ pubkey, account }) => {
+          const id = pubkey.toBase58()
+          return {
+            id,
+            status:      'minted',
+            filecoinCid: cleanCid(account.cid),
+            createdAt:   new Date(Number(account.capturedAt.toString()) * 1000).toISOString(),
+            claimId:     resolvedClaimMap[id] || null,
+            tokenId:     id,
+            txHash:      null,
+            ai_score:    null,
+            deviceId:    account.deviceId || null,
+            imageHash:   bytesToHex(account.imageHash),
+            nftUrl:      explorerUrl(id, 'address'),
+          }
+        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    : []
 
-  const { data: onChainMeta, isLoading: onChainLoading } = useReadContracts({
-    contracts: tokenIds.map(id => ({
-      address: LENS_MINT_ADDRESS,
-      abi: LENS_MINT_ABI,
-      functionName: 'getTokenMetadata',
-      args: [BigInt(id)],
-    })),
-    query: { enabled: backendOffline && tokenIds.length > 0 },
-  })
-
-  const cleanCid = (hash) => {
+  function cleanCid(hash) {
     if (!hash) return null
     if (hash.startsWith('ipfs://')) return hash.slice(7)
     if (hash.startsWith('https://') || hash.startsWith('http://')) return null
     return hash
   }
 
-  const onChainImages = backendOffline && onChainMeta
-    ? onChainMeta
-        .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
-        .filter(({ result }) => result?.isOriginal)
-        .map(({ result: m, id }) => ({
-          id,
-          status:      'minted',
-          filecoinCid: cleanCid(m.ipfsHash),
-          createdAt:   new Date(Number(m.timestamp) * 1000).toISOString(),
-          claimId:     resolvedClaimMap[id] || null,
-          tokenId:     id,
-          txHash:      null,
-          ai_score:    null,
-          deviceId:    m.deviceId || null,
-          imageHash:   m.imageHash || null,
-          nftUrl:      `https://sepolia.etherscan.io/nft/${LENS_MINT_ADDRESS}/${id}`,
-        }))
-    : []
-
-  const walletAddress = address || wallets[0]?.address
+  const walletAddress = publicKey?.toBase58()
 
   const fetchImages = useCallback(async () => {
     setLoading(true)
@@ -584,11 +562,11 @@ export default function OwnerDashboard() {
   }, [])
 
   useEffect(() => {
-    if (authenticated) {
+    if (connected) {
       fetchImages()
       fetchDeviceStatus()
     }
-  }, [authenticated, fetchImages, fetchDeviceStatus])
+  }, [connected, fetchImages, fetchDeviceStatus])
 
   // When offline and on-chain images are loaded, fetch any missing claimIds from the public server
   useEffect(() => {
@@ -612,15 +590,15 @@ export default function OwnerDashboard() {
       })
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendOffline, onChainMeta])
+  }, [backendOffline, ownedRecords])
 
   // Auto-refresh every 8 s while any image is still being processed
   useEffect(() => {
     const hasPending = images.some(i => i.status === 'uploaded' || i.status === 'saved')
-    if (!authenticated || !hasPending) return
+    if (!connected || !hasPending) return
     const id = setInterval(fetchImages, 8000)
     return () => clearInterval(id)
-  }, [authenticated, images, fetchImages])
+  }, [connected, images, fetchImages])
 
   const retryPending = async () => {
     setRetrying(true)
@@ -668,17 +646,8 @@ export default function OwnerDashboard() {
   const isOnline = deviceStatus?.servicesInitialized
   const deviceId = deviceStatus?.device?.deviceId
 
-  /* ── Loading splash ── */
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
   /* ── Login screen ── */
-  if (!authenticated) {
+  if (!connected) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-black p-6 gap-10">
         <button onClick={() => navigate('/')} className="flex items-center gap-2.5 group">
@@ -692,15 +661,9 @@ export default function OwnerDashboard() {
             <h2 className="text-xl font-display font-bold text-white">Owner Dashboard</h2>
             <p className="text-text-secondary mt-1 text-sm leading-relaxed">Sign in to manage your cameras and NFTs.</p>
           </div>
-          {PRIVY_APP_ID === 'your-privy-app-id' && (
-            <div className="bg-[#fbbf24]/10 text-[#fbbf24] text-xs px-4 py-2 rounded-lg border border-[#fbbf24]/20">
-              Configure VITE_PRIVY_APP_ID in .env
-            </div>
-          )}
-          <Button size="lg" variant="primary" className="w-full" onClick={login}
-            disabled={PRIVY_APP_ID === 'your-privy-app-id'}>
-            Connect Wallet
-          </Button>
+          <div className="wallet-adapter-button-wrapper w-full [&_.wallet-adapter-button]:w-full [&_.wallet-adapter-button]:justify-center [&_.wallet-adapter-button]:h-11 [&_.wallet-adapter-button]:rounded-lg [&_.wallet-adapter-button]:bg-brand [&_.wallet-adapter-button:hover]:bg-brand/90">
+            <WalletMultiButton>Connect Wallet</WalletMultiButton>
+          </div>
         </div>
       </div>
     )
@@ -774,7 +737,7 @@ export default function OwnerDashboard() {
           </div>
           <button
             className="w-full flex items-center gap-2 text-[11px] text-text-muted hover:text-white transition-colors py-1"
-            onClick={logout}
+            onClick={() => disconnect()}
           >
             <LogOut size={12} /> Sign out
           </button>
@@ -810,7 +773,7 @@ export default function OwnerDashboard() {
                   <div className="flex items-center gap-2.5">
                     <WifiOff size={14} className="text-[#fbbf24] shrink-0" />
                     <span className="text-[#fbbf24] font-medium">Camera offline</span>
-                    <span className="text-[#fbbf24]/60 text-xs">· showing on-chain data from Sepolia</span>
+                    <span className="text-[#fbbf24]/60 text-xs">· showing on-chain data from Solana Devnet</span>
                   </div>
                   <Button variant="ghost" size="sm" className="text-xs text-[#fbbf24]/70 hover:text-[#fbbf24] shrink-0" onClick={fetchImages} disabled={loading}>
                     <RotateCcw size={11} className={loading ? 'animate-spin mr-1' : 'mr-1'} /> Retry
@@ -888,7 +851,7 @@ export default function OwnerDashboard() {
                   <div>
                     {backendOffline ? (
                       <>
-                        <p className="text-text-secondary font-medium">Camera offline · no on-chain tokens found</p>
+                        <p className="text-text-secondary font-medium">Camera offline · no on-chain records found</p>
                         <p className="text-text-muted text-sm mt-1">Connect the camera and capture a photo to mint your first NFT.</p>
                       </>
                     ) : (
@@ -998,30 +961,22 @@ export default function OwnerDashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">Contracts</CardTitle>
+                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">Program</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Network</span>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-[#60a5fa]" />
-                        <Badge variant="uploaded">Sepolia</Badge>
+                        <Badge variant="uploaded">Solana Devnet</Badge>
                       </div>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-text-secondary">ERC-1155</span>
-                      <a href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
+                      <span className="text-text-secondary">Veris Program</span>
+                      <a href={explorerUrl(PROGRAM_ID.toBase58(), 'address')}
                         target="_blank" rel="noreferrer"
                         className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1">
-                        0x35f5…9c69 <ExternalLink size={10} />
-                      </a>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-text-secondary">Registry</span>
-                      <a href="https://sepolia.etherscan.io/address/0x874709472d1cF830d7F78809E7D37692a27013A0"
-                        target="_blank" rel="noreferrer"
-                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1">
-                        0x8747…13A0 <ExternalLink size={10} />
+                        {short(PROGRAM_ID.toBase58(), 4)} <ExternalLink size={10} />
                       </a>
                     </div>
                   </CardContent>
@@ -1033,10 +988,6 @@ export default function OwnerDashboard() {
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-text-secondary">User ID</span>
-                      <span className="font-mono text-text-primary text-xs truncate max-w-[140px]">{user?.id?.slice(0, 20)}…</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Wallet</span>
                       <span className="font-mono text-text-primary text-xs">
                         {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'Not connected'}
@@ -1044,8 +995,8 @@ export default function OwnerDashboard() {
                     </div>
                     {walletAddress && (
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-text-secondary">Etherscan</span>
-                        <a href={`https://sepolia.etherscan.io/address/${walletAddress}`} target="_blank" rel="noreferrer"
+                        <span className="text-text-secondary">Explorer</span>
+                        <a href={explorerUrl(walletAddress, 'address')} target="_blank" rel="noreferrer"
                           className="text-brand text-xs hover:brightness-125 flex items-center gap-1">
                           View <ExternalLink size={10} />
                         </a>
