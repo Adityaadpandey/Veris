@@ -1,6 +1,6 @@
 # Veris Deployment Guide
 
-Full step-by-step deployment: smart contracts → cloud services → Raspberry Pi.
+Full step-by-step deployment: Solana program → cloud services → Raspberry Pi.
 
 ---
 
@@ -9,63 +9,58 @@ Full step-by-step deployment: smart contracts → cloud services → Raspberry P
 ### Dev Machine
 
 ```bash
-# Install Foundry (for smart contracts)
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
+# Rust + Solana CLI (Agave) + Anchor
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+cargo install --git https://github.com/coral-xyz/anchor avm --force
+avm install 0.32.1 && avm use 0.32.1
 ```
 
 ### Accounts & API Keys
 
 
-| Service             | What you need             | Where to get it                                                                |
-| ------------------- | ------------------------- | ------------------------------------------------------------------------------ |
-| **Sepolia RPC**     | RPC URL                   | [alchemy.com](https://alchemy.com) — free tier                                 |
-| **Etherscan**       | API key                   | [etherscan.io/apis](https://etherscan.io/apis) — free                          |
-| **Privy**           | App ID + App Secret       | [console.privy.io](https://console.privy.io) — free dev tier                   |
-| **Deployer wallet** | Private key + Sepolia ETH | Any wallet; ETH from [sepoliafaucet.com](https://sepoliafaucet.com)            |
-| **Device wallet**   | Separate private key      | Generate fresh — this is the Pi's on-chain identity                            |
-| **Filecoin faucet** | Test USDFC tokens         | [faucet.calibration.fildev.network](https://faucet.calibration.fildev.network) |
+| Service             | What you need           | Where to get it                                                                 |
+| ------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| **Solana RPC**      | Devnet RPC URL          | `https://api.devnet.solana.com` (free) or [helius.dev](https://helius.dev)      |
+| **Deployer wallet** | Keypair + devnet SOL    | `solana-keygen new`; SOL from [faucet.solana.com](https://faucet.solana.com)    |
+| **Device wallet**   | Derived on the Pi       | ed25519 keypair from hardware ID + salt — nothing to generate manually          |
+| **Lighthouse**      | API key                 | [files.lighthouse.storage](https://files.lighthouse.storage) — free tier        |
 
 
-> **Device wallet** — generate with `cast wallet new` (Foundry) or any wallet app. Keep the private key safe — it goes on the Pi.
+> **Device wallet** — the Pi derives its own ed25519 identity (`seed = sha256(hw_id + salt)`) on first boot of the camera app. Its base58 address needs a little devnet SOL to pay mint fees (~0.05 SOL is plenty; fees are ~5000 lamports per tx).
 
 ---
 
-## Step 1: Deploy Smart Contracts
+## Step 1: Deploy the Solana Program
 
 ```bash
-cd Veris/contracts
-forge install
+cd Veris/solana-program
+anchor build
+anchor test          # 23 tests on a local validator — must be green
 ```
 
-Export your keys:
+Fund the deployer and deploy to devnet (the program keypair at
+`target/deploy/veris-keypair.json` keeps the program ID
+`6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23`):
 
 ```bash
-export PRIVATE_KEY=0x<deployer-private-key>
-export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<your-alchemy-key>
-export ETHERSCAN_API_KEY=<your-etherscan-key>
+solana airdrop 2 -u devnet          # or use faucet.solana.com
+anchor deploy --provider.cluster devnet
 ```
 
-Deploy `DeviceRegistry` + `VerisERC1155`:
+Initialize the global config (one-time) and smoke-test the live deployment:
 
 ```bash
-forge script script/Deploy.s.sol \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast \
-  --verify \
-  --etherscan-api-key $ETHERSCAN_API_KEY
+npx ts-node scripts/smoke-devnet.ts
+# registers a throwaway device → mints a photo (real ed25519 sig) → mints an edition
 ```
 
-**Save the two contract addresses printed in the output.** You'll need them in every `.env`.
-
-Register the Raspberry Pi's device wallet on-chain:
-
-```bash
-export DEVICE_ADDRESS=0x<device-wallet-address>
-forge script script/RegisterDevice.s.sol \
-  --rpc-url $SEPOLIA_RPC_URL \
-  --broadcast
-```
+**If the program ID ever changes** (new program keypair): update
+`solana-program/deployment.json`, both `[programs.*]` entries in `Anchor.toml`,
+`PROGRAM_ID` in `owner-portal/src/lib/veris.js`, and `VERIS_PROGRAM_ID` in the
+web3-service `.env`. Consumers read the IDL from `solana-program/idl/veris.json`
+(re-copy from `target/idl/veris.json` after interface changes; the portal keeps
+its own copy at `owner-portal/src/lib/idl/veris.json`).
 
 ---
 
@@ -111,11 +106,11 @@ npm install
 Create `.env` (Vite reads these at build time):
 
 ```env
-VITE_PRIVY_APP_ID=<your-privy-app-id>
+VITE_SOLANA_RPC_URL=https://api.devnet.solana.com
 VITE_BACKEND_URL=http://<raspi-local-ip>:5000
 ```
 
-> `VITE_BACKEND_URL` should be your Pi's local IP if users are on the same network, or a tunneled URL (e.g. ngrok) if they're remote.
+> `VITE_BACKEND_URL` should be your Pi's local IP if users are on the same network, or a tunneled URL (e.g. ngrok) if they're remote. Users connect with any wallet-adapter wallet (Phantom, Solflare) — no auth provider to configure.
 
 Build and deploy:
 
@@ -123,8 +118,6 @@ Build and deploy:
 npm run build
 # deploy the dist/ folder to Vercel/Netlify
 ```
-
-In your **Privy dashboard**: add the deployed portal URL to allowed origins.
 
 ---
 
@@ -169,27 +162,21 @@ PORT=5000
 NODE_ENV=production
 CAPTURES_PATH=/home/pi/Veris/captures
 DATABASE_PATH=/home/pi/Veris/database.db
-DEPLOYMENT_JSON_PATH=/home/pi/Veris/contracts/deployment.json
 
-# Blockchain
-SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<your-alchemy-key>
-DEVICE_PRIVATE_KEY=0x<device-wallet-private-key>
-
-# Contract addresses (from Step 1 output)
-DEVICE_REGISTRY_ADDRESS=0x<DeviceRegistry-address>
-LENSMINT_ERC1155_ADDRESS=0x<LensMintERC1155-address>
-
-# Privy
-PRIVY_APP_ID=<your-privy-app-id>
-PRIVY_APP_SECRET=<your-privy-app-secret>
+# Solana
+SOLANA_RPC_URL=https://api.devnet.solana.com
+SOLANA_CLUSTER=devnet
+VERIS_PROGRAM_ID=6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23
+MIN_SOL_BALANCE=0.05
+# DEVICE_SEED_HEX is optional — normally read from
+# hardware-camera-app/.device_key_export (written by the camera app)
 
 # Claim server
 CLAIM_SERVER_URL=https://your-app.onrender.com
-OWNER_WALLET_ADDRESS=0x<your-owner-wallet-address>
+OWNER_WALLET_ADDRESS=<your-owner-wallet-base58-address>
 
-# Filecoin (calibration = testnet, free)
-FILECOIN_NETWORK=calibration
-FILECOIN_RPC_URL=https://api.calibration.node.glif.io/rpc/v1
+# Filecoin storage
+LIGHTHOUSE_API_KEY=<your-lighthouse-key>
 ```
 
 ### 4e. Configure the Python Camera App
@@ -207,6 +194,10 @@ Set env vars (add to `~/.bashrc` for persistence):
 export BACKEND_URL=http://localhost:5000
 export CLAIM_SERVER_URL=https://your-app.onrender.com
 ```
+
+First run derives the device identity and writes `.device_key_export`. Fund the
+printed base58 address with a little devnet SOL (the camera app also shows a
+funding QR when the balance is low).
 
 ### 4f. Install MJPG-Streamer
 
@@ -257,6 +248,10 @@ Exec=bash /home/pi/Veris/hardware-camera-app/run_camera_app.sh
 # Pi backend
 curl http://localhost:5000/health
 
+# Device registered + funded?
+curl http://localhost:5000/api/status
+curl http://localhost:5000/api/balance
+
 # PM2 process list
 pm2 status
 
@@ -270,6 +265,9 @@ Check the claim server from any browser:
 ```
 https://your-app.onrender.com/health
 ```
+
+Spot-check on-chain state at
+`https://explorer.solana.com/address/6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23?cluster=devnet`.
 
 ---
 
@@ -287,30 +285,28 @@ https://your-app.onrender.com/health
 
 ---
 
-## Filecoin Testnet Tokens
+## Devnet SOL
 
-Before the Pi can upload images, fund the device wallet with test USDFC:
+Before the Pi can mint, fund the device wallet with devnet SOL:
 
-1. Go to [faucet.calibration.fildev.network](https://faucet.calibration.fildev.network)
-2. Paste your **device wallet address**
-3. Request tokens (you need ~2.5 USDFC minimum for Synapse SDK deposits)
+1. Get the device's base58 address from the camera app screen or `curl http://localhost:5000/api/balance`
+2. `solana airdrop 1 <device-address> -u devnet`, or use [faucet.solana.com](https://faucet.solana.com)
+3. ~0.05 SOL covers thousands of mints (fees are ~5000 lamports/tx; each PhotoRecord/Edition PDA holds a small rent-exempt balance)
 
 ---
 
 ## Env Var Cheatsheet
 
 
-| Variable                  | Used in                    | Value                             |
-| ------------------------- | -------------------------- | --------------------------------- |
-| `SEPOLIA_RPC_URL`         | web3 service, contracts    | Alchemy/Infura Sepolia URL        |
-| `DEVICE_PRIVATE_KEY`      | web3 service               | Pi device wallet private key      |
-| `DEVICE_REGISTRY_ADDRESS` | web3 service               | From Step 1 deploy output         |
-| `Veris_ERC1155_ADDRESS`   | web3 service               | From Step 1 deploy output         |
-| `PRIVY_APP_ID`            | web3 service, owner portal | Privy dashboard                   |
-| `PRIVY_APP_SECRET`        | web3 service               | Privy dashboard                   |
-| `CLAIM_SERVER_URL`        | web3 service, camera app   | Your Render URL                   |
-| `OWNER_WALLET_ADDRESS`    | web3 service               | Wallet that receives original NFT |
-| `VITE_PRIVY_APP_ID`       | owner portal               | Same Privy App ID (Vite prefix)   |
-| `VITE_BACKEND_URL`        | owner portal               | Pi's IP:5000 or tunnel URL        |
-
-
+| Variable               | Used in                  | Value                                  |
+| ---------------------- | ------------------------ | -------------------------------------- |
+| `SOLANA_RPC_URL`       | web3 service             | Devnet RPC URL                         |
+| `SOLANA_CLUSTER`       | web3 service             | `devnet`                               |
+| `VERIS_PROGRAM_ID`     | web3 service             | From `solana-program/deployment.json`  |
+| `MIN_SOL_BALANCE`      | web3 service             | Airdrop/warning threshold (`0.05`)     |
+| `DEVICE_SEED_HEX`      | web3 service (optional)  | Overrides `.device_key_export`         |
+| `LIGHTHOUSE_API_KEY`   | web3 service             | Lighthouse dashboard                   |
+| `CLAIM_SERVER_URL`     | web3 service, camera app | Your Render URL                        |
+| `OWNER_WALLET_ADDRESS` | web3 service             | Base58 wallet that owns original photos|
+| `VITE_SOLANA_RPC_URL`  | owner portal             | Devnet RPC URL (build-time)            |
+| `VITE_BACKEND_URL`     | owner portal             | Pi's IP:5000 or tunnel URL             |

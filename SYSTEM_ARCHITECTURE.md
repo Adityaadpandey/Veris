@@ -13,11 +13,11 @@ graph TB
   subgraph EDGE["🎥 STANDALONE CAMERA DEVICE — Raspberry Pi"]
     direction TB
     PICAM["Picamera2<br/>raspberry_pi_camera_app.py<br/>Kivy GUI · 1920×1080 capture"]
-    HWID["hardware_identity.py<br/>SECP256k1 keypair from<br/>SHA256(cpu_serial ‖ mac ‖<br/>machine-id ‖ camera_id ‖ salt)<br/>salt @ /boot/.device_salt"]
+    HWID["hardware_identity.py<br/>ed25519 keypair (PyNaCl) from<br/>SHA256(cpu_serial ‖ mac ‖<br/>machine-id ‖ camera_id ‖ salt)<br/>address = base58(pubkey)<br/>salt @ /boot/.device_salt"]
     STREAM["stream_server.py<br/>MJPEG :8081 (optional)"]
     LOC["IP Geolocation<br/>(not GPS hardware)"]
     QR["qrcode lib<br/>Renders claim QR"]
-    PICAM -->|"sha256(jpg) → ECDSA sign"| HWID
+    PICAM -->|"sha256(jpg) → ed25519 sign"| HWID
     PICAM --> LOC
     PICAM --> QR
   end
@@ -25,22 +25,20 @@ graph TB
   %% ==================== HARDWARE-WEB3-SERVICE ====================
   subgraph HWS["⚙️ hardware-web3-service · Node.js Express :5000"]
     direction TB
-    SRV["server.js<br/>POST /api/images/upload<br/>POST /api/device/ensure-registered<br/>POST /api/search<br/>GET /api/verify/:claimId<br/>POST /api/privy/mint-with-signer"]
+    SRV["server.js<br/>POST /api/images/upload<br/>POST /api/device/ensure-registered<br/>POST /api/search<br/>GET /api/verify/:claimId"]
     DB1[("better-sqlite3<br/>lensmint.db<br/>tables: images · claims ·<br/>devices · embeddings")]
-    W3["web3Service.js<br/>ethers v6 → Sepolia"]
+    W3["solanaService.js<br/>@solana/web3.js + Anchor<br/>→ Solana devnet"]
     FCS["filecoinService.js<br/>@lighthouse-web3/sdk"]
     EMB["embeddingService.js<br/>HTTP client → :5001"]
     CC["claimClient.js<br/>axios → public-server"]
-    PRV["privyService.js<br/>POST api.privy.io/v1<br/>session-signers"]
-    DEP["deploymentService.js<br/>reads deployment.json"]
-    HWK["getHardwareKey.js<br/>spawns python3 export_key.py<br/>→ extracts device priv key"]
+    DEP["deploymentService.js<br/>reads solana-program/deployment.json<br/>+ idl/veris.json"]
+    HWK["getHardwareKey.js<br/>reads .device_key_export seed_hex<br/>(or spawns python3 export_key.py)<br/>→ Keypair.fromSeed"]
     POLL{{"setInterval 10s<br/>processEditionRequests()"}}
     SRV --> DB1
     SRV --> W3
     SRV --> FCS
     SRV --> EMB
     SRV --> CC
-    SRV --> PRV
     W3 --> DEP
     W3 --> HWK
     POLL --> CC
@@ -50,7 +48,7 @@ graph TB
   %% ==================== PUBLIC SERVER ====================
   subgraph PUB["🌐 public-server · Render.com :5001"]
     direction TB
-    PSRV["server.js (CommonJS)<br/>POST /create-claim<br/>GET  /claim/:id (inline HTML)<br/>POST /claim/:id/submit<br/>GET  /check-claim<br/>GET  /verify-claim/:id<br/>GET  /get-pending-edition-requests<br/>POST /update-edition-request<br/>GET  /api/metadata/:id (ERC-1155 JSON)"]
+    PSRV["server.js (CommonJS)<br/>POST /create-claim<br/>GET  /claim/:id (inline HTML)<br/>POST /claim/:id/submit<br/>GET  /check-claim<br/>GET  /verify-claim/:id<br/>GET  /get-pending-edition-requests<br/>POST /update-edition-request<br/>GET  /api/metadata/:id (NFT metadata JSON)"]
     DB2[("better-sqlite3<br/>claims.db<br/>tables: claims · edition_requests")]
     PSRV --> DB2
   end
@@ -68,7 +66,7 @@ graph TB
   %% ==================== OWNER PORTAL ====================
   subgraph OP["💻 owner-portal · React + Vite"]
     direction TB
-    APP["App.jsx<br/>PrivyProvider · WagmiProvider<br/>chain: sepolia"]
+    APP["App.jsx<br/>ConnectionProvider · WalletProvider<br/>(wallet-adapter: Phantom/Solflare)<br/>cluster: devnet"]
     R1["/ → LandingPage"]
     R2["/dashboard → OwnerDashboard"]
     R3["/claim/:claimId → ClaimPage"]
@@ -79,14 +77,13 @@ graph TB
   %% ==================== EXTERNAL SERVICES ====================
   subgraph EXT["☁️ EXTERNAL"]
     LH["Lighthouse Gateway<br/>gateway.lighthouse.storage<br/>→ Filecoin/IPFS"]
-    PRIVY["Privy<br/>api.privy.io<br/>(embedded wallets +<br/>session signers)"]
   end
 
-  %% ==================== SEPOLIA ====================
-  subgraph CHAIN["⛓ Ethereum Sepolia"]
-    DR["DeviceRegistry.sol<br/>registerDevice · updateDevice<br/>isDeviceActive · getDevice"]
-    L11["LensMintERC1155.sol (ERC-1155 + Ownable)<br/>mintOriginal · mintEdition ·<br/>batchMintEditions · getTokenMetadata<br/>uses DeviceRegistry.isDeviceActive(msg.sender)"]
-    L11 -->|"validates msg.sender"| DR
+  %% ==================== SOLANA ====================
+  subgraph CHAIN["⛓ Solana Devnet — veris Anchor program"]
+    DR["Device + DeviceIdIndex PDAs<br/>register_device · update_device ·<br/>deactivate_device"]
+    L11["PhotoRecord + Edition PDAs<br/>mint_photo (requires native ed25519<br/>verify ix — instruction introspection) ·<br/>mint_edition · transfer_photo/edition<br/>PhotoRecord seeded by image_hash (dedupe)"]
+    L11 -->|"requires Device.is_active<br/>+ device signer"| DR
   end
 
   %% ==================== EDGE FLOWS ====================
@@ -96,18 +93,16 @@ graph TB
 
   %% ==================== HWS FLOWS ====================
   FCS -->|"lighthouse.upload(file, apiKey)<br/>+ uploadText(metadata.json)"| LH
-  W3 -->|"JsonRpcProvider<br/>SEPOLIA_RPC_URL"| CHAIN
+  W3 -->|"Connection<br/>SOLANA_RPC_URL"| CHAIN
   CC -->|"axios POST/GET<br/>CLAIM_SERVER_URL"| PSRV
   EMB -->|"HTTP form-data"| AISRV
-  PRV -->|"REST + Bearer"| PRIVY
 
   %% ==================== USER FLOWS ====================
   USER(("📱 End user phone<br/>scans QR")):::user
   USER -->|"GET /claim/:id"| PSRV
   USER2(("🖼 Owner browser")):::user
   USER2 --> APP
-  APP -->|"Wagmi viem<br/>+ Privy"| CHAIN
-  APP -->|"Privy embedded wallet"| PRIVY
+  APP -->|"wallet-adapter tx<br/>+ Anchor account reads"| CHAIN
   APP -->|"img upload"| SRV
 
   %% ==================== VERIFY-CLAIM CALLBACK ====================
@@ -121,7 +116,8 @@ graph TB
 **Truth notes for this diagram:**
 - Both `hardware-web3-service` and `ai-embedding-service` default to port `5001`. In practice the embedding service is overridden via `EMBEDDING_SERVICE_URL`, and the public-server runs on Render so collisions are ignored.
 - "Filecoin storage" means Lighthouse IPFS — no Synapse SDK, no direct Filecoin deal-making in code.
-- No ZK proofs / vlayer / RISC-Zero contract code exists in this repo — only `DeviceRegistry` + `LensMintERC1155`.
+- All on-chain state lives in the single `veris` Anchor program (`solana-program/`) — device registry, photo provenance records, and editions are PDAs; there are no SPL token mints.
+- The hardware signature is verified **by the Solana runtime itself**: `mint_photo` requires a native ed25519-program instruction in the same transaction and checks it via instruction introspection.
 - `ai-model/` is calibration/diagnostic code only — it is never imported by `hardware-web3-service`.
 
 ---
@@ -134,9 +130,9 @@ graph LR
   subgraph BUILT["✅ STANDALONE CAMERA — fully implemented"]
     direction TB
     B_HW["Hardware<br/>━━━━━━━━━━━━━━━<br/>• Raspberry Pi (Pi 4 / Pi 5)<br/>• Picamera2 module (CSI)<br/>• Touchscreen (Kivy fullscreen)<br/>• optional Waveshare UPS HAT<br/>  (smbus2 if available)<br/>• microSD storage"]
-    B_SW["Software stack<br/>━━━━━━━━━━━━━━━<br/>• Python 3 / Kivy GUI<br/>• Picamera2 → JPEG @ 1920×1080<br/>• ecdsa SECP256k1 + pysha3 keccak<br/>• qrcode for claim display<br/>• requests → BACKEND_URL<br/>• stream_server.py MJPEG (optional)<br/>• systemd: lensmint.service +<br/>  kiosk-start.sh"]
-    B_ID["Identity<br/>━━━━━━━━━━━━━━━<br/>private = SHA256(<br/>  cpu_serial ‖ mac ‖<br/>  /etc/machine-id ‖<br/>  camera_id ‖ salt)<br/>address = keccak256(pub)[-20:]<br/>salt: /boot/.device_salt<br/>  (fallback ~/.lensmint/.device_salt_backup)"]
-    B_OUT["Outputs<br/>━━━━━━━━━━━━━━━<br/>• 1× JPEG of the scene<br/>• image_hash = sha256<br/>• signature = ECDSA(image_hash)<br/>• cameraId, deviceAddress<br/>• optional lat/lon (IP geo)"]
+    B_SW["Software stack<br/>━━━━━━━━━━━━━━━<br/>• Python 3 / Kivy GUI<br/>• Picamera2 → JPEG @ 1920×1080<br/>• PyNaCl ed25519 + base58<br/>• qrcode for claim display<br/>• requests → BACKEND_URL<br/>• stream_server.py MJPEG (optional)<br/>• systemd: lensmint.service +<br/>  kiosk-start.sh"]
+    B_ID["Identity<br/>━━━━━━━━━━━━━━━<br/>seed = SHA256(<br/>  cpu_serial ‖ mac ‖<br/>  /etc/machine-id ‖<br/>  camera_id ‖ salt)<br/>keypair = ed25519(seed)<br/>address = base58(pubkey)<br/>salt: /boot/.device_salt<br/>  (fallback ~/.lensmint/.device_salt_backup)"]
+    B_OUT["Outputs<br/>━━━━━━━━━━━━━━━<br/>• 1× JPEG of the scene<br/>• image_hash = sha256<br/>• signature = ed25519(image_hash)<br/>• cameraId, deviceAddress (base58)<br/>• optional lat/lon (IP geo)"]
     B_FLOW["Trigger<br/>━━━━━━━━━━━━━━━<br/>On-screen Kivy button →<br/>POST /api/images/upload<br/>(single-camera capture)"]
     B_HW --> B_SW --> B_ID --> B_OUT --> B_FLOW
   end
@@ -146,7 +142,7 @@ graph LR
     direction TB
     E_HW["Hardware (planned)<br/>━━━━━━━━━━━━━━━<br/>• ESP32-CAM or ESP32-S3<br/>• OV2640 ≥2 MP sensor<br/>• Universal hot-shoe foot<br/>• Cable-release pass-through<br/>  (or flash photodiode trigger)<br/>• LiPo + USB-C charger<br/>• RGB status LED"]
     E_SW["Firmware (planned)<br/>━━━━━━━━━━━━━━━<br/>• Trigger ISR (cable / flash)<br/>• ESP32 camera capture<br/>• HMAC / ECDSA device key<br/>• WiFi STA + HTTPS uploader<br/>• OTA + LED state machine"]
-    E_ID["Identity (planned)<br/>━━━━━━━━━━━━━━━<br/>per-device hardware key<br/>(eFuse-derived), registered<br/>against a separate role on<br/>DeviceRegistry"]
+    E_ID["Identity (planned)<br/>━━━━━━━━━━━━━━━<br/>per-device hardware key<br/>(eFuse-derived), registered<br/>as its own Device PDA on<br/>the veris program"]
     E_OUT["Outputs (planned)<br/>━━━━━━━━━━━━━━━<br/>• ESP verification JPEG<br/>• ESP image_hash + signature<br/>• capture timestamp ±100 ms"]
     E_FLOW["Trigger (planned)<br/>━━━━━━━━━━━━━━━<br/>DSLR shutter → cable<br/>release split → ESP capture<br/>POST /api/dual-camera/upload<br/>(endpoint not yet in server.js)"]
     E_AI["Server-side check (planned)<br/>━━━━━━━━━━━━━━━<br/>ai-model/main.py ImageVerifier<br/>5-signal fusion on (DSLR, ESP):<br/>  ORB · SSIM-edge · HSV-hist ·<br/>  CLIP-cos · pHash<br/>weighted: 0.10 0.20 0.20 0.30 0.20<br/>+ per-signal floors<br/>authentic ⇔ score ≥ threshold ∧<br/>          no signal below floor"]
@@ -156,9 +152,9 @@ graph LR
   %% =================================================================
   subgraph SHARED["⚙️ SHARED BACKEND (same for both devices)"]
     direction TB
-    S1["hardware-web3-service<br/>(Lighthouse upload · Sepolia mint · SQLite)"]
+    S1["hardware-web3-service<br/>(Lighthouse upload · Solana mint · SQLite)"]
     S2["public-server<br/>(claim QR page · edition queue)"]
-    S3["DeviceRegistry + LensMintERC1155<br/>on Sepolia"]
+    S3["veris Anchor program<br/>on Solana devnet"]
     S4["ai-embedding-service<br/>CLIP+pHash for reverse search"]
     S1 --> S2
     S1 --> S3
@@ -191,7 +187,7 @@ sequenceDiagram
   participant LH as Lighthouse<br/>(IPFS/Filecoin)
   participant PS as public-server<br/>(Render)
   participant DB2 as claims.db<br/>(SQLite)
-  participant CH as Sepolia<br/>DeviceRegistry +<br/>LensMintERC1155
+  participant CH as Solana devnet<br/>veris Anchor program
   participant AI as ai-embedding-service<br/>:5001 (FastAPI)
   actor V as 📱 NFT recipient
   actor X as 🔍 reverse-search user
@@ -200,14 +196,14 @@ sequenceDiagram
   Note over K,CH: ── ONE-TIME BOOT: device registration ──
   K->>HI: get_hardware_identity(camera_id)
   HI->>HI: read /proc/cpuinfo Serial · /sys/class/net/*/address ·<br/>/etc/machine-id · ensure /boot/.device_salt
-  HI->>HI: priv = SECP256k1(SHA256(hw_id ‖ salt))<br/>addr = "0x" + keccak256(pub)[-20:].hex()
-  K->>BE: POST /api/device/ensure-registered<br/>{deviceAddress, publicKey, deviceId, cameraId,<br/> model, firmwareVersion}
-  BE->>CH: deviceRegistry.isDeviceActive(addr)
+  HI->>HI: seed = SHA256(hw_id ‖ salt)<br/>keypair = ed25519(seed)<br/>addr = base58(pubkey)
+  K->>BE: POST /api/device/ensure-registered<br/>{deviceAddress, deviceId, cameraId,<br/> model, firmwareVersion}
+  BE->>CH: fetch Device PDA ["device", pubkey] · is_active?
   alt not registered
-    BE->>CH: deviceRegistry.registerDevice(...)
-    CH-->>BE: tx hash · isActive = true
+    BE->>CH: register_device ix<br/>(inits Device + DeviceIdIndex PDAs)
+    CH-->>BE: tx signature · is_active = true
   else registered but inactive
-    BE->>CH: deviceRegistry.updateDevice(addr, fw, true)
+    BE->>CH: update_device(fw, is_active=true) ix
   end
   BE->>DB1: cacheDevice(...)
   BE-->>K: {registered, activated, registrationTx, activationTx}
@@ -218,7 +214,7 @@ sequenceDiagram
   U->>K: tap "Capture"
   K->>K: Picamera2 → JPEG (PHOTO_SIZE 1920×1080)
   K->>K: image_hash = sha256(jpeg)
-  K->>HI: sign_hash(image_hash) → ECDSA secp256k1
+  K->>HI: sign_hash(image_hash) → ed25519 (64-byte sig)
   K->>K: ip-geolocate (best-effort lat/lon/name)
   K->>BE: multipart POST /api/images/upload<br/>file=image · imageHash · signature ·<br/>cameraId · deviceAddress · lat/lon/locName
   end
@@ -228,7 +224,7 @@ sequenceDiagram
   BE->>BE: validate mime ∈ {jpeg,png,webp} · size ≤50 MB
   BE->>DB1: INSERT images (status='saved', signature, hash, …)
   BE->>LH: lighthouse.upload(filepath) → image CID
-  BE->>BE: build ERC-1155 metadata JSON<br/>(name, image=ipfs://CID, attrs:<br/>deviceAddr, deviceId, cameraId,<br/>imageHash, signature, ts)
+  BE->>BE: build NFT metadata JSON<br/>(name, image=ipfs://CID, attrs:<br/>deviceAddr, deviceId, cameraId,<br/>imageHash, signature, ts)
   BE->>LH: lighthouse.uploadText(metadata) → metadata CID
   BE->>DB1: UPDATE status='uploaded', filecoin_cid, metadata_cid
   BE->>BE: claim_id = uuidv4()
@@ -237,10 +233,10 @@ sequenceDiagram
   PS-->>BE: {claim_url = FRONTEND_URL/claim/:id}
   BE->>DB1: createClaim · UPDATE images.claim_id
 
-  Note over BE,CH: original NFT auto-minted to OWNER_WALLET_ADDRESS
-  BE->>CH: lensMint.mintOriginal(<br/>  to=OWNER_WALLET, ipfsHash, imageHash,<br/>  signature, maxEditions=0)<br/>(EIP-1559 fee +20 % gas bump)
-  Note right of CH: contract checks<br/>deviceRegistry.isDeviceActive(msg.sender)<br/>tokenId = ++totalTokens<br/>emits TokenMinted
-  CH-->>BE: receipt → parse TokenMinted → tokenId
+  Note over BE,CH: original photo record auto-minted, owner = OWNER_WALLET_ADDRESS
+  BE->>CH: tx = [ed25519-verify ix (native program:<br/>  device pubkey · image_hash · signature),<br/>  mint_photo ix (device keypair signs)]
+  Note right of CH: program introspects the ed25519 ix —<br/>runtime itself verified the hardware sig ·<br/>Device.is_active required ·<br/>PhotoRecord PDA ["photo", image_hash]<br/>(duplicate image → address collision) ·<br/>emits PhotoMinted
+  CH-->>BE: tx signature → tokenId = PhotoRecord PDA (base58)
   BE->>DB1: status='minted' · token_id · tx_hash
   BE->>PS: POST /update-claim-status<br/>status='open', token_id, tx_hash
   PS->>DB2: UPDATE claims status='open'
@@ -263,8 +259,8 @@ sequenceDiagram
   PS-->>V: claim page · NFT preview (lighthouse → ipfs.io → cloudflare-ipfs → dweb.link fallback)
   V->>PS: page polls every 5 s · GET /verify-claim/:id
   PS->>BE: GET {device_api_url}/api/verify/:claimId
-  BE->>BE: ethers.verifyMessage(image_hash, signature) == device_address?
-  BE->>CH: deviceRegistry.isDeviceActive(device_address)
+  BE->>BE: nacl.sign.detached.verify(image_hash_bytes,<br/>signature, device_pubkey)?
+  BE->>CH: fetch Device PDA · is_active?
   BE-->>PS: {checks:{imageFound, signatureValid, deviceRegistered, nftMinted}, verified}
   PS-->>V: render verification badge
 
@@ -278,11 +274,11 @@ sequenceDiagram
     BE->>PS: GET /get-pending-edition-requests?limit=50
     PS->>DB2: SELECT … WHERE status='pending'<br/>      AND claims.status='open' AND token_id NOT NULL
     PS-->>BE: edition_requests[]
-    BE->>BE: validate addr 0x… (42 chars)<br/>+ ethers.getAddress checksum
+    BE->>BE: validate base58 Solana address
     BE->>PS: POST /update-edition-request status='processing'
-    BE->>CH: lensMint.mintEdition(recipient, originalTokenId)
-    Note right of CH: requires:<br/>• deviceRegistry.isDeviceActive(msg.sender)<br/>• original.isOriginal == true<br/>• maxEditions==0 ∨ count < maxEditions<br/>emits EditionMinted
-    CH-->>BE: receipt → parse EditionMinted → editionTokenId
+    BE->>CH: mint_edition(recipient) ix<br/>(edition PDA = ["edition", photo, count+1])
+    Note right of CH: permissionless · requires:<br/>• PhotoRecord exists<br/>• max_editions==0 ∨ count < max_editions<br/>emits EditionMinted
+    CH-->>BE: tx signature → Edition PDA (base58)
     BE->>PS: POST /update-edition-request<br/>status='completed' · tx_hash · token_id
     Note over PS,V: claim page poll picks up new status<br/>→ "NFT Minted!"
   end
@@ -302,8 +298,8 @@ sequenceDiagram
   end
 
   rect rgb(245,245,245)
-  Note over BE,CH: ── OPTIONAL · gas-sponsored mint via Privy ──
-  Note over BE,CH: POST /api/privy/mint-with-signer<br/>encodes mintOriginal calldata via ethers.Interface,<br/>POSTs to api.privy.io/v1/apps/{id}/session-signers/{sid}/transactions<br/>with {gasSponsorship:{enabled:true, policy:'sponsor-all'}}<br/>(used by owner-portal flows that hold a Privy session signer)
+  Note over V,CH: ── OPTIONAL · self-mint from the claim page ──
+  Note over V,CH: owner-portal ClaimPage can mint the edition directly<br/>from the recipient's connected wallet (wallet-adapter):<br/>reads PhotoRecord PDA · builds mint_edition via Anchor ·<br/>wallet.sendTransaction — no backend involved
   end
 ```
 

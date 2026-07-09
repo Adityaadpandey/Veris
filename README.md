@@ -1,10 +1,10 @@
-# 📷 Veris - Web3 Camera with Proof of Memory & ZK Verification
+# 📷 Veris - Web3 Camera with Proof of Memory & On-Chain Signature Verification
 
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
-![Blockchain](https://img.shields.io/badge/Blockchain-Ethereum%20%7C%20Filecoin-purple?style=for-the-badge)
-![ZK Proofs](https://img.shields.io/badge/ZK%20Proofs-vlayer%20%7C%20RISC%20Zero-orange?style=for-the-badge)
+![Blockchain](https://img.shields.io/badge/Blockchain-Solana%20%7C%20Filecoin-purple?style=for-the-badge)
+![Provenance](https://img.shields.io/badge/Provenance-ed25519%20%7C%20On--Chain%20Verify-orange?style=for-the-badge)
 
 **A Web3 camera system that solves real problems for creators: prove photos are authentic (not AI-generated), create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others (attendees, people in photos).**
 
@@ -117,9 +117,9 @@ Every photo captured solves real problems:
 
 ### 🔐 Proof of Authenticity
 
-- **Zero-Knowledge Proofs (vlayer)**: Generate cryptographic proofs that images are real, not AI-generated or manipulated
-- **Hardware-Based Identity**: Each camera has unique cryptographic identity - proves which device captured the image
-- **RISC Zero Verification**: On-chain verification of authenticity proofs using RISC Zero verifier contracts
+- **On-Chain Signature Verification**: Every mint requires a native ed25519 signature-verify instruction in the same Solana transaction — the runtime itself proves the camera signed the image hash, via instruction introspection in the `veris` Anchor program
+- **Hardware-Based Identity**: Each camera has a unique ed25519 keypair derived from device hardware — proves which device captured the image
+- **On-Chain Dedupe**: `PhotoRecord` is a PDA seeded by the image hash, so the same image can never be recorded twice
 - **Immutable Timestamps**: Blockchain timestamps prove exactly when images were captured
 - **Device Metadata**: Cryptographic proof of camera model, location, and capture conditions
 
@@ -168,14 +168,13 @@ Every photo captured solves real problems:
 
 ### 🌐 Web3 & Blockchain Features
 
-- **Zero-Knowledge Proofs**: Generate ZK proofs using vlayer from external metadata APIs
-- **RISC Zero Verification**: On-chain ZK proof verification via RISC Zero verifier contracts
-- **Automatic NFT Minting**: ERC-1155 tokens auto-minted with device-signed metadata
-- **Filecoin Persistent Storage**: Permanent decentralized storage on Filecoin network
+- **On-Chain ed25519 Verification**: The `veris` Anchor program checks a native ed25519 signature-verify instruction via instruction introspection before minting — no off-chain trust needed
+- **Automatic Minting**: `PhotoRecord` PDAs auto-created with device-signed metadata on `mint_photo`
+- **Filecoin Persistent Storage**: Permanent decentralized storage on Filecoin network (via Lighthouse)
 - **Proof of Memory**: Cryptographic proof that memories were captured by verified devices
-- **Blockchain Verification**: Smart contracts verify device authenticity and image integrity
-- **Claim-Based Distribution**: QR code system for seamless NFT claiming
-- **On-Chain Provenance**: Complete immutable history tracked on blockchain
+- **Blockchain Verification**: The Solana program verifies device authenticity and image integrity
+- **Claim-Based Distribution**: QR code system for seamless claiming and edition minting
+- **On-Chain Provenance**: Complete immutable history tracked on Solana
 
 ### 🎨 User Experience
 
@@ -263,12 +262,12 @@ Every photo captured solves real problems:
 ┌──────────────────────────┐
 │ Hardware Web3 Service    │
 └──────┬───────────────────┘
-       │ Mint NFT (device → user)
+       │ mint_photo (device signs image hash)
        ▼
 ┌─────────────┐
-│  Blockchain │
+│   Solana    │
 └──────┬──────┘
-       │ Return Token ID
+       │ Return PhotoRecord Address
        ▼
 ┌──────────────────────────┐
 │ Hardware Web3 Service    │
@@ -305,8 +304,8 @@ Every photo captured solves real problems:
              │ Check Registration Status
              ▼
 ┌──────────────────────────────┐
-│      Blockchain              │
-│  (DeviceRegistry Contract)   │
+│      Solana Program           │
+│  (veris — Device PDA)        │
 └────────────┬─────────────────┘
              │
     ┌────────┴────────┐
@@ -321,9 +320,9 @@ Every photo captured solves real problems:
      │ Device         │ Device
      ▼                ▼
 ┌──────────────────────────────┐
-│      Blockchain              │
-│  Returns: Registration TX    │
-│  Returns: Activation TX      │
+│      Solana Program           │
+│  Returns: register_device TX │
+│  Returns: update_device TX   │
 └────────────┬─────────────────┘
              │ Registration Complete
              ▼
@@ -468,14 +467,15 @@ Every photo captured solves real problems:
 │                                                             │
 │  ┌──────────────────┐    ┌──────────────────┐            │
 │  │ Hardware Web3    │    │ Filecoin Service │            │
-│  │ Service          │───►│ Synapse SDK      │            │
+│  │ Service          │───►│ Lighthouse SDK   │            │
 │  │ Node.js/Express  │    └────────┬──────────┘            │
 │  └────────┬─────────┘            │                        │
 │           │                       │                        │
-│           │ Mint NFTs   ┌─────────▼──────────┐            │
-│           ├────────────►│ Web3 Service      │            │
-│           │             │ Ethers.js         │            │
-│           │             └─────────┬──────────┘            │
+│           │ Mint (mint_photo)  ┌──▼──────────────┐         │
+│           ├───────────────────►│ Solana Service  │         │
+│           │                    │ web3.js/Anchor  │         │
+│           │                    └─────────┬────────┘        │
+│           │                       │                        │
 │           │                       │                        │
 │           │ Store Data  ┌─────────▼──────────┐            │
 │           ├────────────►│ Database Service   │            │
@@ -502,11 +502,11 @@ Every photo captured solves real problems:
 │             └──────────────┐                              │
 │                            │                              │
 │  ┌─────────────────────────▼──────────┐                 │
-│  │ Ethereum Sepolia                   │                 │
-│  │ Smart Contracts                    │                 │
-│  │ - DeviceRegistry                   │                 │
-│  │ - VerisERC1155                   │                 │
-│  │ - VerisVerifier                 │                 │
+│  │ Solana Devnet                       │                 │
+│  │ Anchor Program: veris                │                 │
+│  │ - Config / Device / DeviceIdIndex   │                 │
+│  │ - PhotoRecord (PDA, image-hash seed)│                 │
+│  │ - Edition                           │                 │
 │  └─────────────────────────────────────┘                 │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -566,12 +566,12 @@ Every photo captured solves real problems:
           │
           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Blockchain Layer                           │
+│                  Solana Program Layer                        │
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ DeviceRegistry│  │ Veris    │  │ Veris     │     │
-│  │ Contract      │  │ ERC1155     │  │ Verifier     │     │
-│  │               │  │ Contract    │  │ Contract     │     │
+│  │ Device /      │  │ PhotoRecord  │  │ Edition      │     │
+│  │ DeviceIdIndex │  │ (mint_photo) │  │ (mint_edition)│    │
+│  │ (veris program)│ │              │  │              │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -673,8 +673,8 @@ Every photo captured solves real problems:
     │         │
     ▼         ▼
 ┌──────┐  ┌─────────────────┐
-│ Poll │  │ Mint NFT on     │
-│Again │  │ Blockchain      │
+│ Poll │  │ mint_photo on   │
+│Again │  │ Solana          │
 └──┬───┘  └────────┬─────────┘
    │               │
    └───────┬───────┘
@@ -772,16 +772,17 @@ npm install
 
 Create `.env` files in `hardware-web3-service` and `public-server` directories with your configuration settings.
 
-**For Privy Integration (Owner Portal):**
+**For Solana Integration:**
 
 - Add to `hardware-web3-service/.env`:
   ```
-  PRIVY_APP_ID=your-privy-app-id
-  PRIVY_APP_SECRET=your-privy-app-secret
+  SOLANA_RPC_URL=https://api.devnet.solana.com
+  SOLANA_CLUSTER=devnet
+  VERIS_PROGRAM_ID=6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23
   ```
 - Add to `owner-portal/.env`:
   ```
-  VITE_PRIVY_APP_ID=your-privy-app-id
+  VITE_SOLANA_RPC_URL=https://api.devnet.solana.com
   VITE_BACKEND_URL=http://localhost:5000
   ```
 
@@ -817,7 +818,7 @@ python3 raspberry_pi_camera_app.py
 
 ### Step 10: Start Owner Portal (Optional)
 
-For owner wallet management with Privy integration:
+For owner wallet management with a Solana wallet:
 
 ```bash
 cd owner-portal
@@ -827,11 +828,9 @@ npm run dev
 
 The owner portal will be available at `http://localhost:3000`. This allows the owner to:
 
-- Login with Privy (wallet, email, or SMS)
-- Setup session signers for backend transaction signing
-- Mint NFTs with automatic gas sponsorship
-
-See `PRIVY_SETUP.md` for detailed Privy configuration.
+- Connect with Phantom or Solflare via `@solana/wallet-adapter`
+- View owned `PhotoRecord`/`Edition` PDAs via `getProgramAccounts`
+- Mint editions (`mint_edition`) directly from the connected wallet
 
 ### Step 11: Setup Auto-Start (Optional)
 
@@ -1059,56 +1058,52 @@ sudo systemctl start Veris.service
 
 - **Node.js 18+**: Runtime
 - **Express.js**: Web framework
-- **Ethers.js**: Blockchain interaction
+- **@solana/web3.js + @coral-xyz/anchor**: Solana interaction
 - **SQLite**: Database
 - **Multer**: File upload handling
 
 ### Blockchain
 
-- **Ethereum Sepolia**: Testnet
-- **Solidity**: Smart contracts
-- **Foundry**: Development framework
-- **OpenZeppelin**: Contract libraries
+- **Solana Devnet**: Cluster
+- **Rust**: Program language
+- **Anchor**: Development framework
+- **@solana/wallet-adapter**: Wallet connections (owner-portal)
 
 ### Storage
 
 - **Filecoin**: Decentralized storage
-- **Synapse SDK**: Filecoin integration
+- **Lighthouse SDK**: Filecoin integration
 - **IPFS**: Content addressing
 
 ---
 
-## 📊 Smart Contracts
+## 📊 Solana Program (`veris`)
 
-### DeviceRegistry.sol
+Program ID: `6beFq5WaWo7dPPEzVNt8gRG1YwJiFyUuhzpH1ydVDd23` (devnet). Source in `solana-program/programs/veris`; IDL checked in at `solana-program/idl/veris.json`.
 
-- Registers authorized camera devices
-- Stores device metadata (address, camera ID, model)
-- Manages device activation status
+### Accounts (PDAs)
 
-### VerisERC1155.sol
+- **Config** (`["config"]`) - global counters and authority
+- **Device** (`["device", device_pubkey]`) / **DeviceIdIndex** (`["device-id", sha256(device_id)]`) - registers authorized camera devices, tracks activation status
+- **PhotoRecord** (`["photo", image_hash]`) - one per unique image hash (on-chain dedupe); holds CID, signature, owner, edition cap/count
+- **Edition** (`["edition", photo, number]`) - permissionless edition mints capped by `max_editions`
 
-- ERC-1155 NFT contract for multi-token standard
-- Device-only minting for originals
-- Public minting for editions
-- Transfer functionality
+### Instructions
 
-### VerisVerifier.sol
-
-- **Zero-Knowledge Proof Verification**: RISC Zero verifier for ZK proof validation
-- **Device Authenticity**: Verifies device identity from ZK proof data
-- **Image Hash Verification**: Validates image integrity from external metadata
-- **On-Chain Proof Validation**: Trustless verification of vlayer-generated proofs
+- `initialize`, `register_device`, `update_device`, `deactivate_device`
+- `mint_photo` - requires a native ed25519 signature-verify instruction in the same transaction (checked via instruction introspection) proving the device signed the image hash
+- `mint_edition` - permissionless, capped by `max_editions`
+- `transfer_photo`, `transfer_edition`
 
 ---
 
 ## 🔐 Security Features
 
-- **Hardware-based Keys**: Cryptographic keys derived from device hardware
-- **Image Signing**: Every photo is cryptographically signed
-- **On-Chain Verification**: Smart contracts verify device authenticity
+- **Hardware-based Keys**: ed25519 keypair derived from device hardware (`seed = sha256(hw_id + salt)`)
+- **Image Signing**: Every photo is cryptographically signed by the device key
+- **On-Chain Verification**: The Solana runtime verifies the ed25519 signature via instruction introspection before `mint_photo` succeeds
 - **Private Key Protection**: Keys stored securely, never exposed
-- **Tamper-Proof Metadata**: Immutable metadata on blockchain
+- **Tamper-Proof Metadata**: Immutable metadata on-chain (PhotoRecord PDA)
 
 ---
 
@@ -1116,7 +1111,7 @@ sudo systemctl start Veris.service
 
 - **Photo Capture**: < 2 seconds
 - **Filecoin Upload**: 5-15 seconds (depends on network)
-- **NFT Minting**: 10-30 seconds (depends on gas)
+- **On-Chain Mint**: a few seconds (Solana devnet confirmation)
 - **QR Code Generation**: < 1 second
 - **Memory Usage**: ~300-400MB total
 
@@ -1126,13 +1121,12 @@ sudo systemctl start Veris.service
 
 Built with:
 
-- [vlayer](https://vlayer.io/) - Zero-knowledge proof generation for authenticity verification
-- [Privy](https://privy.io/) - Wallet infrastructure and authentication
+- [Solana](https://solana.com/) / [Anchor](https://www.anchor-lang.com/) - on-chain program framework
+- [@solana/wallet-adapter](https://github.com/anza-xyz/wallet-adapter) - wallet connections
 - [Kivy](https://kivy.org/) - Python UI framework
-- [Ethers.js](https://ethers.org/) - Ethereum library
-- [Filecoin Synapse SDK](https://github.com/filoz-network/synapse-sdk) - Filecoin integration
-- [OpenZeppelin](https://www.openzeppelin.com/) - Smart contract libraries
-- [Foundry](https://book.getfoundry.sh/) - Development framework
+- [@solana/web3.js](https://solana-labs.github.io/solana-web3.js/) - Solana client library
+- [Lighthouse](https://www.lighthouse.storage/) - Filecoin integration
+- [PyNaCl](https://pynacl.readthedocs.io/) - ed25519 signing on the Raspberry Pi
 
 ---
 
