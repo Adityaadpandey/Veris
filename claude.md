@@ -68,7 +68,7 @@ Raspberry Pi Camera
         → Generate ZK proof (vlayer API)
         → Register device on DeviceRegistry contract
         → Mint ERC-1155 NFT via LensMintERC1155
-        → Create claim in lensmint-public-server (SQLite)
+        → Create claim in lensmint-public-server (Postgres)
         → Return QR code to camera app
 
 User scans QR code → owner-portal (React)
@@ -88,7 +88,7 @@ Smart Contracts (Solidity):
 - **Web3 client**: Wagmi 2 + Viem 2 for contract interaction
 - **Storage**: Filecoin via Synapse SDK; Lighthouse as fallback
 - **ZK proofs**: vlayer API + RISC Zero for verifiable image provenance
-- **Database**: better-sqlite3 in both Node.js services (no migrations framework)
+- **Database**: better-sqlite3 in `hardware-web3-service` (local, no migrations framework); `lensmint-public-server` uses hosted Postgres (`pg`) via `DATABASE_URL` since it runs on Render, which has an ephemeral disk
 - **NFT standard**: ERC-1155 (not ERC-721) — supports batch minting per claim
 - **Contract toolchain**: Foundry (foundry.toml: solc 0.8.24, optimizer on)
 
@@ -98,7 +98,7 @@ Each service requires its own `.env`. See `.env.example` in each directory:
 
 - `hardware-web3-service/.env.example` — Filecoin contract address, Privy keys, vlayer endpoint, RPC URL
 - `owner-portal` — Privy app ID configured in source (check `src/main.jsx` or `src/App.jsx`)
-- `lensmint-public-server` — port and database path
+- `lensmint-public-server` — port and `DATABASE_URL` (Postgres connection string)
 
 ## Module System
 
