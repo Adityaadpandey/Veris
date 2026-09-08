@@ -1,60 +1,39 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { Pool } = require('pg');
 
 class ClaimDBService {
   constructor() {
-    this.db = null;
-    this.getDatabase = () => this.db;
-    const defaultPath = process.env.DATABASE_PATH;
-    if (defaultPath) {
-      this.dbPath = path.resolve(defaultPath);
-    } else {
-      const dbDir = path.resolve(__dirname, 'database');
-      this.dbPath = path.join(dbDir, 'claims.db');
-    }
+    this.pool = null;
   }
 
-  initialize() {
+  getDatabase() {
+    return this.pool;
+  }
+
+  async initialize() {
+    if (this.pool) return; // already initialized (called once at boot, once in app.listen)
+
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is required (Postgres connection string)');
+    }
+
     try {
-      // Ensure database directory exists
-      const dbDir = path.dirname(this.dbPath);
-      
-      if (!fs.existsSync(dbDir)) {
-        try {
-          fs.mkdirSync(dbDir, { recursive: true, mode: 0o755 });
-          console.log(`📁 Created database directory: ${dbDir}`);
-        } catch (mkdirError) {
-          if (mkdirError.code === 'EACCES') {
-            const fallbackDir = path.join(os.homedir(), '.lensmint', 'claim-server', 'database');
-            this.dbPath = path.join(fallbackDir, 'claims.db');
-            const fallbackParent = path.dirname(this.dbPath);
-            if (!fs.existsSync(fallbackParent)) {
-              fs.mkdirSync(fallbackParent, { recursive: true, mode: 0o755 });
-            }
-            console.log(`⚠️  Permission denied, using fallback path: ${this.dbPath}`);
-          } else {
-            throw mkdirError;
-          }
-        }
-      }
+      this.pool = new Pool({
+        connectionString,
+        ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false }
+      });
 
-      this.db = new Database(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('foreign_keys = ON');
+      await this.createTables();
 
-      this.createTables();
-
-      console.log(`✅ Claim database initialized automatically: ${this.dbPath}`);
+      console.log(`✅ Claim database initialized (Postgres)`);
     } catch (error) {
       console.error('❌ Failed to initialize database:', error);
       throw error;
     }
   }
 
-  createTables() {
-    this.db.exec(`
+  async createTables() {
+    await this.pool.query(`
       CREATE TABLE IF NOT EXISTS claims (
         claim_id TEXT PRIMARY KEY,
         image_id INTEGER,
@@ -69,9 +48,9 @@ class ClaimDBService {
         recipient_address TEXT,
         tx_hash TEXT,
         token_id INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        claimed_at DATETIME,
-        completed_at DATETIME
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        claimed_at TIMESTAMP,
+        completed_at TIMESTAMP
       )
     `);
 
@@ -95,173 +74,165 @@ class ClaimDBService {
       { name: 'ai_assessment', type: 'TEXT' }           // one-line justification for the hint
     ];
 
-    columnsToAdd.forEach(col => {
-      try { this.db.exec(`ALTER TABLE claims ADD COLUMN ${col.name} ${col.type}`); } catch (e) {}
-    });
+    for (const col of columnsToAdd) {
+      await this.pool.query(`ALTER TABLE claims ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+    }
 
-    this.db.exec(`
+    await this.pool.query(`
       CREATE TABLE IF NOT EXISTS edition_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         claim_id TEXT NOT NULL,
         wallet_address TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
         tx_hash TEXT,
         token_id TEXT,
         error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        minted_at DATETIME,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        minted_at TIMESTAMP,
         FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
       )
     `);
 
-
-    this.db.exec(`
+    await this.pool.query(`
       CREATE TABLE IF NOT EXISTS image_embeddings (
         claim_id TEXT PRIMARY KEY,
         cid TEXT,
         embedding TEXT,
         model TEXT,
         dim INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
       )
     `);
 
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
-      CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid);
-      CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status);
-      CREATE INDEX IF NOT EXISTS idx_claims_image_hash ON claims(image_hash);
-      CREATE INDEX IF NOT EXISTS idx_edition_requests_claim ON edition_requests(claim_id);
-      CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status);
-    `);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_image_hash ON claims(image_hash)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_edition_requests_claim ON edition_requests(claim_id)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status)`);
   }
 
-  createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null, device_api_url = null) {
+  async createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null, device_api_url = null) {
     try {
-      const stmt = this.db.prepare(`
+      await this.pool.query(`
         INSERT INTO claims (claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-      `);
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending')
+      `, [claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url]);
 
-      stmt.run(claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url);
       return this.getClaim(claim_id);
     } catch (error) {
-      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (error.code === '23505') { // unique_violation
         return null;
       }
       throw error;
     }
   }
 
-  getClaim(claim_id) {
-    const stmt = this.db.prepare('SELECT * FROM claims WHERE claim_id = ?');
-    return stmt.get(claim_id) || null;
+  async getClaim(claim_id) {
+    const { rows } = await this.pool.query('SELECT * FROM claims WHERE claim_id = $1', [claim_id]);
+    return rows[0] || null;
   }
 
-  updateClaim(claim_id, recipient_address) {
-    const stmt = this.db.prepare(`
+  async updateClaim(claim_id, recipient_address) {
+    const { rowCount } = await this.pool.query(`
       UPDATE claims
       SET status = 'claimed',
-          recipient_address = ?,
+          recipient_address = $1,
           claimed_at = CURRENT_TIMESTAMP
-      WHERE claim_id = ?
-    `);
+      WHERE claim_id = $2
+    `, [recipient_address, claim_id]);
 
-    const result = stmt.run(recipient_address, claim_id);
-    
-    if (result.changes === 0) {
+    if (rowCount === 0) {
       return null;
     }
 
     return this.getClaim(claim_id);
   }
 
-  updateClaimStatus(claim_id, status, token_id = null, tx_hash = null) {
-    const updateFields = ['status = ?'];
+  async updateClaimStatus(claim_id, status, token_id = null, tx_hash = null) {
+    const updateFields = ['status = $1'];
     const values = [status];
 
     if (token_id !== null) {
-      updateFields.push('token_id = ?');
       values.push(token_id);
+      updateFields.push(`token_id = $${values.length}`);
     }
 
     if (tx_hash !== null) {
-      updateFields.push('tx_hash = ?');
       values.push(tx_hash);
+      updateFields.push(`tx_hash = $${values.length}`);
     }
 
     values.push(claim_id);
 
-    const stmt = this.db.prepare(`
+    const { rowCount } = await this.pool.query(`
       UPDATE claims
       SET ${updateFields.join(', ')}
-      WHERE claim_id = ?
-    `);
+      WHERE claim_id = $${values.length}
+    `, values);
 
-    const result = stmt.run(...values);
-    
-    if (result.changes === 0) {
+    if (rowCount === 0) {
       return null;
     }
 
     return this.getClaim(claim_id);
   }
 
-  createEditionRequest(claim_id, wallet_address) {
+  async createEditionRequest(claim_id, wallet_address) {
     try {
-      const stmt = this.db.prepare(`
+      const { rows } = await this.pool.query(`
         INSERT INTO edition_requests (claim_id, wallet_address, status)
-        VALUES (?, ?, 'pending')
-      `);
+        VALUES ($1, $2, 'pending')
+        RETURNING id
+      `, [claim_id, wallet_address]);
 
-      const result = stmt.run(claim_id, wallet_address);
-      return this.getEditionRequest(result.lastInsertRowid);
+      return this.getEditionRequest(rows[0].id);
     } catch (error) {
       console.error('Error creating edition request:', error);
       throw error;
     }
   }
 
-  getEditionRequest(id) {
-    const stmt = this.db.prepare('SELECT * FROM edition_requests WHERE id = ?');
-    return stmt.get(id) || null;
+  async getEditionRequest(id) {
+    const { rows } = await this.pool.query('SELECT * FROM edition_requests WHERE id = $1', [id]);
+    return rows[0] || null;
   }
 
-  getPendingEditionRequests(limit = 50) {
-    const stmt = this.db.prepare(`
+  async getPendingEditionRequests(limit = 50) {
+    const { rows } = await this.pool.query(`
       SELECT e.*, c.token_id as original_token_id
       FROM edition_requests e
       JOIN claims c ON e.claim_id = c.claim_id
       WHERE e.status = 'pending' AND c.status = 'open' AND c.token_id IS NOT NULL
       ORDER BY e.created_at ASC
-      LIMIT ?
-    `);
-    return stmt.all(limit);
+      LIMIT $1
+    `, [limit]);
+    return rows;
   }
 
-  updateEditionRequest(id, updates) {
+  async updateEditionRequest(id, updates) {
     const updateFields = [];
     const values = [];
 
     if (updates.status) {
-      updateFields.push('status = ?');
       values.push(updates.status);
+      updateFields.push(`status = $${values.length}`);
     }
 
     if (updates.tx_hash) {
-      updateFields.push('tx_hash = ?');
       values.push(updates.tx_hash);
+      updateFields.push(`tx_hash = $${values.length}`);
     }
 
     if (updates.token_id) {
-      updateFields.push('token_id = ?');
       values.push(updates.token_id);
+      updateFields.push(`token_id = $${values.length}`);
     }
 
     if (updates.error_message) {
-      updateFields.push('error_message = ?');
       values.push(updates.error_message);
+      updateFields.push(`error_message = $${values.length}`);
     }
 
     if (updates.status === 'completed' || updates.status === 'minted') {
@@ -274,152 +245,148 @@ class ClaimDBService {
 
     values.push(id);
 
-    const stmt = this.db.prepare(`
+    await this.pool.query(`
       UPDATE edition_requests
       SET ${updateFields.join(', ')}
-      WHERE id = ?
-    `);
+      WHERE id = $${values.length}
+    `, values);
 
-    stmt.run(...values);
     return this.getEditionRequest(id);
   }
 
-  completeClaim(claim_id, tx_hash, token_id) {
-    const stmt = this.db.prepare(`
+  async completeClaim(claim_id, tx_hash, token_id) {
+    const { rowCount } = await this.pool.query(`
       UPDATE claims
       SET status = 'completed',
-          tx_hash = ?,
-          token_id = ?,
+          tx_hash = $1,
+          token_id = $2,
           completed_at = CURRENT_TIMESTAMP
-      WHERE claim_id = ?
-    `);
+      WHERE claim_id = $3
+    `, [tx_hash, token_id || null, claim_id]);
 
-    const result = stmt.run(tx_hash, token_id || null, claim_id);
-    
-    if (result.changes === 0) {
+    if (rowCount === 0) {
       return null;
     }
 
     return this.getClaim(claim_id);
   }
 
-  getAllClaims(limit = 100) {
-    const stmt = this.db.prepare(`
+  async getAllClaims(limit = 100) {
+    const { rows } = await this.pool.query(`
       SELECT * FROM claims
       ORDER BY created_at DESC
-      LIMIT ?
-    `);
-    return stmt.all(limit);
+      LIMIT $1
+    `, [limit]);
+    return rows;
   }
 
-  getClaimsByStatus(status) {
-    const stmt = this.db.prepare('SELECT * FROM claims WHERE status = ? ORDER BY created_at DESC');
-    return stmt.all(status);
+  async getClaimsByStatus(status) {
+    const { rows } = await this.pool.query('SELECT * FROM claims WHERE status = $1 ORDER BY created_at DESC', [status]);
+    return rows;
   }
 
 
   // ── AI enrichment (Gemini descriptions + embeddings) ──────────────────────
 
-  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, likely_ai_generated = null, ai_assessment = null } = {}) {
+  async setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, likely_ai_generated = null, ai_assessment = null } = {}) {
     const fields = [];
     const values = [];
 
-    if (description !== null) { fields.push('description = ?'); values.push(description); }
+    if (description !== null) { values.push(description); fields.push(`description = $${values.length}`); }
     if (tags !== null) {
-      fields.push('tags = ?');
       values.push(Array.isArray(tags) ? JSON.stringify(tags) : tags);
+      fields.push(`tags = $${values.length}`);
     }
-    if (ai_status !== null) { fields.push('ai_status = ?'); values.push(ai_status); }
-    if (ai_error !== null) { fields.push('ai_error = ?'); values.push(ai_error); }
-    if (phash !== null) { fields.push('phash = ?'); values.push(phash); }
-    if (likely_ai_generated !== null) { fields.push('likely_ai_generated = ?'); values.push(likely_ai_generated ? 1 : 0); }
-    if (ai_assessment !== null) { fields.push('ai_assessment = ?'); values.push(ai_assessment); }
+    if (ai_status !== null) { values.push(ai_status); fields.push(`ai_status = $${values.length}`); }
+    if (ai_error !== null) { values.push(ai_error); fields.push(`ai_error = $${values.length}`); }
+    if (phash !== null) { values.push(phash); fields.push(`phash = $${values.length}`); }
+    if (likely_ai_generated !== null) { values.push(likely_ai_generated ? 1 : 0); fields.push(`likely_ai_generated = $${values.length}`); }
+    if (ai_assessment !== null) { values.push(ai_assessment); fields.push(`ai_assessment = $${values.length}`); }
 
     if (fields.length === 0) return this.getClaim(claim_id);
 
     values.push(claim_id);
-    const stmt = this.db.prepare(`UPDATE claims SET ${fields.join(', ')} WHERE claim_id = ?`);
-    stmt.run(...values);
+    await this.pool.query(`UPDATE claims SET ${fields.join(', ')} WHERE claim_id = $${values.length}`, values);
     return this.getClaim(claim_id);
   }
 
-  upsertEmbedding(claim_id, cid, embedding, model, dim) {
-    const stmt = this.db.prepare(`
+  async upsertEmbedding(claim_id, cid, embedding, model, dim) {
+    const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+    await this.pool.query(`
       INSERT INTO image_embeddings (claim_id, cid, embedding, model, dim)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(claim_id) DO UPDATE SET
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (claim_id) DO UPDATE SET
         cid = excluded.cid,
         embedding = excluded.embedding,
         model = excluded.model,
         dim = excluded.dim,
         created_at = CURRENT_TIMESTAMP
-    `);
-    const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
-    stmt.run(claim_id, cid, serialized, model, dim);
+    `, [claim_id, cid, serialized, model, dim]);
   }
 
-  getEmbedding(claim_id) {
-    const stmt = this.db.prepare('SELECT * FROM image_embeddings WHERE claim_id = ?');
-    return stmt.get(claim_id) || null;
+  async getEmbedding(claim_id) {
+    const { rows } = await this.pool.query('SELECT * FROM image_embeddings WHERE claim_id = $1', [claim_id]);
+    return rows[0] || null;
   }
 
   /** All embeddings joined with claim details useful for search results. */
-  getAllEmbeddings() {
-    const stmt = this.db.prepare(`
+  async getAllEmbeddings() {
+    const { rows } = await this.pool.query(`
       SELECT e.claim_id, e.cid, e.embedding, e.dim,
              c.token_id, c.recipient_address, c.device_id, c.status,
              c.description, c.tags, c.phash, c.created_at
       FROM image_embeddings e
       JOIN claims c ON e.claim_id = c.claim_id
     `);
-    return stmt.all();
+    return rows;
   }
 
   // ── Verification (deterministic tamper check) ──────────────────────────────
 
   /** Exact-match lookup: an on-chain image whose SHA-256 equals the upload's. */
-  getClaimByImageHash(image_hash) {
+  async getClaimByImageHash(image_hash) {
     if (!image_hash) return null;
-    const stmt = this.db.prepare('SELECT * FROM claims WHERE image_hash = ?');
-    return stmt.get(image_hash) || null;
+    const { rows } = await this.pool.query('SELECT * FROM claims WHERE image_hash = $1', [image_hash]);
+    return rows[0] || null;
   }
 
   /** All claims that have a perceptual hash, for the tamper (Hamming) scan. */
-  getClaimsWithPhash() {
-    const stmt = this.db.prepare(`
+  async getClaimsWithPhash() {
+    const { rows } = await this.pool.query(`
       SELECT claim_id, cid, token_id, image_hash, phash,
              recipient_address, device_id, status, description, tags, created_at
       FROM claims
       WHERE phash IS NOT NULL AND phash != ''
     `);
-    return stmt.all();
+    return rows;
   }
 
   /** Claims that still need enrichment (never processed or previously failed). */
-  getClaimsMissingAI() {
-    const stmt = this.db.prepare(`
+  async getClaimsMissingAI() {
+    const { rows } = await this.pool.query(`
       SELECT * FROM claims
       WHERE ai_status IS NULL OR ai_status = 'failed'
       ORDER BY created_at ASC
     `);
-    return stmt.all();
+    return rows;
   }
 
   // Every claim with an image, regardless of ai_status — used by the backfill
   // --force path when the embedding method changes and all vectors must be
   // regenerated so query and stored embeddings stay consistent.
-  getAllClaimsWithCid() {
-    const stmt = this.db.prepare(`
+  async getAllClaimsWithCid() {
+    const { rows } = await this.pool.query(`
       SELECT * FROM claims
       WHERE cid IS NOT NULL AND cid != ''
       ORDER BY created_at ASC
     `);
-    return stmt.all();
+    return rows;
   }
 
-  close() {
-    if (this.db) {
-      this.db.close();
+  async close() {
+    if (this.pool) {
+      await this.pool.end();
+      this.pool = null;
     }
   }
 }
@@ -427,4 +394,3 @@ class ClaimDBService {
 const dbService = new ClaimDBService();
 
 module.exports = dbService;
-
