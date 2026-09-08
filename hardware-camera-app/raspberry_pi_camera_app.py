@@ -6,8 +6,6 @@ from datetime import datetime
 from pathlib import Path
 import threading
 import numpy as np
-import cv2
-import hashlib
 import json
 import requests
 from io import BytesIO
@@ -101,10 +99,15 @@ for handler in logging.root.handlers:
 picamera2_logger = logging.getLogger('picamera2')
 picamera2_logger.setLevel(logging.INFO)
 
-CAPTURE_DIR = Path(os.getenv('CAPTURE_DIR', str(Path.home() / "captures")))
-CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+from capture_pipeline import (
+    CameraController,
+    CAPTURE_DIR,
+    BACKEND_URL,
+    CAMERA_ROTATION,
+    sign_image,
+    upload_and_create_claim,
+)
 
-BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:5000')
 CLAIM_POLL_INTERVAL = int(os.getenv('CLAIM_POLL_INTERVAL', '5'))
 
 try:
@@ -113,17 +116,6 @@ try:
 except ImportError:
     QRCODE_AVAILABLE = False
     print("Warning: qrcode library not available. Install with: pip3 install qrcode[pil]")
-
-PREVIEW_SIZE = tuple(map(int, os.getenv('PREVIEW_SIZE', '1920,1080').split(',')))
-PREVIEW_FRAMERATE = float(os.getenv('PREVIEW_FRAMERATE', '30'))
-PHOTO_SIZE = tuple(map(int, os.getenv('PHOTO_SIZE', '1920,1080').split(',')))
-VIDEO_SIZE = tuple(map(int, os.getenv('VIDEO_SIZE', '1280,720').split(',')))
-
-MIN_ZOOM = float(os.getenv('MIN_ZOOM', '1.0'))
-MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
-ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
-
-CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '-90'))
 
 class ModernCard(FloatLayout):
     """Modern card component with glass-morphism effects and elevation."""
@@ -425,272 +417,6 @@ class BatteryMonitor:
             print(f"Battery read error: {e}")
             return 85
 
-
-class CameraController:
-
-    def __init__(self):
-        self.camera = None
-        self.recording = False
-        self.encoder = None
-        self.current_zoom = MIN_ZOOM
-        self.sensor_size = None
-        self.initialized = False
-        self.camera_id = None
-        self.still_config = None
-
-    def initialize(self):
-        if not CAMERA_AVAILABLE:
-            raise RuntimeError("Picamera2 not available")
-
-        if self.camera is not None:
-            try:
-                if self.initialized:
-                    self.camera.stop()
-                self.camera.close()
-            except:
-                pass
-            self.camera = None
-            self.initialized = False
-
-        try:
-            time.sleep(0.5)
-
-            self.camera = Picamera2()
-            try:
-                config = self.camera.create_video_configuration(
-                    main={"size": PREVIEW_SIZE},
-                    controls={"FrameRate": PREVIEW_FRAMERATE},
-                    buffer_count=4,
-                )
-                self.camera.configure(config)
-                print(f"Camera configured: preview {PREVIEW_SIZE[0]}x{PREVIEW_SIZE[1]} @ {PREVIEW_FRAMERATE}fps")
-
-                try:
-                    if os.getenv('PHOTO_SIZE'):
-                        self.still_config = self.camera.create_still_configuration(
-                            main={"size": PHOTO_SIZE}
-                        )
-                    else:
-                        self.still_config = self.camera.create_still_configuration()
-                    still_size = self.still_config["main"].get("size", "sensor-native")
-                    print(f"Still config prepared at {still_size} (switched in for capture)")
-                except Exception as e:
-                    print(f"Warning: could not build still config ({e}); stills will use preview stream")
-                    self.still_config = None
-            except Exception as e:
-                print(f"Warning: could not apply preview config ({e}), falling back to defaults")
-            self.camera.start()
-
-            try:
-                sensor_props = self.camera.camera_properties
-                self.sensor_size = sensor_props.get('PixelArraySize', (2592, 1944))
-
-                self.camera_id = None
-
-                camera_parts = []
-
-                if 'Model' in sensor_props and sensor_props.get('Model'):
-                    camera_parts.append(f"model:{sensor_props['Model']}")
-
-                if 'SensorName' in sensor_props and sensor_props.get('SensorName'):
-                    camera_parts.append(f"sensor:{sensor_props['SensorName']}")
-
-                if 'LensName' in sensor_props and sensor_props.get('LensName'):
-                    camera_parts.append(f"lens:{sensor_props['LensName']}")
-
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        ['cat', '/proc/device-tree/camera0/compatible'],
-                        capture_output=True,
-                        text=True,
-                        timeout=1
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        camera_parts.append(f"compatible:{result.stdout.strip()}")
-                except:
-                    pass
-
-                if camera_parts:
-                    camera_id_str = "|".join(camera_parts)
-                    import hashlib
-                    self.camera_id = hashlib.sha256(camera_id_str.encode()).hexdigest()[:16]
-                    print(f"Camera ID generated from properties: {self.camera_id}")
-                    print(f"  Camera info: {camera_id_str[:80]}...")
-
-                if not self.camera_id:
-                    try:
-                        import subprocess
-                        result = subprocess.run(
-                            ['libcamera-hello', '--list-cameras'],
-                            capture_output=True,
-                            text=True,
-                            timeout=2
-                        )
-                        if result.returncode == 0 and result.stdout:
-                            for line in result.stdout.split('\n'):
-                                if 'serial' in line.lower():
-                                    parts = line.split()
-                                    for i, part in enumerate(parts):
-                                        if 'serial' in part.lower() and ':' in part:
-                                            serial_part = part.split(':')[-1] if ':' in part else part.split('=')[-1]
-                                            if serial_part and len(serial_part) > 3:
-                                                self.camera_id = serial_part.strip(':,=')
-                                                break
-                                    if self.camera_id:
-                                        break
-                    except:
-                        pass
-
-                if not self.camera_id:
-                    import hashlib
-                    props_str = str(sorted(sensor_props.items()))
-                    props_str += f"|size:{self.sensor_size[0]}x{self.sensor_size[1]}"
-                    self.camera_id = hashlib.sha256(props_str.encode()).hexdigest()[:16]
-                    print(f"Camera ID generated from properties hash: {self.camera_id}")
-
-            except Exception as e:
-                self.sensor_size = (2592, 1944)
-                print(f"Warning: Could not extract camera ID: {e}")
-                import hashlib
-                fallback = hashlib.sha256(f"camera_{time.time()}".encode()).hexdigest()[:16]
-                self.camera_id = fallback
-
-            self.initialized = True
-            print(f"Camera started")
-            return True
-
-        except Exception as e:
-            print(f"Error initializing camera: {e}")
-            return False
-
-    def get_frame(self):
-        if not self.initialized or self.camera is None:
-            return None
-
-        try:
-            frame = self.camera.capture_array()
-            return frame
-        except Exception as e:
-            return None
-
-    def take_photo(self):
-        if not self.initialized:
-            return None
-
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = CAPTURE_DIR / f"photo_{timestamp}.jpg"
-
-            if self.still_config is not None:
-                request = self.camera.switch_mode_and_capture_request(self.still_config)
-            else:
-                request = self.camera.capture_request()
-
-            if CAMERA_ROTATION != 0:
-                array = request.make_array("main")
-                if CAMERA_ROTATION == 90:
-                    k = 3
-                elif CAMERA_ROTATION == 180:
-                    k = 2
-                elif CAMERA_ROTATION == 270:
-                    k = 1
-                else:
-                    k = 0
-                if k > 0:
-                    array = np.rot90(array, k=k)
-                    cv2.imwrite(str(filename), cv2.cvtColor(array, cv2.COLOR_RGB2BGR),
-                                [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-                else:
-                    request.save("main", str(filename))
-            else:
-                request.save("main", str(filename))
-
-            request.release()
-
-            print(f"Photo saved: {filename}")
-            return str(filename)
-
-        except Exception as e:
-            print(f"Error taking photo: {e}")
-            return None
-
-    def start_recording(self):
-        if not self.initialized or self.recording:
-            return None
-
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = CAPTURE_DIR / f"video_{timestamp}.h264"
-
-            self.encoder = H264Encoder(bitrate=int(os.getenv('VIDEO_BITRATE', '10000000')))
-            self.camera.start_recording(self.encoder, str(filename))
-
-            self.recording = True
-            print(f"Recording started: {filename}")
-            return str(filename)
-
-        except Exception as e:
-            print(f"Error starting recording: {e}")
-            return None
-
-    def stop_recording(self):
-        if not self.recording:
-            return
-
-        try:
-            self.camera.stop_recording()
-            self.recording = False
-            print("Recording stopped")
-            self.camera.start()
-
-        except Exception as e:
-            print(f"Error stopping recording: {e}")
-            self.recording = False
-
-    def zoom_in(self):
-        self.current_zoom = min(MAX_ZOOM, self.current_zoom + ZOOM_STEP)
-        self._apply_zoom()
-
-    def zoom_out(self):
-        self.current_zoom = max(MIN_ZOOM, self.current_zoom - ZOOM_STEP)
-        self._apply_zoom()
-
-    def _apply_zoom(self):
-        if not self.initialized or self.sensor_size is None:
-            return
-
-        try:
-            width, height = self.sensor_size
-
-            crop_width = int(width / self.current_zoom)
-            crop_height = int(height / self.current_zoom)
-
-            x = (width - crop_width) // 2
-            y = (height - crop_height) // 2
-
-            self.camera.set_controls({
-                "ScalerCrop": (x, y, crop_width, crop_height)
-            })
-
-            print(f"Zoom level: {self.current_zoom}x")
-
-        except Exception as e:
-            print(f"Error applying zoom: {e}")
-
-    def get_camera_id(self):
-        return self.camera_id
-
-    def cleanup(self):
-        if self.recording:
-            self.stop_recording()
-
-        if self.camera is not None:
-            try:
-                self.camera.stop()
-                self.camera.close()
-            except:
-                pass
 
 class CameraApp(App):
 
@@ -1646,7 +1372,7 @@ class CameraApp(App):
             signature_info = None
             if self.hardware_identity:
                 try:
-                    signature_info = self._sign_image(filename)
+                    signature_info = sign_image(self.hardware_identity, filename)
                     if signature_info:
                         print(f"Image signed: {signature_info['address']}")
                         Clock.schedule_once(
@@ -1678,133 +1404,32 @@ class CameraApp(App):
         flash_anim.bind(on_complete=lambda *args: self.root_layout.remove_widget(flash_overlay))
         flash_anim.start(flash_overlay)
 
-    def _get_location(self):
-        """Fetch approximate location via IP geolocation. Returns dict or None."""
-        try:
-            resp = requests.get('http://ip-api.com/json?fields=lat,lon,city,regionName,country', timeout=4)
-            if resp.status_code == 200:
-                d = resp.json()
-                parts = [d.get('city'), d.get('regionName'), d.get('country')]
-                name = ', '.join(p for p in parts if p)
-                return {'lat': d.get('lat'), 'lon': d.get('lon'), 'name': name}
-        except Exception as e:
-            print(f'⚠️ Could not get location: {e}')
-        return None
-
     def _upload_and_create_claim(self, filename, signature_info):
-        """Enhanced upload with smooth progress feedback."""
-        # Check if offline - save to queue
-        try:
-            # Try to ping backend first with retry
-            online = False
-            for attempt in range(3):
-                try:
-                    requests.get(f'{BACKEND_URL}/health', timeout=2)
-                    online = True
-                    break
-                except:
-                    if attempt < 2:
-                        time.sleep(1)
-                    else:
-                        online = False
-        except:
-            online = False
-            print("⚠️ Backend offline - saving to queue")
-            Clock.schedule_once(
-                lambda dt: self.show_status('Offline - Saved Locally', 'warning', 4),
-                0
-            )
-            return
+        """Thin wrapper: delegates to the shared pipeline, forwarding its
+        status updates into the existing Kivy show_status UI."""
+        def status_callback(message, level='info', duration=3):
+            Clock.schedule_once(lambda dt: self.show_status(message, level, duration), 0)
 
-        try:
+        camera_id = self.camera.get_camera_id() if self.camera.initialized else 'unknown'
+        result = upload_and_create_claim(filename, signature_info, camera_id, status_callback=status_callback)
+
+        if result.get('status') == 'uploaded':
+            claim_url = result['claim_url']
+            claim_id = result['claim_id']
+            image_id = result['image_id']
+
+            # Store claim for polling
+            self.active_claims[claim_id] = image_id
+
+            # Display QR code for claiming editions
             Clock.schedule_once(
-                lambda dt: self.show_status('Uploading to Filecoin...', 'info', 0),
-                0
+                lambda dt: self._show_qr_code(claim_url, claim_id),
+                2
             )
 
-            # Read image file
-            with open(filename, 'rb') as f:
-                image_data = f.read()
-
-            # Compute image hash
-            image_hash = hashlib.sha256(image_data).hexdigest()
-
-            # Get device info
-            device_address = signature_info['address']
-            camera_id = self.camera.get_camera_id() if self.camera.initialized else 'unknown'
-
-            # Get location via IP geolocation (best-effort)
-            location = self._get_location()
-
-            # Prepare multipart form data
-            files = {'image': (os.path.basename(filename), image_data, 'image/jpeg')}
-            data = {
-                'imageHash': image_hash,
-                'signature': signature_info['signature'],
-                'cameraId': camera_id,
-                'deviceAddress': device_address,
-                'latitude': str(location['lat']) if location else '',
-                'longitude': str(location['lon']) if location else '',
-                'locationName': location['name'] if location else ''
-            }
-
-            # Upload to backend
-            response = requests.post(
-                f'{BACKEND_URL}/api/images/upload',
-                files=files,
-                data=data,
-                timeout=60
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-
-                if result.get('success'):
-                    claim_url = result.get('claimUrl') or result.get('qrCodeUrl')
-                    claim_id = result.get('claimId')
-                    image_id = result.get('imageId')
-
-                    if claim_url and claim_id:
-                        # Store claim for polling
-                        self.active_claims[claim_id] = image_id
-
-                        # Show success with clear next step
-                        Clock.schedule_once(
-                            lambda dt: self.show_status('Uploaded -- Minting NFT...', 'success', 3),
-                            0
-                        )
-
-                        # Display QR code for claiming editions
-                        Clock.schedule_once(
-                            lambda dt: self._show_qr_code(claim_url, claim_id),
-                            2
-                        )
-
-                        # Start polling for claim status
-                        Clock.schedule_once(
-                            lambda dt: self._start_claim_polling(claim_id),
-                            0
-                        )
-                    else:
-                        Clock.schedule_once(
-                            lambda dt: self.show_status('Saved (No Claim)', 'success', 3),
-                            0
-                        )
-                else:
-                    raise Exception(result.get('error', 'Upload failed'))
-            else:
-                raise Exception(f"HTTP {response.status_code}: {response.text}")
-
-        except requests.exceptions.RequestException as e:
-            print(f"Upload error: {e}")
+            # Start polling for claim status
             Clock.schedule_once(
-                lambda dt: self.show_status('Upload Failed -- Check Connection', 'error', 4),
-                0
-            )
-        except Exception as e:
-            print(f"Error uploading: {e}")
-            Clock.schedule_once(
-                lambda dt: self.show_status('Upload Error', 'error', 3),
+                lambda dt: self._start_claim_polling(claim_id),
                 0
             )
 
@@ -1948,47 +1573,6 @@ class CameraApp(App):
 
         # Schedule polling
         Clock.schedule_interval(poll_claim, CLAIM_POLL_INTERVAL)
-
-    def _sign_image(self, image_path):
-        """
-        Sign an image file with hardware identity.
-        Creates a signature file alongside the image.
-
-        Args:
-            image_path: Path to image file
-
-        Returns:
-            dict: Signature information
-        """
-        if not self.hardware_identity:
-            return None
-
-        try:
-            # Read image file and compute hash
-            with open(image_path, 'rb') as f:
-                image_data = f.read()
-
-            # Compute SHA256 hash of image
-            image_hash = hashlib.sha256(image_data).digest()
-            image_hash_hex = image_hash.hex()
-
-            # Sign the hash
-            signature_info = self.hardware_identity.sign_hash(image_hash)
-            signature_info['image_hash'] = image_hash_hex
-            signature_info['image_path'] = str(image_path)
-            signature_info['timestamp'] = datetime.now().isoformat()
-
-            # Save signature to JSON file
-            sig_path = Path(image_path).with_suffix('.sig.json')
-            with open(sig_path, 'w') as f:
-                json.dump(signature_info, f, indent=2)
-
-            print(f"Signature saved: {sig_path}")
-            return signature_info
-
-        except Exception as e:
-            print(f"Error signing image: {e}")
-            return None
 
     def toggle_recording(self, instance):
         """Enhanced video recording with visual feedback."""

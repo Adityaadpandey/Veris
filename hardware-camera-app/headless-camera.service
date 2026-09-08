@@ -1,0 +1,16 @@
+[Unit]
+Description=Veris Headless Camera (Bluetooth shutter trigger)
+After=network.target bluetooth.target
+Requires=bluetooth.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h/Veris/hardware-camera-app
+EnvironmentFile=-%h/Veris/hardware-camera-app/.env
+ExecStart=%h/camera-env/bin/python3 %h/Veris/hardware-camera-app/headless_camera_app.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headless Bluetooth Shutter Trigger — Design Spec</title>
+<style>
+  :root {
+    --brand: #E85002;
+    --brand-deep: #C10801;
+    --brand-light: #F16001;
+    --bg: #000000;
+    --surface: #0e0e0e;
+    --surface-2: #141414;
+    --surface-3: #1a1a1a;
+    --text-primary: #F9F9F9;
+    --text-secondary: #A7A7A7;
+    --text-muted: #646464;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.14);
+    --accent: rgba(232,80,2,0.12);
+    --minted: #34d399;
+    --uploaded: #60a5fa;
+    --saved: #fbbf24;
+    --failed: #f87171;
+    --radius: 0.75rem;
+    --font-sans: 'Space Grotesk', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex, [style*="display: grid"], [style*="display: flex"]) > * { min-width: 0; }
+  :where(p, h1, h2, h3, h4, h5, h6, li, dd, blockquote, figcaption, td, th, .badge, .label) { overflow-wrap: anywhere; }
+  :where(img, svg, video, canvas, iframe) { max-width: 100%; height: auto; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(232,80,2,0.09) 0%, transparent 40%),
+      radial-gradient(circle at 85% 5%, rgba(193,8,1,0.06) 0%, transparent 40%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+  }
+
+  /* ── Header ── */
+  .masthead { margin-bottom: 3rem; }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand-light);
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 2rem;
+    height: 1px;
+    background: var(--brand);
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    line-height: 1.1;
+    margin: 0 0 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  h1 .accent { color: var(--brand); }
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    max-width: 60ch;
+    margin: 0 0 1.5rem;
+  }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .meta-cell { background: var(--surface); padding: 0.9rem 1.1rem; }
+  .meta-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+  }
+  .meta-value { font-size: 0.92rem; font-weight: 500; color: var(--text-primary); }
+
+  /* ── Sections ── */
+  section { margin-top: 3.5rem; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--brand);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  h2 { font-size: 1.5rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  .section-lead { color: var(--text-secondary); max-width: 70ch; margin: 0 0 1.5rem; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem 1.5rem;
+  }
+  .card + .card { margin-top: 1rem; }
+  .card-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0 0 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .card p { margin: 0.5rem 0; color: var(--text-secondary); font-size: 0.95rem; }
+  .card ul { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--text-secondary); font-size: 0.93rem; }
+  .card li { margin: 0.3rem 0; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; }
+
+  .pill {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--accent);
+    color: var(--brand-light);
+    border: 1px solid rgba(232,80,2,0.25);
+  }
+  .pill.goal { background: rgba(52,211,153,0.1); color: var(--minted); border-color: rgba(52,211,153,0.25); }
+  .pill.non { background: rgba(248,113,113,0.1); color: var(--failed); border-color: rgba(248,113,113,0.25); }
+  .pill.file { background: rgba(96,165,250,0.1); color: var(--uploaded); border-color: rgba(96,165,250,0.25); font-family: var(--font-mono); }
+
+  /* ── Code ── */
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+  }
+  .codeblock {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: #d8d8d8;
+    white-space: pre;
+    margin: 1rem 0;
+  }
+  .inline-code {
+    font-family: var(--font-mono);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.85em;
+    color: var(--uploaded);
+  }
+
+  /* ── Status vocab chips ── */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .status-row + .status-row { margin-top: 0.5rem; }
+  .status-token {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .status-desc { color: var(--text-secondary); font-size: 0.85rem; }
+  .s-cap { background: rgba(96,165,250,0.14); color: var(--uploaded); }
+  .s-sig { background: rgba(167,139,250,0.14); color: #a78bfa; }
+  .s-teth { background: rgba(251,191,36,0.14); color: var(--saved); }
+  .s-up { background: rgba(52,211,153,0.14); color: var(--minted); }
+  .s-ok { background: rgba(52,211,153,0.14); color: var(--minted); }
+  .s-q { background: rgba(251,191,36,0.14); color: var(--saved); }
+  .s-fail { background: rgba(248,113,113,0.14); color: var(--failed); }
+
+  /* ── Tables ── */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td strong { color: var(--text-primary); font-weight: 600; }
+
+  /* ── Callouts ── */
+  .callout {
+    display: flex;
+    gap: 0.8rem;
+    padding: 1rem 1.2rem;
+    border-radius: var(--radius);
+    border: 1px solid;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  .callout .ico { font-size: 1.1rem; line-height: 1.4; }
+  .callout.warn { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.25); }
+  .callout.warn .ico { color: var(--saved); }
+  .callout.info { background: rgba(96,165,250,0.06); border-color: rgba(96,165,250,0.25); }
+  .callout.info .ico { color: var(--uploaded); }
+  .callout.risk { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.25); }
+  .callout.risk .ico { color: var(--failed); }
+
+  /* ── Mermaid ── */
+  .mermaid {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+  }
+  .diagram-caption {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    text-align: center;
+  }
+
+  /* ── File chips list ── */
+  .file-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .file-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .file-item .name { font-family: var(--font-mono); color: var(--uploaded); font-weight: 600; font-size: 0.9rem; }
+  .file-item .desc { color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.2rem; }
+
+  /* ── Steps ── */
+  .steps { counter-reset: step; display: flex; flex-direction: column; gap: 0; }
+  .step {
+    position: relative;
+    padding: 0 0 1.4rem 3rem;
+    counter-increment: step;
+  }
+  .step::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 1px solid rgba(232,80,2,0.35);
+    color: var(--brand-light);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+  }
+  .step::after {
+    content: "";
+    position: absolute;
+    left: 0.95rem;
+    top: 2.1rem;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+  .step:last-child::after { display: none; }
+  .step-title { font-weight: 600; color: var(--text-primary); }
+  .step-body { color: var(--text-secondary); font-size: 0.92rem; margin-top: 0.2rem; }
+
+  /* ── Comparison (goals vs non-goals) ── */
+  .cmp-col h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 0.8rem;
+  }
+  .cmp-col ul { list-style: none; margin: 0; padding: 0; }
+  .cmp-col li {
+    position: relative;
+    padding-left: 1.5rem;
+    margin: 0.55rem 0;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+  }
+  .cmp-col.goal-col li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--minted);
+    font-weight: 700;
+  }
+  .cmp-col.non-col li::before {
+    content: "✕";
+    position: absolute;
+    left: 0;
+    color: var(--failed);
+    font-weight: 700;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══ MASTHEAD ═══ -->
+  <header class="masthead">
+    <div class="eyebrow">Design Spec · hardware-camera-app</div>
+    <h1>Headless Bluetooth<br><span class="accent">Shutter Trigger</span> + Phone Tethering</h1>
+    <p class="subtitle">
+      Trigger photo capture from a paired Android phone over classic Bluetooth, and use the same phone's
+      mobile data (Bluetooth PAN) for upload/sign/claim — for Pi deployments with no screen at all.
+    </p>
+    <div class="meta-grid">
+      <div class="meta-cell">
+        <div class="meta-label">Date</div>
+        <div class="meta-value">2026-09-08</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Scope</div>
+        <div class="meta-value">hardware-camera-app/ + RN app (external)</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Approach</div>
+        <div class="meta-value">Extract shared pipeline → headless RFCOMM entrypoint</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Bluetooth</div>
+        <div class="meta-value">Classic RFCOMM/SPP (no BLE)</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ GOALS / NON-GOALS ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">01</span>
+      <h2>Goals &amp; Non-Goals</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="pill goal">GOALS</span> What this delivers</div>
+        <div class="cmp-col goal-col">
+          <ul>
+            <li>Trigger a capture from an Android phone over Bluetooth — no touchscreen involved.</li>
+            <li>Use the phone's mobile data (Bluetooth PAN tethering) for upload/sign/claim, only when needed.</li>
+            <li>Stream capture/sign/upload progress back to the phone live.</li>
+            <li>Don't break or duplicate logic for existing touchscreen deployments.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="pill non">NON-GOALS</span> Explicitly out of scope</div>
+        <div class="cmp-col non-col">
+          <ul>
+            <li>No BLE — classic RFCOMM/SPP for both trigger and PAN tethering (one consistent stack).</li>
+            <li>No phone-side viewfinder/live preview (stream_server.py exists separately, not part of this).</li>
+            <li>No gallery, mode switches, or other GUI features — trigger + status only.</li>
+            <li>No custom pairing UI — pairing &amp; tethering are one-time manual OS steps.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ARCHITECTURE ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <h2>Architecture</h2>
+    </div>
+    <p class="section-lead">
+      The existing ~2500-line Kivy app keeps its GUI and behavior, but its capture/sign/upload logic is
+      extracted into a Kivy-free shared module so a new headless entrypoint can drive the same flow over
+      an RFCOMM socket.
+    </p>
+    <div class="mermaid">
+flowchart TB
+    subgraph PHONE["Phone — React Native (Android)"]
+        RN["RN companion app"]
+        RN -->|"tap shutter → writes CAPTURE\\n"| SOCK["RFCOMM/SPP socket"]
+        SOCK -->|"reads newline-delimited status"| RN
+    end
+
+    subgraph PI["Pi — headless_camera_app.py (no Kivy)"]
+        BTS["bt_trigger_server.py<br/>RFCOMM SPP server (accept loop)"]
+        PIPE["capture_pipeline.py<br/>capture → sign → upload → claim"]
+        TETH["bt_tether.py<br/>bnep0 via bt-pan client"]
+        QUEUE["pending/ retry queue (on disk)"]
+        BTS --> PIPE
+        PIPE --> TETH
+        PIPE --> QUEUE
+        TETH -->|"ensure_link(phone_mac)"| PAN["Bluetooth PAN (mobile data)"]
+        QUEUE -->|"retry_pending_uploads()"| PIPE
+    end
+
+    subgraph KV["raspberry_pi_camera_app.py (existing Kivy)"]
+        GUI["Kivy GUI (unchanged)"]
+        GUI --> PIPE
+    end
+
+    SOCK <-->|"SPP UUID<br/>00001101-0000-1000-8000-00805F9B34FB"| BTS
+    PIPE -->|"upload/sign/claim"| WEB["hardware-web3-service<br/>(BACKEND_URL)"]
+    PAN --> WEB
+    </div>
+    <div class="diagram-caption">Topology: one phone drives both the trigger channel (RFCOMM) and internet (PAN). The Kivy app and the headless app share <code>capture_pipeline.py</code>.</div>
+  </section>
+
+  <!-- ═══ COMPONENTS ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <h2>Components</h2>
+    </div>
+    <p class="section-lead">
+      Three new modules plus one new entrypoint. The shared pipeline has no Kivy import — the only behavior
+      change is swapping <code class="inline-code">Clock.schedule_once</code> UI calls for a
+      <code class="inline-code">status_callback(message, level)</code> argument.
+    </p>
+
+    <div class="file-list">
+      <div class="file-item">
+        <div>
+          <div class="name">capture_pipeline.py <span style="color:var(--text-muted);font-weight:400;">— new, shared, no Kivy import</span></div>
+          <div class="desc">
+            <strong style="color:var(--text-primary)">CameraController</strong> (moved as-is),
+            <strong style="color:var(--text-primary)">sign_image()</strong> (from <code>_sign_image</code>),
+            <strong style="color:var(--text-primary)">get_location()</strong>,
+            <strong style="color:var(--text-primary)">upload_and_create_claim()</strong> (from <code>_upload_and_create_claim</code>,
+            enqueues to retry queue on failure instead of just reporting),
+            <strong style="color:var(--text-primary)">retry_pending_uploads()</strong>.
+            Kivy's <code>take_photo</code>/<code>_upload_and_create_claim</code>/<code>_sign_image</code> become thin wrappers
+            passing a <code>status_callback</code> that does the existing <code>Clock.schedule_once</code> UI work.
+          </div>
+        </div>
+      </div>
+
+      <div class="file-item">
+        <div>
+          <div class="name">bt_trigger_server.py <span style="color:var(--text-muted);font-weight:400;">— new</span></div>
+          <div class="desc">
+            Classic RFCOMM/SPP server (PyBluez or stdlib <code>bluetooth</code>). Advertises the standard SPP UUID
+            under a fixed name (<code>Veris-Cam-&lt;device-id&gt;</code>). Accept loop serves one phone at a time and
+            returns to listening on disconnect. Parses newline-delimited commands (v1: <code>CAPTURE</code> only).
+            Exposes <code>send_status(line)</code> for the pipeline's <code>status_callback</code>.
+          </div>
+        </div>
+      </div>
+
+      <div class="file-item">
+        <div>
+          <div class="name">bt_tether.py <span style="color:var(--text-muted);font-weight:400;">— new</span></div>
+          <div class="desc">
+            Thin wrapper around Bluetooth PAN (BNEP). <code>ensure_link(phone_mac, timeout=10)</code> checks whether
+            <code>bnep0</code> already has an IP; if not runs <code>bt-pan client &lt;phone-mac&gt;</code> and polls for a
+            DHCP lease up to <code>timeout</code> seconds. Returns <code>True</code>/<code>False</code>; upload treats
+            <code>False</code> as "still offline" and falls back to the retry queue.
+          </div>
+        </div>
+      </div>
+
+      <div class="file-item">
+        <div>
+          <div class="name">headless_camera_app.py <span style="color:var(--text-muted);font-weight:400;">— new entrypoint</span></div>
+          <div class="desc">
+            Starts the trigger server's accept loop in a background thread; runs <code>retry_pending_uploads()</code> once
+            at startup and on a periodic timer. On <code>CAPTURE</code>, runs capture → sign → upload via the shared
+            pipeline, streaming status over RFCOMM. Ships as a systemd service analogous to <code>lensmint.service</code>.
+          </div>
+        </div>
+      </div>
+
+      <div class="file-item">
+        <div>
+          <div class="name">pending/ retry queue <span style="color:var(--text-muted);font-weight:400;">— on-disk</span></div>
+          <div class="desc">
+            One JSON file per queued upload (image path + signature info + camera id), next to <code>CAPTURE_DIR</code>.
+            Written when <code>upload_and_create_claim</code> can't reach <code>BACKEND_URL</code>; drained by
+            <code>retry_pending_uploads()</code>. Each success removes its file; push over RFCOMM is best-effort only.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ DATA FLOW ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <h2>Data Flow</h2>
+    </div>
+    <p class="section-lead">Happy path end-to-end, then the offline fallback and auto-retry.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-title">One-time setup</div>
+        <div class="step-body">Pair the phone with the Pi (<code>bluetoothctl</code> on the Pi, standard flow on phone) and turn on the phone's Bluetooth tethering toggle.</div>
+      </div>
+      <div class="step">
+        <div class="step-title">RN app connects</div>
+        <div class="step-body">Opens an RFCOMM socket to the Pi (fixed SPP UUID, Pi discoverable by fixed device name).</div>
+      </div>
+      <div class="step">
+        <div class="step-title">Shutter tap</div>
+        <div class="step-body">User taps shutter → sends <code class="inline-code">CAPTURE\n</code>.</div>
+      </div>
+      <div class="step">
+        <div class="step-title">Pi pipeline</div>
+        <div class="step-body">Captures, signs, brings up the PAN link if not already up, uploads, and streams status lines back live.</div>
+      </div>
+      <div class="step">
+        <div class="step-title">RN shows progress</div>
+        <div class="step-body">Live progress; on <code class="inline-code">UPLOADED:&lt;claimUrl&gt;</code>, shows the claim URL/QR for minting.</div>
+      </div>
+      <div class="step">
+        <div class="step-title">Offline fallback</div>
+        <div class="step-body">If the tether attempt times out, the photo is queued and the phone sees <code class="inline-code">QUEUED:offline</code>; the Pi retries automatically once a link is available — no second <code>CAPTURE</code> needed.</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem;font-size:1.1rem;">Sequence</h3>
+    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant P as Phone (RN)
+    participant S as bt_trigger_server.py
+    participant PL as capture_pipeline.py
+    participant T as bt_tether.py
+    participant W as hardware-web3-service
+
+    P->>S: connect (RFCOMM, SPP UUID)
+    P->>S: "CAPTURE\n"
+    S->>S: send_status("CAPTURING")
+    S->>PL: run capture flow
+    PL-->>P: CAPTURING / CAPTURED / SIGNED
+    PL->>T: ensure_link(phone_mac, timeout=10)
+    alt link up (DHCP lease within timeout)
+        T-->>PL: True
+        PL->>W: upload + create claim
+        W-->>PL: claimUrl
+        PL-->>P: UPLOADED:&lt;claimUrl&gt;
+    else no link / backend unreachable
+        T-->>PL: False
+        PL->>PL: enqueue to pending/ (JSON)
+        PL-->>P: QUEUED:offline
+        Note over PL: periodic retry_pending_uploads()<br/>retries once link available
+    end
+    </div>
+    <div class="diagram-caption">Status lines flow back down the same RFCOMM socket the trigger arrived on.</div>
+  </section>
+
+  <!-- ═══ STATUS VOCABULARY ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">05</span>
+      <h2>Status Vocabulary</h2>
+    </div>
+    <p class="section-lead">Newline-delimited status strings streamed from the Pi to the phone.</p>
+    <div class="grid-2">
+      <div class="card" style="padding:1rem;">
+        <div class="status-row"><span class="status-token s-cap">CAPTURING</span><span class="status-desc">Camera capture in progress</span></div>
+        <div class="status-row"><span class="status-token s-cap">CAPTURED</span><span class="status-desc">Photo captured successfully</span></div>
+        <div class="status-row"><span class="status-token s-sig">SIGNED</span><span class="status-desc">Hardware signature applied</span></div>
+        <div class="status-row"><span class="status-token s-teth">TETHERING</span><span class="status-desc">Bringing up Bluetooth PAN link</span></div>
+      </div>
+      <div class="card" style="padding:1rem;">
+        <div class="status-row"><span class="status-token s-up">UPLOADING</span><span class="status-desc">Uploading to Filecoin / signing / claiming</span></div>
+        <div class="status-row"><span class="status-token s-ok">UPLOADED:&lt;claimUrl&gt;</span><span class="status-desc">Success — claim URL/QR shown</span></div>
+        <div class="status-row"><span class="status-token s-q">QUEUED:offline</span><span class="status-desc">Saved locally, will auto-retry</span></div>
+        <div class="status-row"><span class="status-token s-fail">FAILED:&lt;stage&gt;</span><span class="status-desc">Failure at <code>capture</code>, <code>signing</code>, etc.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ RN REQUIREMENTS ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">06</span>
+      <h2>React Native App Requirements</h2>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">Library</div>
+        <p><code class="inline-code">react-native-bluetooth-classic</code> (Android RFCOMM support).</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Connect</div>
+        <p>Find the paired device by fixed name, connect to SPP UUID <code class="inline-code">00001101-0000-1000-8000-00805F9B34FB</code>.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Trigger</div>
+        <p>Send <code class="inline-code">CAPTURE\n</code> on shutter tap; read newline-delimited status and reflect per vocabulary.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Connection state</div>
+        <p>Track socket state independently; show "not connected" and reconnect after drops (the Pi server always returns to accepting).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ERROR HANDLING ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">07</span>
+      <h2>Error Handling</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Scenario</th><th>Pi behavior</th><th>Phone sees</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>No phone connected</strong></td>
+            <td>RFCOMM server just waits (nothing to do).</td>
+            <td>Own socket state drives "not connected" UI.</td>
+          </tr>
+          <tr>
+            <td><strong>Capture failure</strong></td>
+            <td>Reports stage <code>capture</code>.</td>
+            <td><code class="inline-code">FAILED:capture</code></td>
+          </tr>
+          <tr>
+            <td><strong>Signing failure</strong></td>
+            <td>Reports stage <code>signing</code>.</td>
+            <td><code class="inline-code">FAILED:signing</code></td>
+          </tr>
+          <tr>
+            <td><strong>No internet within tether timeout</strong></td>
+            <td>Photo + signature queued to disk; auto-retries later.</td>
+            <td><code class="inline-code">QUEUED:offline</code></td>
+          </tr>
+          <tr>
+            <td><strong>Upload failure after successful tether</strong> (backend error, non-200)</td>
+            <td>Same queue-and-retry path as offline case.</td>
+            <td><code class="inline-code">QUEUED:offline</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ TESTING ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">08</span>
+      <h2>Testing</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="pill file">MANUAL</span> Hardware-in-the-loop</div>
+        <ul>
+          <li>Pair a Pi + Android phone, enable phone Bluetooth tethering.</li>
+          <li>Use a generic Android "Bluetooth terminal" app to send <code>CAPTURE</code> and verify the status sequence and an actual upload/claim — <em>before</em> the RN app exists.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="pill file">E2E</span> Through the RN app</div>
+        <ul>
+          <li>Normal trigger.</li>
+          <li>Trigger with phone tethering off (verify queue + later auto-retry).</li>
+          <li>Reconnect after drop.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout info" style="margin-top:1rem;">
+      <div class="ico">ℹ</div>
+      <div>No screen on the target device — all verification is via the phone or by SSHing into the Pi and tailing the service logs.</div>
+    </div>
+  </section>
+
+  <!-- ═══ OPEN ITEMS ═══ -->
+  <section>
+    <div class="section-head">
+      <span class="section-num">09</span>
+      <h2>Open Items &amp; Follow-ups</h2>
+    </div>
+    <p class="section-lead">Explicitly out of scope for this iteration — noted for later decisions.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Live preview from phone</strong></td>
+            <td>Would reuse <code>stream_server.py</code> over the PAN link, or a future BLE/WiFi path — not part of this change.</td>
+          </tr>
+          <tr>
+            <td><strong>Multiple paired phones / access control</strong></td>
+            <td>v1 assumes a single trusted phone on the RFCOMM server.</td>
+          </tr>
+          <tr>
+            <td><strong>iOS support</strong></td>
+            <td>Classic Bluetooth RFCOMM isn't available to third-party iOS apps; needs a BLE GATT redesign if iOS is ever required.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout risk" style="margin-top:1rem;">
+      <div class="ico">⚠</div>
+      <div><strong>Key architectural risk to review:</strong> single trusted phone + fixed device name means no authentication on the RFCOMM server. Any paired device that knows the name could trigger captures. Worth confirming this matches the intended deployment threat model.</div>
+    </div>
+  </section>
+
+  <footer>
+    Source: <code>docs/superpowers/specs/2026-09-08-headless-bluetooth-camera-trigger-design.md</code> · Design system: Veris owner-portal (dark / #E85002 brand)
+  </footer>
+
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const paint = document.createElement("canvas").getContext("2d");
+  function toRgba(color) {
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = "#000";
+    paint.fillStyle = color;
+    paint.fillRect(0, 0, 1, 1);
+    return paint.getImageData(0, 0, 1, 1).data;
+  }
+  function compositeRgba(foreground, background) {
+    const fA = foreground[3] / 255;
+    const bA = background[3] / 255;
+    const alpha = fA + bA * (1 - fA);
+    if (alpha === 0) return [0, 0, 0, 0];
+    return [
+      (foreground[0] * fA + background[0] * bA * (1 - fA)) / alpha,
+      (foreground[1] * fA + background[1] * bA * (1 - fA)) / alpha,
+      (foreground[2] * fA + background[2] * bA * (1 - fA)) / alpha,
+      alpha * 255,
+    ];
+  }
+  function pageIsDark() {
+    const root = document.documentElement;
+    const rootBackground = toRgba(getComputedStyle(root).backgroundColor);
+    const bodyBackground = document.body ? toRgba(getComputedStyle(document.body).backgroundColor) : [0, 0, 0, 0];
+    const [r, g, b, a] = compositeRgba(bodyBackground, rootBackground);
+    if (a > 0) return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    const colorScheme = getComputedStyle(root).colorScheme;
+    if (colorScheme.includes("dark") && !colorScheme.includes("light")) return true;
+    if (colorScheme.includes("light") && !colorScheme.includes("dark")) return false;
+    return darkQuery.matches;
+  }
+
+  const diagrams = [...document.querySelectorAll(".mermaid")].map((el) => ({ el, src: el.textContent }));
+  let applied;
+  let rendering = false;
+  let queued = false;
+  function queueRender() { queued = true; if (rendering) return; void render(); }
+  async function render() {
+    rendering = true;
+    try {
+      while (queued) {
+        queued = false;
+        const theme = pageIsDark() ? "dark" : "default";
+        if (theme === applied) continue;
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict", themeVariables: { fontFamily: "'Space Grotesk', sans-serif" } });
+        for (const { el, src } of diagrams) {
+          el.removeAttribute("data-processed");
+          el.textContent = src;
+        }
+        try { await mermaid.run({ nodes: diagrams.map((d) => d.el) }); }
+        catch (error) { console.error("Mermaid render failed:", error); return; }
+        applied = theme;
+      }
+    } finally {
+      rendering = false;
+      if (queued) queueRender();
+    }
+  }
+  if (document.readyState === "complete") queueRender();
+  else window.addEventListener("load", queueRender, { once: true });
+  const themeObserver = new MutationObserver(queueRender);
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    themeObserver.observe(el, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+  }
+  document.addEventListener("change", queueRender, true);
+  document.addEventListener("transitionend", ({ propertyName }) => { if (propertyName === "background-color") queueRender(); }, true);
+  darkQuery.addEventListener("change", queueRender);
+</script>
+</body>
+</html>
