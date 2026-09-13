@@ -1,7 +1,8 @@
 [Unit]
 Description=Veris Headless Camera (Bluetooth shutter trigger)
-After=network.target bluetooth.target
+After=network.target bluetooth.target hardware-web3-service@%i.service
 Requires=bluetooth.target
+Wants=hardware-web3-service@%i.service
 
 [Service]
 Type=simple
