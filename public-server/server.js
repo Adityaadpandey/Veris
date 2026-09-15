@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5001;
 app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
-const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
+const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 // Shared secret required to trigger a batch backfill (POST /api/enrich/backfill).
 // Unset by default, which keeps that route disabled rather than open to anyone.
@@ -632,7 +632,7 @@ app.get('/claim/:claim_id', async (req, res) => {
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
             <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img id="nftImage" src="https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
+            <img id="nftImage" src="https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="LensMint Photo #${claim.token_id}" class="nft-image">
             <div class="nft-info">
               <div class="nft-name">LensMint Photo #${claim.token_id}</div>
               <div class="nft-description">Captured by LensMint Camera</div>
@@ -683,7 +683,7 @@ app.get('/claim/:claim_id', async (req, res) => {
           if (!img) return;
           const cid = img.dataset.cid;
           const gateways = [
-            'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs/',
+            'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs/',
             'https://w3s.link/ipfs/',
             'https://dweb.link/ipfs/',
             'https://ipfs.io/ipfs/'
