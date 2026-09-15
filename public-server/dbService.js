@@ -79,7 +79,11 @@ class ClaimDBService {
       { name: 'orientation_hashes', type: 'TEXT' },
       { name: 'exif_signal', type: 'TEXT' }, // JSON: non-authoritative EXIF tamper hint
       { name: 'likely_ai_generated', type: 'INTEGER' }, // 0/1 non-authoritative hint
-      { name: 'ai_assessment', type: 'TEXT' }           // one-line justification for the hint
+      { name: 'ai_assessment', type: 'TEXT' },          // one-line justification for the hint
+      // Companion Capture (mobile + device): everything about the paired phone
+      // photo in one place — null until a companion has been submitted and
+      // processed. See companionCapture.js for the shape.
+      { name: 'companion_capture', type: 'JSONB' }
     ];
 
     for (const col of columnsToAdd) {
@@ -341,6 +345,15 @@ class ClaimDBService {
 
     values.push(claim_id);
     await this.pool.query(`UPDATE claims SET ${fields.join(', ')} WHERE claim_id = $${values.length}`, values);
+    return this.getClaim(claim_id);
+  }
+
+  /** Persists the full companion_capture object (see companionCapture.js) onto a claim row. */
+  async setCompanionCapture(claim_id, companionCapture) {
+    await this.pool.query(
+      'UPDATE claims SET companion_capture = $1 WHERE claim_id = $2',
+      [JSON.stringify(companionCapture), claim_id]
+    );
     return this.getClaim(claim_id);
   }
 
