@@ -39,7 +39,7 @@ const BACKFILL_DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
 const LEGACY_PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
 const TAMPER_RECOMPRESSED_MAX = parseFloat(process.env.TAMPER_RECOMPRESSED_MAX || '0.05');
 const TAMPER_STRUCTURAL_MAX = parseFloat(process.env.TAMPER_STRUCTURAL_MAX || String(LEGACY_PHASH_MAX_DISTANCE / 64));
-const TAMPER_POSSIBLE_MAX = parseFloat(process.env.TAMPER_POSSIBLE_MAX || '0.24');
+const TAMPER_POSSIBLE_MAX = parseFloat(process.env.TAMPER_POSSIBLE_MAX || '0.28');
 
 // Recovery path for edits heavy enough to push EVERY hash band above — strong
 // noise, aggressive color/brightness filters, heavy blur. dHash/pHash/aHash
