@@ -5,8 +5,9 @@ import axios from 'axios'
 import './OwnerDashboard.css'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
-const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001'
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id'
+// Claim pages are served by this same React app at /claim/:id
+const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || window.location.origin
 
 function statusBadge(status) {
   const map = {
@@ -351,7 +352,7 @@ export default function OwnerDashboard() {
                   <ImageCard
                     key={img.id}
                     img={img}
-                    claimServerUrl={CLAIM_SERVER_URL}
+                    claimServerUrl={PORTAL_URL}
                     onRetry={retrySingle}
                   />
                 ))}
