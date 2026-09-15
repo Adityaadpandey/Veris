@@ -369,6 +369,20 @@ class ClaimDBService {
     return this.getClaim(claim_id);
   }
 
+  /**
+   * Merges `partial` into the existing companion_capture JSONB (top-level keys only, via the `||`
+   * operator) in one round trip — no read-modify-write race. Used to patch in the AI hint after the
+   * main companion_capture write already landed, so a slow OpenAI call never delays the fields the
+   * claim page actually needs to show the pairing (see companionCapture.processCompanionCapture).
+   */
+  async patchCompanionCapture(claim_id, partial) {
+    await this.pool.query(
+      `UPDATE claims SET companion_capture = COALESCE(companion_capture, '{}'::jsonb) || $1::jsonb WHERE claim_id = $2`,
+      [JSON.stringify(partial), claim_id]
+    );
+    return this.getClaim(claim_id);
+  }
+
   async upsertEmbedding(claim_id, cid, embedding, model, dim) {
     const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
     await this.pool.query(`
