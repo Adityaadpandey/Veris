@@ -18,8 +18,14 @@
  * CommonJS to match the rest of public-server.
  */
 
-const { computeHashes, combinedHashDistance } = require('./imageHash');
+const { computeHashes, combinedHashDistance, sha256Hex } = require('./imageHash');
 const { computeForensicDiff } = require('./pixelDiff');
+const dbService = require('./dbService');
+const cloudinaryService = require('./cloudinaryService');
+const openaiService = require('./openaiService');
+const { fetchImageBuffer } = require('./enrichService');
+
+const COMPANION_FOLDER = process.env.CLOUDINARY_COMPANION_FOLDER || 'veris/companion';
 
 function round(value) {
   return Math.round(value * 1000) / 1000;
@@ -67,4 +73,66 @@ async function compareDeviceAndMobile(deviceBuffer, mobileBuffer) {
   };
 }
 
-module.exports = { compareDeviceAndMobile };
+// A string that LOOKS like an on-chain reference (same shape as a tx hash)
+// but never is one — deterministic from the mobile image's own bytes so the
+// same photo always "pairs" to the same ref. Every place this is rendered
+// must be labeled off-chain / non-authoritative; there is no real mint or
+// transaction behind it (see the Companion Capture spec's Explicitly Out of
+// Scope section).
+function mockChainRef(mobileBuffer) {
+  return `0x${sha256Hex(mobileBuffer)}`;
+}
+
+/**
+ * Full background pipeline for a submitted companion photo: upload to
+ * Cloudinary, fetch the device image bytes, score consistency, get an
+ * AI-generated hint for the mobile photo, and persist the result onto the
+ * claim row. Mirrors enrichService.enrichClaim's shape — never throws, so
+ * the route handler can call this fire-and-forget after acking the request.
+ */
+async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
+  try {
+    const upload = await cloudinaryService.uploadBuffer(mobileBuffer, COMPANION_FOLDER);
+    const { buffer: deviceBuffer } = await fetchImageBuffer(claim.cid);
+    const { consistency, forensic } = await compareDeviceAndMobile(deviceBuffer, mobileBuffer);
+
+    // Best-effort — same non-authoritative AI hint already computed for the
+    // device image at enrichment time, just for the mobile photo instead.
+    let aiHint = { likely_ai_generated: null, note: 'AI check unavailable' };
+    if (openaiService.isAvailable()) {
+      try {
+        const described = await openaiService.processImage(mobileBuffer, 'image/jpeg');
+        aiHint = { likely_ai_generated: described.likelyAiGenerated, note: described.aiAssessment };
+      } catch (aiErr) {
+        console.warn(`⚠️  Could not get AI hint for companion photo on ${claim.claim_id}: ${aiErr.message}`);
+      }
+    }
+
+    // claims.created_at is the closest existing field to "when the device
+    // captured" — the claim row is created immediately off the Pi's capture
+    // in the real flow, so this is a reasonable stand-in for an explicit
+    // device-capture timestamp.
+    const mobileCapturedAt = capturedAt ? new Date(capturedAt) : new Date();
+    const deviceCapturedAt = claim.created_at ? new Date(claim.created_at) : new Date();
+    const timestampDeltaSeconds = Math.abs((mobileCapturedAt.getTime() - deviceCapturedAt.getTime()) / 1000);
+
+    const companionCapture = {
+      mobile_image_url: upload.url,
+      mobile_public_id: upload.public_id,
+      mobile_captured_at: mobileCapturedAt.toISOString(),
+      mobile_ai_hint: aiHint,
+      consistency,
+      forensic,
+      timestamp_delta_seconds: Math.round(timestampDeltaSeconds * 10) / 10,
+      mock_chain_ref: mockChainRef(mobileBuffer),
+      paired_at: new Date().toISOString()
+    };
+
+    await dbService.setCompanionCapture(claim.claim_id, companionCapture);
+    console.log(`🔗 Paired companion capture for ${claim.claim_id} (${Math.round(consistency.score * 100)}% consistency)`);
+  } catch (error) {
+    console.error(`❌ Companion capture processing failed for ${claim.claim_id}:`, error.message);
+  }
+}
+
+module.exports = { compareDeviceAndMobile, processCompanionCapture };
