@@ -22,6 +22,7 @@ class Settings:
         self.pinata_secret_api_key = _require("PINATA_SECRET_API_KEY")
         self.hive_api_key = _require("HIVE_API_KEY")
         self.base_url = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+        self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 
 def _require(key: str) -> str:
