@@ -363,19 +363,31 @@ class ClaimDBService {
     return rows[0] || null;
   }
 
-  /** All embeddings joined with claim details useful for search results. */
+  /** All embeddings joined with claim details useful for search results.
+   * LEFT JOINs clip_embeddings too so callers (similarPhotos.contentSimilarity)
+   * can prefer a candidate's CLIP image embedding over its OpenAI
+   * caption-text embedding when one is available. */
   async getAllEmbeddings() {
     const { rows } = await this.pool.query(`
       SELECT e.claim_id, e.cid, e.embedding, e.dim,
              c.token_id, c.recipient_address, c.device_id, c.status,
-             c.description, c.tags, c.phash, c.phash_dct, c.ahash, c.orientation_hashes, c.created_at
+             c.description, c.tags, c.phash, c.phash_dct, c.ahash, c.orientation_hashes, c.created_at,
+             ce.embedding AS clip_embedding
       FROM image_embeddings e
       JOIN claims c ON e.claim_id = c.claim_id
+      LEFT JOIN clip_embeddings ce ON ce.claim_id = e.claim_id
     `);
     return rows;
   }
 
   // ── CLIP image embeddings (clipService.js) ──────────────────────────────
+
+  /** Single claim's CLIP embedding row, or null. Mirrors getEmbedding() but
+   * for the separate clip_embeddings table. */
+  async getClipEmbedding(claim_id) {
+    const { rows } = await this.pool.query('SELECT * FROM clip_embeddings WHERE claim_id = $1', [claim_id]);
+    return rows[0] || null;
+  }
 
   async upsertClipEmbedding(claim_id, cid, embedding, model, dim) {
     const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
