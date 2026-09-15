@@ -1,3 +1,0 @@
-cryptography>=2.6
-requests>=2.31.0
-gpsd-py3>=0.3.0
