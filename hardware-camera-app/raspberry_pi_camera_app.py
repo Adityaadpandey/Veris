@@ -1159,6 +1159,19 @@ class CameraApp(App):
 
         threading.Thread(target=capture_thread, daemon=True).start()
     
+    def _get_location(self):
+        """Fetch approximate location via IP geolocation. Returns dict or None."""
+        try:
+            resp = requests.get('http://ip-api.com/json?fields=lat,lon,city,regionName,country', timeout=4)
+            if resp.status_code == 200:
+                d = resp.json()
+                parts = [d.get('city'), d.get('regionName'), d.get('country')]
+                name = ', '.join(p for p in parts if p)
+                return {'lat': d.get('lat'), 'lon': d.get('lon'), 'name': name}
+        except Exception as e:
+            print(f'⚠️ Could not get location: {e}')
+        return None
+
     def _upload_and_create_claim(self, filename, signature_info):
         """Upload image to backend and create claim."""
         # Check if offline - save to queue
@@ -1205,13 +1218,19 @@ class CameraApp(App):
             device_address = signature_info['address']
             camera_id = self.camera.get_camera_id() if self.camera.initialized else 'unknown'
             
+            # Get location via IP geolocation (best-effort)
+            location = self._get_location()
+
             # Prepare multipart form data
             files = {'image': (os.path.basename(filename), image_data, 'image/jpeg')}
             data = {
                 'imageHash': image_hash,
                 'signature': signature_info['signature'],
                 'cameraId': camera_id,
-                'deviceAddress': device_address
+                'deviceAddress': device_address,
+                'latitude': str(location['lat']) if location else '',
+                'longitude': str(location['lon']) if location else '',
+                'locationName': location['name'] if location else ''
             }
             
             # Upload to backend

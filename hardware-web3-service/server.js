@@ -665,7 +665,10 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       imageHash,
       signature,
       cameraId,
-      deviceAddress
+      deviceAddress,
+      latitude,
+      longitude,
+      locationName
     } = req.body;
 
     if (!imageHash || !signature || !cameraId || !deviceAddress) {
@@ -687,7 +690,10 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       image_hash: imageHash,
       camera_id: cameraId,
       device_address: deviceAddress,
-      signature
+      signature,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      location_name: locationName || null
     });
 
     console.log(`📸 Image uploaded: ${image.id} - ${filename}`);
@@ -739,14 +745,17 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
           const deviceId = deviceInfo?.device_id || 'unknown';
 
           const claimResult = await claimClient.createClaim(
-            claimId, 
+            claimId,
             filecoinCid,
             metadataCid,
             deviceId,
             cameraId,
             imageHash,
             signature,
-            deviceAddress
+            deviceAddress,
+            image.latitude,
+            image.longitude,
+            image.location_name
           );
           claimUrl = claimResult.claim_url;
 
