@@ -6,7 +6,8 @@ import { sepolia } from 'wagmi/chains'
 import LandingPage from './components/LandingPage'
 import OwnerDashboard from './components/OwnerDashboard'
 
-const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id'
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID
+
 const queryClient = new QueryClient()
 
 const wagmiConfig = createConfig({
@@ -16,33 +17,8 @@ const wagmiConfig = createConfig({
 
 function AppContent() {
   const { ready, authenticated } = usePrivy()
-
-  if (!ready) {
-    return (
-      <div style={{
-        height: '100vh',
-        background: '#000',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <div style={{
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: '48px',
-          fontWeight: 800,
-          color: '#fff',
-          letterSpacing: '16px',
-          textIndent: '16px',
-          opacity: 0.5,
-        }}>
-          VERIS
-        </div>
-      </div>
-    )
-  }
-
+  if (!ready) return null
   if (authenticated) return <OwnerDashboard />
-
   return <LandingPage />
 }
 

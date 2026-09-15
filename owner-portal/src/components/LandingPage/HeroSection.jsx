@@ -1,11 +1,8 @@
 import HeroCanvas from './HeroCanvas'
+import CameraCanvas from './CameraCanvas'
 import styles from './HeroSection.module.css'
 
 export default function HeroSection({ onEnterPortal }) {
-  const scrollToCamera = () => {
-    document.getElementById('camera-section')?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   return (
     <section className={styles.hero}>
       <HeroCanvas />
@@ -31,31 +28,36 @@ export default function HeroSection({ onEnterPortal }) {
         NFT: READY
       </div>
 
-      <div className={styles.content}>
-        <div className={`${styles.badge} glass-orange`}>
-          <span className={styles.badgeDot} />
-          Decentralized Camera Protocol
+      <div className={styles.split}>
+        {/* Left — text content */}
+        <div className={styles.left}>
+          <div className={`${styles.badge} glass-orange`}>
+            <span className={styles.badgeDot} />
+            Decentralized Camera Protocol
+          </div>
+
+          <h1 className={styles.wordmark}>VERIS</h1>
+
+          <p className={styles.tagline}>
+            A physical camera that <strong>sees, mints, and proves.</strong><br />
+            Every frame becomes an on-chain truth — permanent, tamper-proof, yours.
+          </p>
+
+          <div className={styles.actions}>
+            <button className={styles.btnPrimary} onClick={onEnterPortal}>
+              Enter Owner Portal →
+            </button>
+          </div>
+
+          {/* <div className={styles.scrollCue}>
+            <div className={styles.scrollLine} />
+            <span>SCROLL</span>
+          </div> */}
         </div>
 
-        <h1 className={styles.wordmark}>VERIS</h1>
-
-        <p className={styles.tagline}>
-          A physical camera that <strong>sees, mints, and proves.</strong><br />
-          Every frame becomes an on-chain truth — permanent, tamper-proof, yours.
-        </p>
-
-        <div className={styles.actions}>
-          <button className={styles.btnPrimary} onClick={onEnterPortal}>
-            Enter Owner Portal →
-          </button>
-          <button className={`${styles.btnGhost} glass`} onClick={scrollToCamera}>
-            See The Camera ↓
-          </button>
-        </div>
-
-        <div className={styles.scrollCue}>
-          <div className={styles.scrollLine} />
-          <span>SCROLL</span>
+        {/* Right — interactive 3D camera */}
+        <div className={styles.right}>
+          <CameraCanvas />
         </div>
       </div>
     </section>
