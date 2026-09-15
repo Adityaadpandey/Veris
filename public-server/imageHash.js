@@ -308,5 +308,5 @@ function bestCombinedHashDistance(query, entries) {
 
 module.exports = {
   sha256Hex, dHash, pHash, aHash, computeHashes, hammingDistance, combinedHashDistance,
-  ORIENTATIONS, computeOrientationHashes, bestCombinedHashDistance
+  ORIENTATIONS, computeOrientationHashes, bestCombinedHashDistance, transformForOrientation
 };
