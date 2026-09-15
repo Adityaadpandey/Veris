@@ -34,7 +34,7 @@ build/
 out/
 cache/
 broadcast/
-lib/
+contract/lib/
 foundry.lock
 
 # Build artifacts
