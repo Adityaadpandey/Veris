@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/claim-server/:path*",
-      "destination": "https://api.veris.live/:path*"
+      "destination": "http://localhost:5001/:path*"
     },
     {
       "source": "/esp32.html",
