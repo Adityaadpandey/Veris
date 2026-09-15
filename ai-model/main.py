@@ -123,7 +123,7 @@ def signal_ssim_edge(img1: Image.Image, img2: Image.Image) -> float:
     edges2 = cv2.Canny(gray2, 50, 150)
 
     score = ssim(edges1, edges2)
-    return max(0.0, min(score, 1.0))
+    return float(max(0.0, min(score, 1.0)))
 
 
 # ------------------------------------------------------------------
@@ -148,7 +148,7 @@ def signal_color_hist(img1: Image.Image, img2: Image.Image,
         score += cv2.compareHist(h1, h2, cv2.HISTCMP_CORREL)
 
     avg = score / 3.0
-    return max(0.0, min(avg, 1.0))
+    return float(max(0.0, min(avg, 1.0)))
 
 
 # ------------------------------------------------------------------
@@ -197,7 +197,7 @@ def signal_phash(img1: Image.Image, img2: Image.Image,
     h2 = imagehash.phash(img2, hash_size=hash_size)
     max_dist = hash_size * hash_size  # 64 for hash_size=8
     dist = h1 - h2  # hamming distance
-    return 1.0 - (dist / max_dist)
+    return float(1.0 - (dist / max_dist))
 
 
 # ------------------------------------------------------------------
@@ -205,11 +205,11 @@ def signal_phash(img1: Image.Image, img2: Image.Image,
 # ------------------------------------------------------------------
 
 SIGNAL_CONFIG = {
-    "orb":        {"weight": 0.25, "floor": 0.03},
-    "ssim_edge":  {"weight": 0.20, "floor": 0.15},
-    "color_hist": {"weight": 0.15, "floor": 0.10},
-    "clip":       {"weight": 0.25, "floor": 0.40},
-    "phash":      {"weight": 0.15, "floor": 0.25},
+    "orb":        {"weight": 0.10, "floor": 0.00},
+    "ssim_edge":  {"weight": 0.20, "floor": 0.10},
+    "color_hist": {"weight": 0.20, "floor": 0.05},
+    "clip":       {"weight": 0.30, "floor": 0.40},
+    "phash":      {"weight": 0.20, "floor": 0.20},
 }
 
 
