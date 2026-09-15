@@ -202,3 +202,19 @@ def test_verifier_floor_rejection(verifier):
         assert result["rejected_by"] is not None or result["authentic"] is False
     finally:
         os.unlink(rand_path)
+
+
+def test_diagnose_runs_without_error(verifier):
+    results = verifier.diagnose(DATA_DIR)
+    assert isinstance(results, list)
+    assert len(results) > 0
+    first = results[0]
+    assert "scene" in first
+    assert "score" in first
+    assert "signals" in first
+
+
+def test_calibrate_returns_threshold(verifier):
+    threshold = verifier.calibrate(DATA_DIR)
+    assert isinstance(threshold, float)
+    assert 0.0 < threshold < 1.0
