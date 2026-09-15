@@ -113,6 +113,22 @@ class ClaimDBService {
       )
     `);
 
+    // CLIP image embeddings (clipService.js) — separate table from
+    // image_embeddings above because that one holds OpenAI TEXT embeddings
+    // (of the generated description) and a claim can have both signals at
+    // once; each table's claim_id stays its own primary key.
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS clip_embeddings (
+        claim_id TEXT PRIMARY KEY,
+        cid TEXT,
+        embedding TEXT,
+        model TEXT,
+        dim INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
+      )
+    `);
+
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status)`);
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid)`);
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status)`);
@@ -359,6 +375,34 @@ class ClaimDBService {
     return rows;
   }
 
+  // ── CLIP image embeddings (clipService.js) ──────────────────────────────
+
+  async upsertClipEmbedding(claim_id, cid, embedding, model, dim) {
+    const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+    await this.pool.query(`
+      INSERT INTO clip_embeddings (claim_id, cid, embedding, model, dim)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (claim_id) DO UPDATE SET
+        cid = excluded.cid,
+        embedding = excluded.embedding,
+        model = excluded.model,
+        dim = excluded.dim,
+        created_at = CURRENT_TIMESTAMP
+    `, [claim_id, cid, serialized, model, dim]);
+  }
+
+  /** All CLIP embeddings — used as the semantic-visual fallback when the
+   * hash-based tamper check can't find a confident match (heavy filters/noise). */
+  async getAllClipEmbeddings() {
+    const { rows } = await this.pool.query(`
+      SELECT e.claim_id, e.cid, e.embedding,
+             c.token_id, c.status, c.created_at
+      FROM clip_embeddings e
+      JOIN claims c ON e.claim_id = c.claim_id
+    `);
+    return rows;
+  }
+
   // ── Verification (deterministic tamper check) ──────────────────────────────
 
   /** Exact-match lookup: an on-chain image whose SHA-256 equals the upload's. */
@@ -389,19 +433,30 @@ class ClaimDBService {
    * only re-run the (costly) OpenAI step when ai_status is actually
    * null/failed — see enrichService.backfillForensics for the free-of-cost
    * path that fills in just the forensic columns.
+   *
+   * `includeClip` adds "missing a CLIP embedding" to the criteria. It's an
+   * opt-in flag (not just always-on) because clip_embeddings lives in its own
+   * table with no per-claim column to short-circuit on — if CLIP is disabled
+   * (DISABLE_CLIP=1) every claim would permanently match "no clip row yet"
+   * and the backfill would re-select and re-hash the ENTIRE table on every
+   * run for no reason. Callers should only pass true when clipService.isAvailable().
    */
-  async getClaimsNeedingBackfill() {
+  async getClaimsNeedingBackfill({ includeClip = false } = {}) {
+    const clipCondition = includeClip
+      ? `OR NOT EXISTS (SELECT 1 FROM clip_embeddings ce WHERE ce.claim_id = c.claim_id)`
+      : '';
     const { rows } = await this.pool.query(`
-      SELECT * FROM claims
-      WHERE cid IS NOT NULL AND cid != ''
+      SELECT c.* FROM claims c
+      WHERE c.cid IS NOT NULL AND c.cid != ''
         AND (
-          ai_status IS NULL OR ai_status = 'failed'
-          OR phash_dct IS NULL OR phash_dct = ''
-          OR ahash IS NULL OR ahash = ''
-          OR orientation_hashes IS NULL OR orientation_hashes = ''
-          OR exif_signal IS NULL OR exif_signal = ''
+          c.ai_status IS NULL OR c.ai_status = 'failed'
+          OR c.phash_dct IS NULL OR c.phash_dct = ''
+          OR c.ahash IS NULL OR c.ahash = ''
+          OR c.orientation_hashes IS NULL OR c.orientation_hashes = ''
+          OR c.exif_signal IS NULL OR c.exif_signal = ''
+          ${clipCondition}
         )
-      ORDER BY created_at ASC
+      ORDER BY c.created_at ASC
     `);
     return rows;
   }

@@ -11,6 +11,7 @@ const { cosineSimilarity } = openaiService;
 const { enrichClaim, fetchImageBuffer, backfillForensics } = require('./enrichService');
 const { sha256Hex, computeHashes, bestCombinedHashDistance } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
+const clipService = require('./clipService');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -38,6 +39,20 @@ const LEGACY_PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10
 const TAMPER_RECOMPRESSED_MAX = parseFloat(process.env.TAMPER_RECOMPRESSED_MAX || '0.05');
 const TAMPER_STRUCTURAL_MAX = parseFloat(process.env.TAMPER_STRUCTURAL_MAX || String(LEGACY_PHASH_MAX_DISTANCE / 64));
 const TAMPER_POSSIBLE_MAX = parseFloat(process.env.TAMPER_POSSIBLE_MAX || '0.24');
+
+// Recovery path for edits heavy enough to push EVERY hash band above — strong
+// noise, aggressive color/brightness filters, heavy blur. dHash/pHash/aHash
+// compare pixel statistics, so noise/filters strong enough to survive the
+// downsample can genuinely push the hash distance past TAMPER_POSSIBLE_MAX
+// even though a human (or CLIP) would instantly recognize the same photo.
+// CLIP (clipService.js) embeds semantic/visual CONTENT instead of pixel
+// statistics, so it stays close for exactly these cases. Only used when the
+// hash-based scan above found nothing — CLIP is a weaker, non-authoritative
+// signal on its own (it can also say two DIFFERENT photos of a similar scene
+// are close), so it never overrides a real hash match, only fills the gap
+// when hashing comes up empty. Threshold is intentionally high (default 0.9)
+// since a lower one risks false positives between genuinely different photos.
+const CLIP_MATCH_MIN_SCORE = parseFloat(process.env.CLIP_MATCH_MIN_SCORE || '0.9');
 
 // The "similar photos" list blends two independent signals:
 //   • visual  — deterministic multi-hash (dHash + pHash-DCT + aHash) closeness.
@@ -1190,7 +1205,7 @@ app.post('/api/enrich/backfill', async (req, res) => {
     }
     const pending = force
       ? await dbService.getAllClaimsWithCid()
-      : await dbService.getClaimsNeedingBackfill();
+      : await dbService.getClaimsNeedingBackfill({ includeClip: clipService.isAvailable() });
 
     backfillStatus = { running: true, total: pending.length, done: 0, failed: 0, force, startedAt: new Date().toISOString(), finishedAt: null };
     res.json({ success: true, queued: pending.length, force, status: backfillStatus });
@@ -1261,6 +1276,9 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
 //                (deterministic; see imageHash.combinedHashDistance)
 //   3. exif    — EXIF forensics on the upload itself (editing-software
 //                signature, capture-vs-modify gap) -> soft hint, non-authoritative
+//   3b. clip   — CLIP semantic-visual match, ONLY when 1-2 found nothing ->
+//                recovers heavily filtered/noised edits that pixel hashing
+//                can't (see clipService.js); non-authoritative
 //   4. similar — OpenAI embedding cosine + multi-hash visual blend -> similar
 //                content (fuzzy, labeled)
 //   5. ai_hint — OpenAI vision guess                -> AI-generated hint (non-authoritative)
@@ -1352,6 +1370,44 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       verdict.exif_signal = await exifSignals(buffer);
     } catch (e) {
       console.warn('⚠️  Could not extract EXIF signal for upload:', e.message);
+    }
+
+    // ── Layer 3b: CLIP semantic-visual recovery — only when hashing found
+    // nothing. Catches edits (heavy filters, noise) strong enough to push
+    // every hash band above; see CLIP_MATCH_MIN_SCORE comment above. Never
+    // runs when the hash scan already produced a verdict — CLIP is a softer
+    // signal and shouldn't second-guess a real hash match.
+    if (verdict.type === 'no_match' && !hashDecodeFailed && clipService.isAvailable()) {
+      try {
+        const uploadClip = await clipService.embedImage(buffer, req.file.mimetype);
+        let best = null;
+        for (const row of await dbService.getAllClipEmbeddings()) {
+          let stored;
+          try { stored = JSON.parse(row.embedding); } catch { stored = null; }
+          if (!stored) continue;
+          const score = clipService.cosineSimilarity(uploadClip, stored);
+          if (best === null || score > best.score) best = { row, score };
+        }
+        if (best && best.score >= CLIP_MATCH_MIN_SCORE) {
+          verdict = {
+            type: 'altered_copy',
+            tier: 'possible_match_semantic',
+            claim_id: best.row.claim_id,
+            token_id: best.row.token_id || null,
+            message: 'Possible altered copy — no pixel-level (hash) match, but this photo looks '
+              + 'semantically very similar to a verified on-chain image. Likely the same source photo '
+              + 'after heavy editing (strong filters, noise, or color changes) rather than an unrelated '
+              + 'photo. Best-effort AI signal, not a deterministic proof like the hash-based tiers.',
+            confidence: Math.round(best.score * 100) / 100,
+            authoritative: false,
+            original_cid: best.row.cid || null,
+            claim_url: `${FRONTEND_URL}/claim/${best.row.claim_id}`,
+            exif_signal: verdict.exif_signal
+          };
+        }
+      } catch (e) {
+        console.warn('⚠️  CLIP semantic match failed (hash verdict still returned):', e.message);
+      }
     }
 
     // ── Layers 4 & 5: OpenAI description, embedding search, AI hint ──────────

@@ -11,6 +11,7 @@
 
 const dbService = require('./dbService');
 const openaiService = require('./openaiService');
+const clipService = require('./clipService');
 const { computeOrientationHashes } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 
@@ -45,6 +46,21 @@ async function fetchImageBuffer(cid) {
     }
   }
   throw new Error(`Could not fetch image for CID ${cid}: ${lastErr?.message || 'unknown error'}`);
+}
+
+/**
+ * Embed and store a claim's CLIP vector — best-effort, non-throwing. Shared
+ * by enrichClaim and backfillForensics since both need the same step. Skips
+ * entirely (no-op) when clipService.isAvailable() is false, e.g. DISABLE_CLIP=1.
+ */
+async function storeClipEmbedding(claim_id, cid, buffer, mimeType) {
+  if (!clipService.isAvailable()) return;
+  try {
+    const embedding = await clipService.embedImage(buffer, mimeType);
+    await dbService.upsertClipEmbedding(claim_id, cid, embedding, 'clip-vit-base-patch32', embedding.length);
+  } catch (clipErr) {
+    console.warn(`⚠️  Could not compute CLIP embedding for ${claim_id}: ${clipErr.message}`);
+  }
 }
 
 /**
@@ -101,6 +117,11 @@ async function enrichClaim(claim_id, cid) {
       console.warn(`⚠️  Could not extract EXIF signal for ${claim_id}: ${exifErr.message}`);
     }
 
+    // CLIP embedding — the semantic/visual fallback for edits heavy enough
+    // (strong filters, noise) to push the hash-based tamper check past every
+    // threshold. Best-effort, no-op if CLIP is disabled.
+    await storeClipEmbedding(claim_id, cid, buffer, mimeType);
+
     const result = await openaiService.processImage(buffer, mimeType);
     await dbService.setClaimAI(claim_id, {
       description: result.description,
@@ -129,7 +150,7 @@ async function enrichClaim(claim_id, cid) {
  */
 async function backfillForensics(claim_id, cid) {
   try {
-    const { buffer } = await fetchImageBuffer(cid);
+    const { buffer, mimeType } = await fetchImageBuffer(cid);
     const orientations = await computeOrientationHashes(buffer);
     const canonical = orientations.find(o => o.orientation === '0') || {};
     if (!canonical.dhash && !canonical.phash && !canonical.ahash) {
@@ -143,6 +164,7 @@ async function backfillForensics(claim_id, cid) {
       orientation_hashes: orientations,
       exif_signal: exif
     });
+    await storeClipEmbedding(claim_id, cid, buffer, mimeType);
     console.log(`🔍 Backfilled forensics for ${claim_id}`);
     return 'done';
   } catch (error) {
