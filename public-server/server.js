@@ -13,6 +13,7 @@ const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
+const { processCompanionCapture } = require('./companionCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -165,6 +166,42 @@ app.post('/create-claim', async (req, res) => {
   }
 });
 
+// Companion Capture: the phone's own photo, submitted once the device's real
+// claim already exists. Acks immediately and does the Cloudinary/comparison/
+// AI-hint work in the background (mirrors the /create-claim -> enrichClaim
+// fire-and-forget pattern above) so a multi-second round trip never blocks
+// the mobile client on a phone connection.
+app.post('/api/claim/:claim_id/companion', upload.single('mobile_image'), async (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const { captured_at } = req.body;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'No mobile photo uploaded' });
+    }
+    if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ success: false, error: 'Uploaded file must be an image' });
+    }
+
+    const claim = await dbService.getClaim(claim_id);
+    if (!claim) {
+      return res.status(404).json({ success: false, error: 'Claim not found' });
+    }
+    if (!claim.cid) {
+      return res.status(400).json({ success: false, error: 'Device capture has not completed for this claim yet' });
+    }
+
+    res.json({ success: true, claim_id, status: 'processing' });
+
+    processCompanionCapture(claim, req.file.buffer, captured_at || null).catch(err =>
+      console.error(`❌ Unexpected companion-capture error for ${claim_id}:`, err.message)
+    );
+  } catch (error) {
+    console.error('❌ Error accepting companion capture:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.options('/api/metadata/:claim_id', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -299,6 +336,7 @@ app.get('/check-claim', async (req, res) => {
       ai_status: claim.ai_status || null,
       likely_ai_generated: claim.likely_ai_generated == null ? null : Boolean(claim.likely_ai_generated),
       ai_assessment: claim.ai_assessment || null,
+      companion_capture: claim.companion_capture || null,
       created_at: claim.created_at,
       claimed_at: claim.claimed_at || null,
       completed_at: claim.completed_at || null
