@@ -2,7 +2,7 @@
  * enrichService.js
  *
  * Shared AI-enrichment logic used by both the live server (on /create-claim)
- * and the backfill script. Fetches an image by CID and runs it through Gemini
+ * and the backfill script. Fetches an image by CID and runs it through OpenAI
  * to produce a description, tags, and an embedding, recording status on the
  * claim so failures are retriable. Never throws.
  *
@@ -10,7 +10,7 @@
  */
 
 const dbService = require('./dbService');
-const geminiService = require('./geminiService');
+const openaiService = require('./openaiService');
 const { dHash } = require('./imageHash');
 
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
@@ -47,15 +47,15 @@ async function fetchImageBuffer(cid) {
 }
 
 /**
- * Enrich a claim with a Gemini description + tags + embedding.
+ * Enrich a claim with an OpenAI description + tags + embedding.
  * Self-contained and never throws — records status on the claim so it can be
  * retried via POST /api/enrich/:claim_id or the backfill script.
  * Returns the final ai_status ('done' | 'failed').
  */
 async function enrichClaim(claim_id, cid) {
-  if (!geminiService.isAvailable()) {
-    await dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: 'GEMINI_API_KEY not configured' });
-    console.warn(`⚠️  Skipping enrichment for ${claim_id}: Gemini not configured`);
+  if (!openaiService.isAvailable()) {
+    await dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: 'OPENAI_API_KEY not configured' });
+    console.warn(`⚠️  Skipping enrichment for ${claim_id}: OpenAI not configured`);
     return 'failed';
   }
   try {
@@ -63,7 +63,7 @@ async function enrichClaim(claim_id, cid) {
     const { buffer, mimeType } = await fetchImageBuffer(cid);
 
     // Deterministic perceptual hash for the tamper check. Computed and stored
-    // independently of Gemini so verification works even if description fails.
+    // independently of OpenAI so verification works even if description fails.
     try {
       const phash = await dHash(buffer);
       await dbService.setClaimAI(claim_id, { phash });
@@ -71,7 +71,7 @@ async function enrichClaim(claim_id, cid) {
       console.warn(`⚠️  Could not compute perceptual hash for ${claim_id}: ${hashErr.message}`);
     }
 
-    const result = await geminiService.processImage(buffer, mimeType);
+    const result = await openaiService.processImage(buffer, mimeType);
     await dbService.setClaimAI(claim_id, {
       description: result.description,
       tags: result.tags,
