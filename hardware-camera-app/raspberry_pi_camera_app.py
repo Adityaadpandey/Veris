@@ -41,7 +41,8 @@ from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics.texture import Texture
-from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line, Ellipse, PushMatrix, PopMatrix, Rotate
+from kivy.animation import Animation
 from kivy.uix.screenmanager import ScreenManager, Screen
 import glob
 
@@ -122,6 +123,251 @@ MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
 ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
 
 CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '90'))
+
+class ModernCard(FloatLayout):
+    """Modern card component with glass-morphism effects and elevation."""
+
+    def __init__(self, card_color=(0.08, 0.12, 0.18, 0.92), shadow_color=(0, 0, 0, 0.15),
+                 border_color=(1, 1, 1, 0.08), radius=16, elevation=4, **kwargs):
+        super().__init__(**kwargs)
+        self._card_color = list(card_color)
+        self._shadow_color = list(shadow_color)
+        self._border_color = list(border_color)
+        self._radius = radius
+        self._elevation = elevation
+
+        with self.canvas.before:
+            # Shadow layer (multiple shadows for depth)
+            Color(*shadow_color)
+            self._shadow1 = RoundedRectangle(
+                pos=(self.x + elevation, self.y - elevation),
+                size=self.size, radius=[radius]
+            )
+            self._shadow2 = RoundedRectangle(
+                pos=(self.x + elevation//2, self.y - elevation//2),
+                size=self.size, radius=[radius]
+            )
+
+            # Glass background layers
+            Color(*self._card_color)
+            self._background = RoundedRectangle(
+                pos=self.pos, size=self.size, radius=[radius]
+            )
+
+            # Subtle gradient overlay
+            gradient_color = [min(1.0, c + 0.05) for c in self._card_color[:3]] + [0.3]
+            Color(*gradient_color)
+            self._gradient = RoundedRectangle(
+                pos=self.pos, size=(self.size[0], self.size[1] * 0.3), radius=[radius, radius, 0, 0]
+            )
+
+            # Border highlight
+            Color(*self._border_color)
+            self._border = Line(rounded_rectangle=(self.pos[0], self.pos[1], self.size[0], self.size[1], radius), width=1.2)
+
+        self.bind(pos=self._update_graphics, size=self._update_graphics)
+
+    def _update_graphics(self, *args):
+        """Update all graphic elements when position or size changes."""
+        if hasattr(self, '_shadow1'):
+            self._shadow1.pos = (self.x + self._elevation, self.y - self._elevation)
+            self._shadow1.size = self.size
+            self._shadow2.pos = (self.x + self._elevation//2, self.y - self._elevation//2)
+            self._shadow2.size = self.size
+            self._background.pos = self.pos
+            self._background.size = self.size
+            self._gradient.pos = self.pos
+            self._gradient.size = (self.size[0], self.size[1] * 0.3)
+            self._border.rounded_rectangle = (self.pos[0], self.pos[1], self.size[0], self.size[1], self._radius)
+
+
+class AnimatedLabel(Label):
+    """Enhanced label with smooth animations and effects."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._original_color = self.color[:]
+        self.animation_duration = 0.3
+
+    def animate_in(self, effect='fade'):
+        """Animate label entry with specified effect."""
+        if effect == 'fade':
+            self.opacity = 0
+            anim = Animation(opacity=1, duration=self.animation_duration, t='out_cubic')
+            anim.start(self)
+        elif effect == 'slide_up':
+            original_y = self.y
+            self.y -= 30
+            self.opacity = 0
+            anim = Animation(y=original_y, opacity=1, duration=self.animation_duration, t='out_back')
+            anim.start(self)
+
+    def animate_out(self, effect='fade', callback=None):
+        """Animate label exit with specified effect."""
+        if effect == 'fade':
+            anim = Animation(opacity=0, duration=self.animation_duration, t='in_cubic')
+        elif effect == 'slide_down':
+            anim = Animation(y=self.y - 30, opacity=0, duration=self.animation_duration, t='in_back')
+
+        if callback:
+            anim.on_complete = callback
+        anim.start(self)
+
+    def pulse_color(self, target_color, duration=0.8):
+        """Pulse to a target color and back."""
+        anim1 = Animation(color=target_color, duration=duration/2, t='in_out_cubic')
+        anim2 = Animation(color=self._original_color, duration=duration/2, t='in_out_cubic')
+        anim1.bind(on_complete=lambda *args: anim2.start(self))
+        anim1.start(self)
+
+
+class RoundedButton(Button):
+    """Enhanced button with modern glass-morphism effects and smooth animations."""
+
+    def __init__(self, btn_color=(0.15, 0.18, 0.25, 1), radius=12, glow_color=None,
+                 shadow_elevation=3, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_color = (0, 0, 0, 0)
+        self._btn_color = list(btn_color)
+        self._original_color = list(btn_color)
+        self._btn_radius = radius
+        self._shadow_elevation = shadow_elevation
+        self._glow_color = glow_color or [min(1.0, c + 0.4) for c in btn_color[:3]] + [0.6]
+        self._color_instr = None
+        self._rect_instr = None
+        self._shadow_instr = None
+        self._border_instr = None
+        self._glow_instr = None
+        self._intercepting = False
+        self._pressed = False
+
+        with self.canvas.before:
+            # Shadow effect
+            Color(0, 0, 0, 0.2)
+            self._shadow_instr = RoundedRectangle(
+                pos=(self.x + shadow_elevation, self.y - shadow_elevation),
+                size=self.size, radius=[self._btn_radius]
+            )
+
+            # Optional glow effect (hidden by default)
+            Color(*self._glow_color)
+            self._glow_instr = RoundedRectangle(
+                pos=(self.x - 4, self.y - 4),
+                size=(self.size[0] + 8, self.size[1] + 8),
+                radius=[self._btn_radius + 4]
+            )
+            self._glow_instr.pos = self.pos  # Hide glow initially
+
+            # Main button background with subtle gradient effect
+            Color(*self._btn_color)
+            self._color_instr = Color(*self._btn_color)
+            self._rect_instr = RoundedRectangle(
+                pos=self.pos, size=self.size, radius=[self._btn_radius]
+            )
+
+            # Subtle gradient overlay for depth
+            gradient_color = [min(1.0, c + 0.1) for c in self._btn_color[:3]] + [0.4]
+            Color(*gradient_color)
+            self._gradient_instr = RoundedRectangle(
+                pos=self.pos,
+                size=(self.size[0], self.size[1] * 0.4),
+                radius=[self._btn_radius, self._btn_radius, 0, 0]
+            )
+
+            # Subtle border highlight
+            Color(1, 1, 1, 0.15)
+            self._border_instr = Line(
+                rounded_rectangle=(self.pos[0], self.pos[1], self.size[0], self.size[1], self._btn_radius),
+                width=1.0
+            )
+
+        self.bind(pos=self._sync_rect, size=self._sync_rect)
+        self.fbind('background_color', self._on_background_color)
+
+    def _sync_rect(self, *args):
+        """Update all visual elements when button position or size changes."""
+        if self._rect_instr:
+            # Shadow
+            self._shadow_instr.pos = (self.x + self._shadow_elevation, self.y - self._shadow_elevation)
+            self._shadow_instr.size = self.size
+
+            # Main button
+            self._rect_instr.pos = self.pos
+            self._rect_instr.size = self.size
+
+            # Gradient overlay
+            self._gradient_instr.pos = self.pos
+            self._gradient_instr.size = (self.size[0], self.size[1] * 0.4)
+
+            # Border
+            self._border_instr.rounded_rectangle = (
+                self.pos[0], self.pos[1], self.size[0], self.size[1], self._btn_radius
+            )
+
+            # Glow (positioned but hidden unless activated)
+            self._glow_instr.pos = (self.x - 4, self.y - 4)
+            self._glow_instr.size = (self.size[0] + 8, self.size[1] + 8)
+
+    def _on_background_color(self, instance, value):
+        """Handle background color changes for custom rendering."""
+        if self._intercepting:
+            return
+        if list(value) != [0, 0, 0, 0]:
+            self._btn_color = list(value)
+            if self._color_instr:
+                self._color_instr.rgba = self._btn_color
+            self._intercepting = True
+            self.background_color = (0, 0, 0, 0)
+            self._intercepting = False
+
+    def on_press(self):
+        """Enhanced press animation with scale and glow effects."""
+        if self._color_instr and not self._pressed:
+            self._pressed = True
+
+            # Create darker pressed color
+            pressed_color = [c * 0.75 for c in self._original_color[:3]] + [self._original_color[3]]
+
+            # Animate color change and subtle scale
+            color_anim = Animation(duration=0.1, t='out_cubic')
+            scale_anim = Animation(size=(self.size[0] * 0.96, self.size[1] * 0.96), duration=0.1, t='out_cubic')
+
+            # Update color immediately for responsiveness
+            self._color_instr.rgba = pressed_color
+            scale_anim.start(self)
+
+    def on_release(self):
+        """Enhanced release animation returning to original state."""
+        if self._color_instr and self._pressed:
+            self._pressed = False
+
+            # Animate back to original color and size
+            color_anim = Animation(duration=0.15, t='out_back')
+            scale_anim = Animation(
+                size=(self.size[0] / 0.96, self.size[1] / 0.96),
+                duration=0.15, t='out_back'
+            )
+
+            # Return to original color
+            self._color_instr.rgba = self._original_color
+            scale_anim.start(self)
+
+    def enable_glow(self, duration=0.3):
+        """Show glow effect with smooth animation."""
+        if self._glow_instr:
+            self._glow_instr.pos = (self.x - 4, self.y - 4)
+            glow_anim = Animation(duration=duration, t='out_cubic')
+            glow_anim.start(self)
+
+    def disable_glow(self, duration=0.2):
+        """Hide glow effect with smooth animation."""
+        if self._glow_instr:
+            # Move glow off-screen to hide it
+            glow_anim = Animation(duration=duration, t='in_cubic')
+            glow_anim.start(self)
+
 
 class BatteryMonitor:
 
@@ -462,66 +708,72 @@ class CameraApp(App):
         )
         self.root_layout.add_widget(self.preview_image)
 
-        # ── Viewfinder corner brackets ───────────────────────────────
+        # ── Enhanced Cinematic Viewfinder ────────────────────────────
         self._vf_widget = FloatLayout(
-            size_hint=(0.72, 0.65),
-            pos_hint={'center_x': 0.5, 'center_y': 0.53}
+            size_hint=(0.75, 0.68),
+            pos_hint={'center_x': 0.5, 'center_y': 0.54}
         )
-        self._vf_widget.bind(pos=self._update_viewfinder, size=self._update_viewfinder)
+        self._vf_widget.bind(pos=self._update_cinematic_viewfinder, size=self._update_cinematic_viewfinder)
         self.root_layout.add_widget(self._vf_widget)
 
-        # ── Top HUD Bar ──────────────────────────────────────────────
-        self.top_bar = BoxLayout(
-            orientation='horizontal',
-            size_hint=(1, 0.07),
-            pos_hint={'x': 0, 'top': 1},
-            spacing=8,
-            padding=[14, 4, 10, 4]
-        )
-        with self.top_bar.canvas.before:
-            Color(0.03, 0.03, 0.05, 0.90)
-            self._top_bar_bg = Rectangle(pos=self.top_bar.pos, size=self.top_bar.size)
-        self.top_bar.bind(
-            pos=lambda w, v: setattr(self._top_bar_bg, 'pos', v),
-            size=lambda w, v: setattr(self._top_bar_bg, 'size', v)
+        # ── Top HUD Bar (Modern Glass Design) ───────────────────────
+        self.top_card = ModernCard(
+            card_color=(0.04, 0.05, 0.08, 0.85),
+            border_color=(0, 0.83, 0.75, 0.25),
+            size_hint=(0.95, 0.08),
+            pos_hint={'center_x': 0.5, 'top': 0.98},
+            radius=18,
+            elevation=6
         )
 
-        _brand = Label(
+        self.top_bar = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.94, 0.75),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            spacing=12,
+            padding=[16, 0]
+        )
+
+        # Enhanced brand label with glow effect
+        _brand = AnimatedLabel(
             text='[b][color=00D4C0]◉[/color]  VERIS[/b]',
             markup=True,
-            size_hint=(0.22, 1),
+            size_hint=(0.25, 1),
             halign='left', valign='middle',
-            font_size='13sp',
-            color=(0.90, 0.90, 0.94, 1)
+            font_size='14sp',
+            color=(0.95, 0.95, 0.98, 1)
         )
         _brand.bind(size=_brand.setter('text_size'))
 
-        self.datetime_label = Label(
+        self.datetime_label = AnimatedLabel(
             text='',
-            size_hint=(0.50, 1),
+            size_hint=(0.45, 1),
             halign='center', valign='middle',
-            font_size='12sp',
-            color=(0.52, 0.54, 0.60, 1)
+            font_size='13sp',
+            color=(0.72, 0.76, 0.85, 1)
         )
         self.datetime_label.bind(size=self.datetime_label.setter('text_size'))
 
-        self.battery_label = Label(
-            text='---%',
-            size_hint=(0.20, 1),
+        # Enhanced battery indicator with modern styling
+        self.battery_label = AnimatedLabel(
+            text='⚡ ---%',
+            size_hint=(0.22, 1),
             halign='right', valign='middle',
-            font_size='12sp',
+            font_size='13sp',
             bold=True,
-            color=(0.20, 0.85, 0.55, 1)
+            color=(0.30, 0.95, 0.65, 1)
         )
         self.battery_label.bind(size=self.battery_label.setter('text_size'))
 
+        # Modern fund button with enhanced styling
         self.fund_button = RoundedButton(
-            text='⚡',
-            font_size='14sp',
-            size_hint=(0.08, 0.78),
-            btn_color=(0.10, 0.28, 0.50, 1),
-            radius=8,
-            color=(0.70, 0.88, 1.0, 1),
+            text='💰',
+            font_size='16sp',
+            size_hint=(0.08, 0.85),
+            btn_color=(0.12, 0.35, 0.58, 0.92),
+            glow_color=(0.20, 0.55, 0.85, 0.4),
+            radius=12,
+            color=(0.85, 0.95, 1.0, 1),
             bold=True
         )
         self.fund_button.bind(on_press=self._show_funding_qr_button)
@@ -530,76 +782,88 @@ class CameraApp(App):
         self.top_bar.add_widget(self.datetime_label)
         self.top_bar.add_widget(self.battery_label)
         self.top_bar.add_widget(self.fund_button)
-        self.root_layout.add_widget(self.top_bar)
+        self.top_card.add_widget(self.top_bar)
+        self.root_layout.add_widget(self.top_card)
 
-        # ── Bottom Control Panel ─────────────────────────────────────
+        # ── Modern Floating Control Panel ───────────────────────────
+        self.control_card = ModernCard(
+            card_color=(0.03, 0.04, 0.07, 0.88),
+            border_color=(0, 0.83, 0.75, 0.15),
+            size_hint=(0.95, 0.18),
+            pos_hint={'center_x': 0.5, 'y': 0.02},
+            radius=20,
+            elevation=8
+        )
+
         self.control_panel = BoxLayout(
             orientation='horizontal',
-            size_hint=(1, 0.19),
-            pos_hint={'x': 0, 'y': 0},
-            spacing=10,
-            padding=[14, 10, 14, 10]
-        )
-        with self.control_panel.canvas.before:
-            Color(0.03, 0.03, 0.05, 0.92)
-            self._ctrl_bg = Rectangle(pos=self.control_panel.pos, size=self.control_panel.size)
-        self.control_panel.bind(
-            pos=lambda w, v: setattr(self._ctrl_bg, 'pos', v),
-            size=lambda w, v: setattr(self._ctrl_bg, 'size', v)
+            size_hint=(0.92, 0.8),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            spacing=14,
+            padding=[8, 0]
         )
 
+        # Enhanced gallery button
         self.gallery_button = RoundedButton(
-            text='GALLERY',
-            font_size='12sp',
-            size_hint=(0.15, 1),
-            btn_color=(0.11, 0.13, 0.21, 1),
-            radius=12,
-            color=(0.62, 0.70, 0.92, 1),
+            text='🖼️ GALLERY',
+            font_size='13sp',
+            size_hint=(0.16, 1),
+            btn_color=(0.14, 0.18, 0.28, 0.95),
+            glow_color=(0.25, 0.35, 0.55, 0.4),
+            radius=16,
+            color=(0.75, 0.85, 0.98, 1),
             bold=True
         )
         self.gallery_button.bind(on_press=self.open_gallery)
 
+        # Enhanced video button with modern icon
         self.video_button = RoundedButton(
-            text='VIDEO',
+            text='🎬 VIDEO',
             font_size='14sp',
-            size_hint=(0.17, 1),
-            btn_color=(0.35, 0.09, 0.09, 1),
-            radius=12,
-            color=(1.0, 0.68, 0.68, 1),
+            size_hint=(0.18, 1),
+            btn_color=(0.42, 0.12, 0.12, 0.95),
+            glow_color=(0.8, 0.3, 0.3, 0.4),
+            radius=16,
+            color=(1.0, 0.8, 0.8, 1),
             bold=True
         )
         self.video_button.bind(on_press=self.toggle_recording)
 
-        # Central shutter button
+        # Stunning central shutter button with cinematic styling
         self.photo_button = RoundedButton(
-            text='◎',
-            font_size='40sp',
-            size_hint=(0.28, 1),
-            btn_color=(0.85, 0.85, 0.90, 1),
-            radius=14,
-            color=(0.05, 0.05, 0.08, 1),
+            text='◉',
+            font_size='48sp',
+            size_hint=(0.32, 1),
+            btn_color=(0.92, 0.94, 0.97, 0.95),
+            glow_color=(0, 0.83, 0.75, 0.5),
+            radius=18,
+            color=(0.05, 0.08, 0.12, 1),
+            shadow_elevation=6,
             bold=False
         )
         self.photo_button.bind(on_press=self.take_photo)
 
-        zoom_layout = BoxLayout(orientation='vertical', size_hint=(0.14, 1), spacing=6)
+        # Modern zoom controls in vertical layout
+        zoom_layout = BoxLayout(orientation='vertical', size_hint=(0.16, 1), spacing=8)
 
         self.zoom_in_button = RoundedButton(
-            text='+ ZOOM',
-            font_size='12sp',
-            btn_color=(0.12, 0.14, 0.26, 1),
-            radius=10,
-            color=(0.62, 0.70, 0.96, 1),
+            text='🔍 +',
+            font_size='13sp',
+            btn_color=(0.15, 0.20, 0.32, 0.95),
+            glow_color=(0.3, 0.4, 0.6, 0.4),
+            radius=12,
+            color=(0.8, 0.85, 0.98, 1),
             bold=True
         )
         self.zoom_in_button.bind(on_press=self.zoom_in)
 
         self.zoom_out_button = RoundedButton(
-            text='− ZOOM',
-            font_size='12sp',
-            btn_color=(0.12, 0.14, 0.26, 1),
-            radius=10,
-            color=(0.62, 0.70, 0.96, 1),
+            text='🔍 -',
+            font_size='13sp',
+            btn_color=(0.15, 0.20, 0.32, 0.95),
+            glow_color=(0.3, 0.4, 0.6, 0.4),
+            radius=12,
+            color=(0.8, 0.85, 0.98, 1),
             bold=True
         )
         self.zoom_out_button.bind(on_press=self.zoom_out)
@@ -607,13 +871,15 @@ class CameraApp(App):
         zoom_layout.add_widget(self.zoom_in_button)
         zoom_layout.add_widget(self.zoom_out_button)
 
+        # Enhanced power button
         self.quit_button = RoundedButton(
             text='⏻',
-            font_size='22sp',
-            size_hint=(0.10, 1),
-            btn_color=(0.20, 0.06, 0.06, 0.88),
-            radius=12,
-            color=(0.88, 0.42, 0.42, 1),
+            font_size='24sp',
+            size_hint=(0.12, 1),
+            btn_color=(0.28, 0.08, 0.08, 0.88),
+            glow_color=(0.6, 0.2, 0.2, 0.4),
+            radius=16,
+            color=(0.95, 0.55, 0.55, 1),
         )
         self.quit_button.bind(on_press=self.quit_app)
 
@@ -622,101 +888,117 @@ class CameraApp(App):
         self.control_panel.add_widget(self.photo_button)
         self.control_panel.add_widget(zoom_layout)
         self.control_panel.add_widget(self.quit_button)
-        self.root_layout.add_widget(self.control_panel)
+        self.control_card.add_widget(self.control_panel)
+        self.root_layout.add_widget(self.control_card)
 
-        # ── Status Toast ─────────────────────────────────────────────
-        self.status_label = Label(
-            text='',
+        # ── Enhanced Modern Status Toast ────────────────────────────
+        self.status_card = ModernCard(
+            card_color=(0.05, 0.08, 0.12, 0.92),
+            border_color=(0, 0.83, 0.75, 0.3),
             size_hint=(None, None),
-            size=(280, 44),
-            pos_hint={'center_x': 0.5, 'y': 0.21},
-            font_size='15sp',
-            bold=True,
-            color=(1, 1, 1, 1)
+            size=(320, 52),
+            pos_hint={'center_x': 0.5, 'y': 0.22},
+            radius=26,
+            elevation=4
         )
-        with self.status_label.canvas.before:
-            Color(0.0, 0.0, 0.0, 0.58)
-            self._status_bg = RoundedRectangle(
-                pos=self.status_label.pos,
-                size=self.status_label.size,
-                radius=[22]
-            )
-        self.status_label.bind(
-            pos=lambda w, v: setattr(self._status_bg, 'pos', v),
-            size=lambda w, v: setattr(self._status_bg, 'size', v)
-        )
-        self.root_layout.add_widget(self.status_label)
 
-        # ── QR Overlay ───────────────────────────────────────────────
+        self.status_label = AnimatedLabel(
+            text='',
+            size_hint=(0.9, 0.8),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            font_size='16sp',
+            bold=True,
+            color=(1, 1, 1, 1),
+            halign='center', valign='middle'
+        )
+        self.status_label.bind(size=self.status_label.setter('text_size'))
+        self.status_card.add_widget(self.status_label)
+        self.root_layout.add_widget(self.status_card)
+
+        # Initially hide the status card
+        self.status_card.opacity = 0
+
+        # ── Modern QR Overlay with Glass Effect ─────────────────────
         self.qr_overlay = FloatLayout()
         self.qr_overlay.opacity = 0
 
+        # Enhanced backdrop with blur simulation
         with self.qr_overlay.canvas.before:
-            Color(0, 0, 0, 0.84)
+            Color(0.02, 0.03, 0.06, 0.94)
             self.qr_bg = Rectangle(size=Window.size, pos=(0, 0))
 
-        qr_card = FloatLayout(
-            size_hint=(0.52, 0.78),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}
-        )
-        with qr_card.canvas.before:
-            Color(0.08, 0.08, 0.11, 1)
-            self._qr_card_bg = RoundedRectangle(
-                pos=qr_card.pos, size=qr_card.size, radius=[18]
-            )
-        qr_card.bind(
-            pos=lambda w, v: setattr(self._qr_card_bg, 'pos', v),
-            size=lambda w, v: setattr(self._qr_card_bg, 'size', v)
+        # Modern QR card with sophisticated glass design
+        qr_main_card = ModernCard(
+            card_color=(0.09, 0.12, 0.18, 0.96),
+            border_color=(0, 0.83, 0.75, 0.4),
+            size_hint=(0.58, 0.85),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            radius=24,
+            elevation=12
         )
 
         qr_inner = BoxLayout(
             orientation='vertical',
-            size_hint=(0.86, 0.88),
+            size_hint=(0.88, 0.92),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            spacing=10
+            spacing=18
         )
 
-        self.qr_title = Label(
-            text='Scan QR Code',
-            font_size='20sp',
+        self.qr_title = AnimatedLabel(
+            text='✨ Scan QR Code',
+            font_size='24sp',
             bold=True,
-            color=(0.90, 0.90, 0.95, 1),
-            size_hint=(1, 0.10)
+            color=(0.95, 0.97, 1.0, 1),
+            size_hint=(1, 0.12),
+            halign='center', valign='middle'
+        )
+        self.qr_title.bind(size=self.qr_title.setter('text_size'))
+
+        # QR code display area with subtle border
+        qr_image_container = ModernCard(
+            card_color=(0.98, 0.98, 1.0, 0.95),
+            border_color=(0, 0.83, 0.75, 0.6),
+            size_hint=(1, 0.62),
+            radius=18,
+            elevation=2
         )
 
         self.qr_image = Image(
-            size_hint=(1, 0.68),
+            size_hint=(0.9, 0.9),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
             allow_stretch=True,
             keep_ratio=True
         )
+        qr_image_container.add_widget(self.qr_image)
 
-        self.qr_status = Label(
+        self.qr_status = AnimatedLabel(
             text='Waiting for wallet address...',
-            font_size='13sp',
-            color=(0.55, 0.58, 0.68, 1),
-            size_hint=(1, 0.12),
+            font_size='14sp',
+            color=(0.65, 0.72, 0.85, 1),
+            size_hint=(1, 0.16),
             halign='center', valign='middle'
         )
         self.qr_status.bind(size=self.qr_status.setter('text_size'))
 
         qr_close = RoundedButton(
-            text='Close',
-            font_size='15sp',
+            text='✕  Close',
+            font_size='16sp',
             size_hint=(1, 0.10),
-            btn_color=(0.22, 0.08, 0.08, 1),
-            radius=10,
-            color=(1, 0.65, 0.65, 1),
+            btn_color=(0.32, 0.12, 0.12, 0.95),
+            glow_color=(0.7, 0.3, 0.3, 0.4),
+            radius=16,
+            color=(0.98, 0.7, 0.7, 1),
             bold=True
         )
         qr_close.bind(on_press=self.close_qr_overlay)
 
         qr_inner.add_widget(self.qr_title)
-        qr_inner.add_widget(self.qr_image)
+        qr_inner.add_widget(qr_image_container)
         qr_inner.add_widget(self.qr_status)
         qr_inner.add_widget(qr_close)
 
-        qr_card.add_widget(qr_inner)
-        self.qr_overlay.add_widget(qr_card)
+        qr_main_card.add_widget(qr_inner)
+        self.qr_overlay.add_widget(qr_main_card)
         self.root_layout.add_widget(self.qr_overlay)
 
         # ── State Init ────────────────────────────────────────────────
@@ -736,20 +1018,18 @@ class CameraApp(App):
             try:
                 if self.camera.initialize():
                     camera_id = self.camera.get_camera_id()
+                    self.camera_ready = True
                 else:
-                    self.status_label.text = '✗ Camera Error'
-                    self.show_error("Camera initialization failed")
+                    self.show_status('✗ Camera Initialization Failed', 'error', 5)
             except Exception as e:
-                self.status_label.text = '✗ Not Found'
-                self.show_error(f"Camera error: {e}")
+                self.show_status('✗ Camera Not Found', 'error', 5)
                 try:
                     if self.camera.camera is not None:
                         self.camera.cleanup()
                 except:
                     pass
         else:
-            self.status_label.text = 'Demo Mode'
-            self.show_error("Picamera2 not installed")
+            self.show_status('📸 Demo Mode - Picamera2 Not Installed', 'warning', 5)
 
         if HARDWARE_IDENTITY_AVAILABLE:
             try:
@@ -768,32 +1048,139 @@ class CameraApp(App):
         if self.hardware_identity:
             Clock.schedule_once(lambda dt: self._check_balance_and_setup(), 1)
 
-        # Schedule UI updates
+        # Schedule UI startup animations
+        Clock.schedule_once(self._startup_animations, 0.1)
+
+        # Schedule UI updates with enhanced effects
         Clock.schedule_interval(self.update_datetime, 1.0)
         Clock.schedule_interval(self.update_battery, 5.0)
 
         return self.root_layout
+
+    def _startup_animations(self, dt):
+        """Perform smooth startup animations for UI elements."""
+        # Animate top card sliding in from top
+        self.top_card.y += 60
+        self.top_card.opacity = 0
+        slide_anim = Animation(y=self.top_card.y - 60, opacity=1, duration=0.8, t='out_back')
+        slide_anim.start(self.top_card)
+
+        # Animate bottom control panel sliding in from bottom
+        Clock.schedule_once(lambda dt: self._animate_control_panel(), 0.3)
+
+        # Animate brand label
+        Clock.schedule_once(lambda dt: self.datetime_label.animate_in('fade'), 0.6)
+
+    def _animate_control_panel(self):
+        """Animate control panel entrance."""
+        self.control_card.y -= 80
+        self.control_card.opacity = 0
+        slide_anim = Animation(y=self.control_card.y + 80, opacity=1, duration=0.9, t='out_back')
+        slide_anim.start(self.control_card)
+
+    def show_status(self, message, status_type='info', duration=3):
+        """Enhanced status display with smooth animations and color coding."""
+        # Set status colors based on type
+        if status_type == 'success':
+            self.status_label.color = (0.2, 0.9, 0.4, 1)
+            border_color = (0.2, 0.9, 0.4, 0.6)
+        elif status_type == 'error':
+            self.status_label.color = (1.0, 0.3, 0.3, 1)
+            border_color = (1.0, 0.3, 0.3, 0.6)
+        elif status_type == 'warning':
+            self.status_label.color = (1.0, 0.8, 0.2, 1)
+            border_color = (1.0, 0.8, 0.2, 0.6)
+        else:  # info
+            self.status_label.color = (0.85, 0.9, 1.0, 1)
+            border_color = (0, 0.83, 0.75, 0.6)
+
+        # Update border color
+        self.status_card._border_color = list(border_color)
+        if hasattr(self.status_card, '_border_instr'):
+            self.status_card._border_instr.rgba = border_color
+
+        # Set message and animate in
+        self.status_label.text = message
+        self.status_card.opacity = 0
+        self.status_card.y -= 20
+
+        # Slide up and fade in
+        slide_anim = Animation(y=self.status_card.y + 20, opacity=1, duration=0.4, t='out_back')
+        slide_anim.start(self.status_card)
+
+        # Auto-hide after duration
+        def hide_status(dt):
+            fade_anim = Animation(opacity=0, duration=0.3, t='in_cubic')
+            fade_anim.start(self.status_card)
+
+        Clock.schedule_once(hide_status, duration)
     
-    def _update_viewfinder(self, widget, value):
-        """Draw professional viewfinder corner brackets and center mark."""
+    def _update_cinematic_viewfinder(self, widget, value):
+        """Draw enhanced cinematic viewfinder with professional film-style overlays."""
         x, y = widget.pos
         w, h = widget.size
-        bl = 28   # bracket arm length
-        lw = 2.0  # line width
+        bl = 35   # bracket arm length (increased for more dramatic effect)
+        lw = 2.5  # line width (thicker for better visibility)
         widget.canvas.clear()
+
         with widget.canvas:
-            Color(1, 1, 1, 0.30)
-            # Bottom-left
-            Line(points=[x, y + bl, x, y, x + bl, y], width=lw, cap='none', joint='miter')
-            # Bottom-right
-            Line(points=[x + w - bl, y, x + w, y, x + w, y + bl], width=lw, cap='none', joint='miter')
-            # Top-left
-            Line(points=[x, y + h - bl, x, y + h, x + bl, y + h], width=lw, cap='none', joint='miter')
-            # Top-right
-            Line(points=[x + w - bl, y + h, x + w, y + h, x + w, y + h - bl], width=lw, cap='none', joint='miter')
-            # Center crosshair dot
-            Color(1, 1, 1, 0.18)
-            Line(circle=(x + w / 2, y + h / 2, 5), width=1.5)
+            # Outer corner brackets with gradient effect
+            Color(1, 1, 1, 0.6)  # Brighter for better visibility
+            # Bottom-left corner
+            Line(points=[x, y + bl, x, y, x + bl, y], width=lw, cap='square', joint='miter')
+            # Bottom-right corner
+            Line(points=[x + w - bl, y, x + w, y, x + w, y + bl], width=lw, cap='square', joint='miter')
+            # Top-left corner
+            Line(points=[x, y + h - bl, x, y + h, x + bl, y + h], width=lw, cap='square', joint='miter')
+            # Top-right corner
+            Line(points=[x + w - bl, y + h, x + w, y + h, x + w, y + h - bl], width=lw, cap='square', joint='miter')
+
+            # Inner frame details
+            Color(1, 1, 1, 0.25)
+            inner_margin = 8
+            Line(points=[
+                x + inner_margin, y + inner_margin,
+                x + w - inner_margin, y + inner_margin,
+                x + w - inner_margin, y + h - inner_margin,
+                x + inner_margin, y + h - inner_margin,
+                x + inner_margin, y + inner_margin
+            ], width=1.2)
+
+            # Professional grid lines (rule of thirds)
+            Color(1, 1, 1, 0.15)
+            # Vertical third lines
+            v1_x = x + w / 3
+            v2_x = x + (2 * w) / 3
+            Line(points=[v1_x, y + 20, v1_x, y + h - 20], width=1.0)
+            Line(points=[v2_x, y + 20, v2_x, y + h - 20], width=1.0)
+
+            # Horizontal third lines
+            h1_y = y + h / 3
+            h2_y = y + (2 * h) / 3
+            Line(points=[x + 20, h1_y, x + w - 20, h1_y], width=1.0)
+            Line(points=[x + 20, h2_y, x + w - 20, h2_y], width=1.0)
+
+            # Enhanced center focus indicator
+            Color(0, 0.83, 0.75, 0.7)  # Teal accent color
+            center_x, center_y = x + w / 2, y + h / 2
+
+            # Center cross with animated feel
+            cross_size = 15
+            Line(points=[center_x - cross_size, center_y, center_x + cross_size, center_y], width=2.0)
+            Line(points=[center_x, center_y - cross_size, center_x, center_y + cross_size], width=2.0)
+
+            # Center circle
+            Color(0, 0.83, 0.75, 0.4)
+            Line(circle=(center_x, center_y, 25), width=1.8)
+
+            # Corner accent marks for cinematic feel
+            Color(1, 1, 1, 0.4)
+            corner_size = 4
+            # Small corner details
+            for corner_x in [x + 10, x + w - 10]:
+                for corner_y in [y + 10, y + h - 10]:
+                    Line(points=[corner_x - corner_size, corner_y, corner_x + corner_size, corner_y], width=1.5)
+                    Line(points=[corner_x, corner_y - corner_size, corner_x, corner_y + corner_size], width=1.5)
 
     def _check_balance_and_setup(self):
         """Check wallet balance and setup camera stream if sufficient."""
@@ -884,14 +1271,18 @@ class CameraApp(App):
         threading.Thread(target=check_thread, daemon=True).start()
     
     def _start_camera_stream(self):
-        """Start camera preview stream."""
+        """Start camera preview stream with enhanced feedback."""
         if CAMERA_AVAILABLE and self.camera.initialized:
-            self.status_label.text = '✓ Ready'
+            # Show ready status with success animation
+            self.show_status('✨ Camera Ready!', 'success', 3)
+
             # Schedule preview updates
             Clock.schedule_interval(self.update_preview, 1.0 / 30.0)  # 30 FPS
-            # Clear status after 2 seconds
-            Clock.schedule_once(lambda dt: setattr(self.status_label, 'text', ''), 2)
             self.camera_ready = True
+
+            # Add a subtle glow to the photo button to indicate readiness
+            Clock.schedule_once(lambda dt: self.photo_button.enable_glow(0.5), 3.5)
+            Clock.schedule_once(lambda dt: self.photo_button.disable_glow(0.5), 5.0)
     
     def _show_funding_qr_button(self, instance):
         if self.hardware_identity:
@@ -900,18 +1291,18 @@ class CameraApp(App):
             self._show_funding_qr(address, 0, 'ETH')
     
     def _show_funding_qr(self, address, current_balance, token_type='ETH'):
-        """Show QR code for funding the wallet."""
+        """Show QR code for funding the wallet with enhanced presentation."""
         if not QRCODE_AVAILABLE:
             if token_type == 'ETH':
-                self.status_label.text = f'⚠️ Low Balance: {current_balance:.4f} ETH\nFund: {address}'
+                self.show_status(f'⚠️ Low Balance: {current_balance:.4f} ETH\nFund: {address}', 'warning', 10)
             else:
-                self.status_label.text = f'⚠️ Low Balance: {current_balance:.4f} {token_type}\nFund: {address}'
+                self.show_status(f'⚠️ Low Balance: {current_balance:.4f} {token_type}\nFund: {address}', 'warning', 10)
             return
-        
+
         try:
             # Use plain address - MetaMask can scan it directly
             funding_data = address
-            
+
             # Generate QR code
             qr = qrcode.QRCode(
                 version=1,
@@ -921,40 +1312,41 @@ class CameraApp(App):
             )
             qr.add_data(funding_data)
             qr.make(fit=True)
-            
+
             # Create image
             img = qr.make_image(fill_color="black", back_color="white")
-            
+
             # Convert to bytes
             img_bytes = BytesIO()
             img.save(img_bytes, format='PNG')
             img_bytes.seek(0)
-            
+
             # Save to temp file
             temp_path = Path(CAPTURE_DIR) / "funding_qr.png"
             with open(temp_path, 'wb') as f:
                 f.write(img_bytes.read())
-            
-            # Update QR overlay for funding
+
+            # Update QR overlay for funding with enhanced styling
             self.qr_image.source = str(temp_path)
             self.qr_image.reload()
-            
-            # Update title and status text
-            self.qr_title.text = '💰 Fund Wallet'
+
+            # Update title and status text with better formatting
+            self.qr_title.text = '💰 Fund Your Wallet'
             min_amount = '0.01 ETH' if token_type == 'ETH' else '0.1 USDFC'
-            self.qr_status.text = f'⚠️ Low Balance: {current_balance:.4f} {token_type}\n\nWallet Address:\n{address}\n\nScan with MetaMask\nSend {min_amount} or more'
-            self.qr_status.color = (1, 1, 0, 1)  # Yellow
-            
-            # Show overlay
-            self.qr_overlay.opacity = 1
-            
-            # Update main status
-            self.status_label.text = '⚠️ Funding Required'
-            self.status_label.color = (1, 1, 0, 1)  # Yellow
-            
+            self.qr_status.text = f'⚠️ Low Balance: {current_balance:.4f} {token_type}\n\n🏠 Wallet Address:\n{address[:22]}...\n{address[-20:]}\n\n📱 Scan with MetaMask\n💸 Send {min_amount} or more'
+            self.qr_status.color = (1, 0.85, 0.3, 1)  # Warm yellow
+
+            # Show overlay with smooth animation
+            self.qr_overlay.opacity = 0
+            fade_anim = Animation(opacity=1, duration=0.6, t='out_cubic')
+            fade_anim.start(self.qr_overlay)
+
+            # Update main status with enhanced styling
+            self.show_status('💰 Funding Required for Full Features', 'warning', 0)
+
         except Exception as e:
             print(f"Error generating funding QR: {e}")
-            self.status_label.text = f'⚠️ Fund: {address}'
+            self.show_status(f'⚠️ Fund wallet: {address[:20]}...', 'warning', 8)
     
     def _start_balance_polling(self, address):
         """Poll balance until sufficient funds are available."""
@@ -1236,8 +1628,15 @@ class CameraApp(App):
             self.battery_label.color = (0, 1, 0, 1)  # Green
 
     def take_photo(self, instance):
-        """Handle photo capture button press."""
-        self.status_label.text = '📸 Capturing...'
+        """Enhanced photo capture with visual feedback and animations."""
+        # Immediate visual feedback - button glow effect
+        instance.enable_glow()
+
+        # Create camera flash effect
+        self._create_camera_flash()
+
+        # Show capturing status with animation
+        self.show_status('📸 Capturing...', 'info', 1)
 
         # Run in thread to avoid blocking UI
         def capture_thread():
@@ -1245,6 +1644,12 @@ class CameraApp(App):
 
             if filename:
                 try:
+                    # Show success feedback
+                    Clock.schedule_once(
+                        lambda dt: self.show_status('✓ Photo Captured!', 'success', 2),
+                        0
+                    )
+
                     # Generate hardware signature for the image
                     signature_info = None
                     if self.hardware_identity:
@@ -1252,42 +1657,53 @@ class CameraApp(App):
                             signature_info = self._sign_image(filename)
                             if signature_info:
                                 print(f"Image signed: {signature_info['address']}")
+                                Clock.schedule_once(
+                                    lambda dt: self.show_status('🔐 Image Signed', 'success', 1.5),
+                                    0.5
+                                )
                         except Exception as e:
                             print(f"Warning: Could not sign image: {e}")
-                    
+
                     if signature_info:
                         # Upload to backend and create claim
                         self._upload_and_create_claim(filename, signature_info)
                     else:
                         Clock.schedule_once(
-                            lambda dt: setattr(self.status_label, 'text', '✗ Sign Failed'),
+                            lambda dt: self.show_status('✗ Signing Failed', 'error', 3),
                             0
                         )
-                        Clock.schedule_once(
-                            lambda dt: setattr(self.status_label, 'text', ''),
-                            2
-                        )
+
                 except Exception as e:
                     print(f"Error processing photo: {e}")
                     Clock.schedule_once(
-                        lambda dt: setattr(self.status_label, 'text', '✗ Error'),
+                        lambda dt: self.show_status('✗ Processing Error', 'error', 3),
                         0
-                    )
-                    Clock.schedule_once(
-                        lambda dt: setattr(self.status_label, 'text', ''),
-                        2
                     )
             else:
                 Clock.schedule_once(
-                    lambda dt: setattr(self.status_label, 'text', '✗ Failed'),
+                    lambda dt: self.show_status('✗ Capture Failed', 'error', 3),
                     0
                 )
-                Clock.schedule_once(
-                    lambda dt: setattr(self.status_label, 'text', ''),
-                    2
-                )
+
+            # Disable button glow after capture
+            Clock.schedule_once(lambda dt: instance.disable_glow(), 1)
 
         threading.Thread(target=capture_thread, daemon=True).start()
+
+    def _create_camera_flash(self):
+        """Create a camera flash effect overlay."""
+        flash_overlay = FloatLayout(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+
+        with flash_overlay.canvas:
+            Color(1, 1, 1, 0.8)
+            flash_rect = Rectangle(pos=(0, 0), size=Window.size)
+
+        self.root_layout.add_widget(flash_overlay)
+
+        # Animate flash fade out
+        flash_anim = Animation(opacity=0, duration=0.15, t='out_cubic')
+        flash_anim.bind(on_complete=lambda *args: self.root_layout.remove_widget(flash_overlay))
+        flash_anim.start(flash_overlay)
     
     def _get_location(self):
         """Fetch approximate location via IP geolocation. Returns dict or None."""
@@ -1303,7 +1719,7 @@ class CameraApp(App):
         return None
 
     def _upload_and_create_claim(self, filename, signature_info):
-        """Upload image to backend and create claim."""
+        """Enhanced upload with smooth progress feedback."""
         # Check if offline - save to queue
         try:
             # Try to ping backend first with retry
@@ -1322,32 +1738,28 @@ class CameraApp(App):
             online = False
             print("⚠️ Backend offline - saving to queue")
             Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', '⚠️ Offline - Saved Locally'),
+                lambda dt: self.show_status('⚠️ Offline - Saved Locally', 'warning', 4),
                 0
-            )
-            Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', ''),
-                3
             )
             return
-        
+
         try:
             Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', '📤 Uploading...'),
+                lambda dt: self.show_status('📤 Uploading to blockchain...', 'info', 0),
                 0
             )
-            
+
             # Read image file
             with open(filename, 'rb') as f:
                 image_data = f.read()
-            
+
             # Compute image hash
             image_hash = hashlib.sha256(image_data).hexdigest()
-            
+
             # Get device info
             device_address = signature_info['address']
             camera_id = self.camera.get_camera_id() if self.camera.initialized else 'unknown'
-            
+
             # Get location via IP geolocation (best-effort)
             location = self._get_location()
 
@@ -1362,7 +1774,7 @@ class CameraApp(App):
                 'longitude': str(location['lon']) if location else '',
                 'locationName': location['name'] if location else ''
             }
-            
+
             # Upload to backend
             response = requests.post(
                 f'{BACKEND_URL}/api/images/upload',
@@ -1370,68 +1782,57 @@ class CameraApp(App):
                 data=data,
                 timeout=60
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
-                
+
                 if result.get('success'):
                     claim_url = result.get('claimUrl') or result.get('qrCodeUrl')
                     claim_id = result.get('claimId')
                     image_id = result.get('imageId')
-                    
+
                     if claim_url and claim_id:
                         # Store claim for polling
                         self.active_claims[claim_id] = image_id
-                        
-                        # Show success message
+
+                        # Show success message with animation
                         Clock.schedule_once(
-                            lambda dt: setattr(self.status_label, 'text', '✓ Uploaded! Minting...'),
+                            lambda dt: self.show_status('✓ Uploaded! Minting NFT...', 'success', 3),
                             0
                         )
-                        
-                        # Note: NFT will be minted to owner wallet automatically by backend
-                        # QR code is for others to mint editions
-                        
+
                         # Display QR code for claiming editions
                         Clock.schedule_once(
                             lambda dt: self._show_qr_code(claim_url, claim_id),
                             2
                         )
-                        
-                        # Start polling for claim status (to show when minted)
+
+                        # Start polling for claim status
                         Clock.schedule_once(
                             lambda dt: self._start_claim_polling(claim_id),
                             0
                         )
                     else:
                         Clock.schedule_once(
-                            lambda dt: setattr(self.status_label, 'text', '✓ Saved (No Claim)'),
+                            lambda dt: self.show_status('✓ Saved (No Claim)', 'success', 3),
                             0
                         )
                 else:
                     raise Exception(result.get('error', 'Upload failed'))
             else:
                 raise Exception(f"HTTP {response.status_code}: {response.text}")
-                
+
         except requests.exceptions.RequestException as e:
             print(f"Upload error: {e}")
             Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', '✗ Upload Failed'),
+                lambda dt: self.show_status('✗ Upload Failed - Check Connection', 'error', 4),
                 0
-            )
-            Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', ''),
-                3
             )
         except Exception as e:
             print(f"Error uploading: {e}")
             Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', '✗ Error'),
+                lambda dt: self.show_status('✗ Upload Error', 'error', 3),
                 0
-            )
-            Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', ''),
-                3
             )
     
     def _generate_qr_image(self, data, out_path):
@@ -1463,7 +1864,7 @@ class CameraApp(App):
             return False
 
     def _show_qr_code(self, claim_url, claim_id):
-        """Display QR code overlay."""
+        """Display QR code overlay with smooth animations."""
         try:
             temp_path = Path(CAPTURE_DIR) / f"qr_{claim_id}.png"
             ok = self._generate_qr_image(claim_url, str(temp_path))
@@ -1474,19 +1875,33 @@ class CameraApp(App):
             else:
                 self.qr_image.source = ''
 
-            self.qr_title.text = '📱 Scan to Claim NFT'
-            self.qr_status.text = claim_url if not ok else 'Waiting for wallet address...'
-            self.qr_status.color = (1, 1, 1, 1)
-            self.qr_overlay.opacity = 1
+            # Update content with enhanced styling
+            self.qr_title.text = '🎨 Scan to Claim NFT'
+            self.qr_status.text = claim_url if not ok else 'Share this QR code to let others mint NFT editions'
+            self.qr_status.color = (0.75, 0.82, 0.95, 1)
+
+            # Animate overlay appearance
+            self.qr_overlay.opacity = 0
+            fade_anim = Animation(opacity=1, duration=0.5, t='out_cubic')
+            fade_anim.start(self.qr_overlay)
+
+            # Animate QR card with scale effect
+            qr_card = self.qr_overlay.children[0]  # Get the main card
+            original_size = qr_card.size_hint
+            qr_card.size_hint = (0.1, 0.1)
+            scale_anim = Animation(size_hint=original_size, duration=0.6, t='out_back')
+            Clock.schedule_once(lambda dt: scale_anim.start(qr_card), 0.1)
 
         except Exception as e:
             print(f"Error generating QR code: {e}")
             self.qr_status.text = f"URL: {claim_url}"
-            self.qr_overlay.opacity = 1
-    
+            fade_anim = Animation(opacity=1, duration=0.3)
+            fade_anim.start(self.qr_overlay)
+
     def close_qr_overlay(self, instance):
-        """Close QR code overlay."""
-        self.qr_overlay.opacity = 0
+        """Close QR code overlay with smooth animation."""
+        fade_anim = Animation(opacity=0, duration=0.4, t='in_cubic')
+        fade_anim.start(self.qr_overlay)
     
     def _start_claim_polling(self, claim_id):
         """Start polling for claim status."""
@@ -1588,109 +2003,146 @@ class CameraApp(App):
             return None
 
     def toggle_recording(self, instance):
-        """Handle video recording button press."""
+        """Enhanced video recording with visual feedback."""
         if not self.camera.recording:
-            # Start recording
+            # Start recording with visual feedback
+            instance.enable_glow()
             filename = self.camera.start_recording()
 
             if filename:
-                self.video_button.text = 'STOP'
-                self.video_button.background_color = (0.8, 0.4, 0.1, 1)
-                self.status_label.text = '🔴 REC'
-                self.status_label.color = (1, 0.2, 0.2, 1)  # Red for recording
+                # Animate button state change
+                instance.text = '⏹️ STOP'
+                new_color = [0.8, 0.4, 0.1, 1]
+                color_anim = Animation(duration=0.3, t='out_cubic')
+                # Update button colors manually for recording state
+                instance._btn_color = new_color
+                if instance._color_instr:
+                    instance._color_instr.rgba = new_color
+
+                # Show recording status with pulsing effect
+                self.show_status('🔴 REC', 'error', 0)  # Keep showing until stop
+
+                # Make status pulse during recording
+                def pulse_recording_status(dt):
+                    if self.camera.recording and self.status_card.opacity > 0:
+                        self.status_label.pulse_color((1, 0.2, 0.2, 1), 1.5)
+                        return True  # Continue pulsing
+                    return False
+
+                Clock.schedule_interval(pulse_recording_status, 2.0)
             else:
-                self.status_label.text = '✗ Failed'
-                self.status_label.color = (1, 1, 1, 1)
-                Clock.schedule_once(lambda dt: setattr(self.status_label, 'text', ''), 2)
+                instance.disable_glow()
+                self.show_status('✗ Recording Failed', 'error', 3)
         else:
             # Stop recording
             self.camera.stop_recording()
-            self.video_button.text = 'VIDEO'
-            self.video_button.background_color = (0.6, 0.2, 0.2, 1)
-            self.status_label.text = '✓ Saved'
-            self.status_label.color = (1, 1, 1, 1)
 
-            # Reset status after 2 seconds
-            Clock.schedule_once(
-                lambda dt: setattr(self.status_label, 'text', ''),
-                2
-            )
+            # Animate button back to original state
+            instance.text = '🎬 VIDEO'
+            original_color = [0.42, 0.12, 0.12, 0.95]
+            instance._btn_color = original_color
+            if instance._color_instr:
+                instance._color_instr.rgba = original_color
+
+            instance.disable_glow()
+            self.show_status('✓ Video Saved', 'success', 2)
 
     def zoom_in(self, instance):
-        """Handle zoom in button press."""
+        """Enhanced zoom with visual feedback."""
+        instance.enable_glow(0.2)
         self.camera.zoom_in()
-        self.status_label.text = f'🔍 {self.camera.current_zoom:.1f}x'
-        Clock.schedule_once(
-            lambda dt: setattr(self.status_label, 'text', ''),
-            1
-        )
+
+        # Show zoom level with smooth animation
+        self.show_status(f'🔍 Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
+
+        # Disable glow after short time
+        Clock.schedule_once(lambda dt: instance.disable_glow(0.2), 0.3)
 
     def zoom_out(self, instance):
-        """Handle zoom out button press."""
+        """Enhanced zoom out with visual feedback."""
+        instance.enable_glow(0.2)
         self.camera.zoom_out()
-        self.status_label.text = f'🔍 {self.camera.current_zoom:.1f}x'
-        Clock.schedule_once(
-            lambda dt: setattr(self.status_label, 'text', ''),
-            1
-        )
+
+        # Show zoom level with smooth animation
+        self.show_status(f'🔍 Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
+
+        # Disable glow after short time
+        Clock.schedule_once(lambda dt: instance.disable_glow(0.2), 0.3)
 
     def show_error(self, message):
-        """Display error message."""
+        """Display error message using enhanced status system."""
         print(f"ERROR: {message}")
-        self.status_label.text = 'Error'
-        self.status_label.color = (1, 0, 0, 1)
+        self.show_status(f'⚠️ {message}', 'error', 5)
 
     def open_gallery(self, instance):
-        """Open gallery view to browse photos and videos."""
+        """Open modern gallery view with enhanced styling."""
+        # Add glow effect to button
+        instance.enable_glow(0.3)
+
+        # Create modern gallery overlay
         self.gallery_overlay = FloatLayout()
 
+        # Enhanced backdrop
         with self.gallery_overlay.canvas.before:
-            Color(0.03, 0.03, 0.05, 0.97)
+            Color(0.02, 0.03, 0.06, 0.96)
             self.gallery_bg = Rectangle(size=Window.size, pos=(0, 0))
+
+        # Modern gallery container
+        gallery_main_card = ModernCard(
+            card_color=(0.06, 0.08, 0.12, 0.94),
+            border_color=(0, 0.83, 0.75, 0.3),
+            size_hint=(0.96, 0.96),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            radius=20,
+            elevation=10
+        )
 
         gallery_container = BoxLayout(
             orientation='vertical',
-            size_hint=(0.96, 0.96),
+            size_hint=(0.94, 0.94),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            spacing=12,
-            padding=[12, 12]
+            spacing=16,
+            padding=[16, 16]
         )
 
+        # Enhanced top bar
         top_bar = BoxLayout(
             orientation='horizontal',
             size_hint=(1, 0.11),
-            spacing=12,
-            padding=[0, 4]
+            spacing=16,
+            padding=[0, 8]
         )
 
-        title = Label(
-            text='[b][color=00D4C0]◫[/color]  GALLERY[/b]',
+        title = AnimatedLabel(
+            text='[b][color=00D4C0]🖼️[/color]  GALLERY[/b]',
             markup=True,
-            font_size='22sp',
-            size_hint=(0.55, 1),
+            font_size='26sp',
+            size_hint=(0.50, 1),
             halign='left', valign='middle',
-            color=(0.90, 0.90, 0.94, 1),
+            color=(0.95, 0.97, 1.0, 1),
         )
         title.bind(size=title.setter('text_size'))
 
         quit_gallery_button = RoundedButton(
-            text='◉  CAMERA',
-            font_size='15sp',
-            size_hint=(0.30, 0.88),
-            btn_color=(0.09, 0.26, 0.16, 1),
-            radius=10,
-            color=(0.50, 0.92, 0.62, 1),
+            text='📸  CAMERA',
+            font_size='16sp',
+            size_hint=(0.32, 0.9),
+            btn_color=(0.12, 0.32, 0.20, 0.95),
+            glow_color=(0.25, 0.6, 0.4, 0.4),
+            radius=14,
+            color=(0.6, 0.95, 0.75, 1),
             bold=True
         )
         quit_gallery_button.bind(on_press=self.quit_gallery)
 
         close_button = RoundedButton(
             text='✕',
-            font_size='18sp',
-            size_hint=(0.12, 0.88),
-            btn_color=(0.22, 0.07, 0.07, 1),
-            radius=10,
-            color=(0.90, 0.48, 0.48, 1),
+            font_size='20sp',
+            size_hint=(0.15, 0.9),
+            btn_color=(0.28, 0.10, 0.10, 0.95),
+            glow_color=(0.6, 0.25, 0.25, 0.4),
+            radius=14,
+            color=(0.95, 0.6, 0.6, 1),
             bold=True
         )
         close_button.bind(on_press=self.close_gallery)
@@ -1699,19 +2151,20 @@ class CameraApp(App):
         top_bar.add_widget(quit_gallery_button)
         top_bar.add_widget(close_button)
 
+        # Enhanced scroll view with better styling
         self.gallery_scroll_view = ScrollView(
             size_hint=(1, 0.89),
-            bar_width=5,
+            bar_width=8,
             scroll_type=['bars', 'content'],
-            bar_color=(0.28, 0.32, 0.52, 0.9),
-            bar_inactive_color=(0.18, 0.20, 0.32, 0.5)
+            bar_color=(0, 0.83, 0.75, 0.8),
+            bar_inactive_color=(0.25, 0.30, 0.45, 0.5)
         )
 
         self.gallery_grid = GridLayout(
             cols=3,
-            spacing=12,
+            spacing=16,
             size_hint_y=None,
-            padding=[0, 6]
+            padding=[8, 12]
         )
         self.gallery_grid.bind(minimum_height=self.gallery_grid.setter('height'))
 
@@ -1721,11 +2174,25 @@ class CameraApp(App):
         gallery_container.add_widget(top_bar)
         gallery_container.add_widget(self.gallery_scroll_view)
 
-        self.gallery_overlay.add_widget(gallery_container)
+        gallery_main_card.add_widget(gallery_container)
+        self.gallery_overlay.add_widget(gallery_main_card)
+
+        # Animate gallery entrance
+        self.gallery_overlay.opacity = 0
         self.root_layout.add_widget(self.gallery_overlay)
 
+        # Smooth fade-in animation
+        fade_anim = Animation(opacity=1, duration=0.5, t='out_cubic')
+        fade_anim.start(self.gallery_overlay)
+
+        # Animate title
+        Clock.schedule_once(lambda dt: title.animate_in('slide_up'), 0.2)
+
+        # Disable button glow after opening
+        Clock.schedule_once(lambda dt: instance.disable_glow(0.3), 0.5)
+
     def load_gallery_items(self):
-        """Load and display photos and videos from capture directory."""
+        """Load and display photos and videos with modern card styling."""
         # Clear existing items
         self.gallery_grid.clear_widgets()
 
@@ -1743,54 +2210,92 @@ class CameraApp(App):
         all_media.sort(key=lambda x: x[1], reverse=True)
 
         if not all_media:
-            no_files_label = Label(
-                text='[b][color=00D4C0]◎[/color][/b]\n\nNo captures yet\nTake a photo to get started',
-                markup=True,
-                font_size='20sp',
-                halign='center', valign='middle',
-                color=(0.35, 0.38, 0.48, 1),
+            no_files_card = ModernCard(
+                card_color=(0.08, 0.12, 0.18, 0.6),
+                border_color=(0, 0.83, 0.75, 0.2),
                 size_hint_y=None,
-                height=320
+                height=360,
+                radius=18,
+                elevation=2
+            )
+
+            no_files_label = AnimatedLabel(
+                text='[b][color=00D4C0]📷[/color][/b]\n\nNo captures yet\n\n✨ Take a photo to get started!',
+                markup=True,
+                font_size='22sp',
+                halign='center', valign='middle',
+                color=(0.45, 0.52, 0.68, 1),
+                size_hint=(0.9, 0.9),
+                pos_hint={'center_x': 0.5, 'center_y': 0.5}
             )
             no_files_label.bind(size=no_files_label.setter('text_size'))
-            self.gallery_grid.add_widget(no_files_label)
+            no_files_card.add_widget(no_files_label)
+            self.gallery_grid.add_widget(no_files_card)
+
+            # Animate the empty state message
+            Clock.schedule_once(lambda dt: no_files_label.animate_in('fade'), 0.2)
             return
 
         for media_type, filepath in all_media:
+            # Create modern card container for each item
+            item_card = ModernCard(
+                card_color=(0.10, 0.14, 0.20, 0.85),
+                border_color=(0, 0.83, 0.75, 0.25),
+                size_hint_y=None,
+                height=280,
+                radius=16,
+                elevation=4
+            )
+
             item_layout = BoxLayout(
                 orientation='vertical',
-                size_hint_y=None,
-                height=240,
-                spacing=6
+                size_hint=(0.9, 0.9),
+                pos_hint={'center_x': 0.5, 'center_y': 0.5},
+                spacing=8
             )
 
             if media_type == 'photo':
+                # Photo thumbnail with enhanced border
+                thumb_container = ModernCard(
+                    card_color=(1, 1, 1, 0.95),
+                    border_color=(0, 0.83, 0.75, 0.4),
+                    size_hint=(1, 0.85),
+                    radius=12,
+                    elevation=2
+                )
+
                 thumb_button = Button(
                     background_normal=filepath,
                     background_down=filepath,
-                    size_hint=(1, 0.86),
+                    size_hint=(0.92, 0.92),
+                    pos_hint={'center_x': 0.5, 'center_y': 0.5},
                     border=(0, 0, 0, 0)
                 )
+                thumb_container.add_widget(thumb_button)
             else:
-                thumb_button = RoundedButton(
-                    text='▶\nVIDEO',
-                    font_size='26sp',
-                    btn_color=(0.10, 0.10, 0.18, 1),
-                    radius=8,
-                    size_hint=(1, 0.86),
-                    color=(0.52, 0.60, 0.90, 1),
+                # Video placeholder with modern styling
+                thumb_container = RoundedButton(
+                    text='▶️\nVIDEO',
+                    font_size='28sp',
+                    btn_color=(0.15, 0.18, 0.25, 0.95),
+                    glow_color=(0.3, 0.4, 0.6, 0.4),
+                    radius=12,
+                    size_hint=(1, 0.85),
+                    color=(0.7, 0.8, 0.95, 1),
                     bold=True
                 )
+                thumb_button = thumb_container
 
             thumb_button.filepath = filepath
             thumb_button.media_type = media_type
             thumb_button.bind(on_press=self.view_media)
 
+            # Enhanced timestamp label
             filename = os.path.basename(filepath)
             try:
                 date_part = filename[6:14]
                 time_part = filename[15:21]
-                icon = '◷' if media_type == 'photo' else '▶'
+                icon = '📷' if media_type == 'photo' else '🎬'
                 label_text = (
                     f'{icon}  {date_part[:4]}-{date_part[4:6]}-{date_part[6:]}'
                     f'  {time_part[:2]}:{time_part[2:4]}'
@@ -1798,18 +2303,24 @@ class CameraApp(App):
             except Exception:
                 label_text = filename[6:21]
 
-            label = Label(
+            label = AnimatedLabel(
                 text=label_text,
-                font_size='11sp',
-                size_hint=(1, 0.14),
-                color=(0.40, 0.44, 0.56, 1),
-                halign='center', valign='middle'
+                font_size='12sp',
+                size_hint=(1, 0.15),
+                color=(0.65, 0.75, 0.90, 1),
+                halign='center', valign='middle',
+                bold=True
             )
             label.bind(size=label.setter('text_size'))
 
-            item_layout.add_widget(thumb_button)
+            if media_type == 'photo':
+                item_layout.add_widget(thumb_container)
+            else:
+                item_layout.add_widget(thumb_container)
+
             item_layout.add_widget(label)
-            self.gallery_grid.add_widget(item_layout)
+            item_card.add_widget(item_layout)
+            self.gallery_grid.add_widget(item_card)
 
     def view_media(self, instance):
         """View selected photo or video in full screen."""
