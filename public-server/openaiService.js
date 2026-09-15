@@ -1,26 +1,26 @@
 /**
- * geminiService.js
+ * openaiService.js
  *
- * Wraps the Gemini REST API for the Veris claim server.
+ * Wraps the OpenAI REST API for the Veris claim server.
  *
  * Two-stage pipeline used across the app:
- *   1. Gemini vision describes an image (rich description + short caption + tags)
- *   2. gemini-embedding-001 embeds that description into a vector
+ *   1. GPT vision describes an image (rich description + short caption + tags)
+ *   2. text-embedding-3-small embeds that description into a vector
  *
  * The description powers richer NFT metadata; the embedding powers semantic
  * "find similar photos" search. Everything runs through a small sequential
- * queue so backfill / enrichment bursts don't blow past Gemini rate limits.
+ * queue so backfill / enrichment bursts don't blow past OpenAI rate limits.
  *
  * CommonJS + native fetch (Node 18+) to match the rest of public-server.
  */
 
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const OPENAI_API_BASE = "https://api.openai.com/v1";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const VISION_MODEL = process.env.GEMINI_VISION_MODEL || "gemini-3.6-flash";
-const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
-const EMBED_DIM = parseInt(process.env.GEMINI_EMBED_DIM || "768", 10);
-const REQUEST_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT || "30000", 10);
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const VISION_MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini";
+const EMBED_MODEL = process.env.OPENAI_EMBED_MODEL || "text-embedding-3-small";
+const EMBED_DIM = parseInt(process.env.OPENAI_EMBED_DIM || "1536", 10);
+const REQUEST_TIMEOUT_MS = parseInt(process.env.OPENAI_TIMEOUT || "30000", 10);
 
 const DESCRIBE_PROMPT =
   "You are analyzing a photograph for a verifiable-photo index. " +
@@ -50,6 +50,7 @@ const RESPONSE_SCHEMA = {
     "likely_ai_generated",
     "ai_assessment",
   ],
+  additionalProperties: false,
 };
 
 // Prompt + schema for comparing a flagged "altered copy" against its on-chain
@@ -77,10 +78,12 @@ const COMPARE_SCHEMA = {
     change_type: { type: "string" },
   },
   required: ["summary", "changes", "change_type"],
+  additionalProperties: false,
 };
 
-// L2-normalize a vector. gemini-embedding-001 does NOT return unit-length
-// vectors when outputDimensionality < 3072, so we normalize ourselves; this
+// L2-normalize a vector. OpenAI's embeddings are unit-length at their native
+// dimension, but requesting a truncated `dimensions` value (Matryoshka
+// truncation) is NOT unit-length afterwards, so we normalize ourselves; this
 // also lets stored vectors be compared with a plain dot product if needed.
 function l2normalize(vec) {
   let norm = 0;
@@ -112,7 +115,7 @@ async function postJson(url, body) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -126,12 +129,12 @@ async function postJson(url, body) {
     }
     if (!res.ok) {
       const msg = data?.error?.message || `HTTP ${res.status}`;
-      throw new Error(`Gemini API error: ${msg}`);
+      throw new Error(`OpenAI API error: ${msg}`);
     }
     return data;
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error(`Gemini request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      throw new Error(`OpenAI request timed out after ${REQUEST_TIMEOUT_MS}ms`);
     }
     throw err;
   } finally {
@@ -139,14 +142,18 @@ async function postJson(url, body) {
   }
 }
 
-class GeminiService {
+function imageDataUrl(imageBuffer, mimeType) {
+  return `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+}
+
+class OpenAIService {
   constructor() {
     // Sequential queue: each task waits for the previous to settle.
     this._queue = Promise.resolve();
   }
 
   isAvailable() {
-    return Boolean(GEMINI_API_KEY);
+    return Boolean(OPENAI_API_KEY);
   }
 
   get config() {
@@ -167,41 +174,45 @@ class GeminiService {
 
   async describeImage(imageBuffer, mimeType = "image/jpeg") {
     if (!this.isAvailable())
-      throw new Error("GEMINI_API_KEY is not configured");
-    const url = `${GEMINI_API_BASE}/models/${VISION_MODEL}:generateContent`;
+      throw new Error("OPENAI_API_KEY is not configured");
+    const url = `${OPENAI_API_BASE}/chat/completions`;
     const body = {
-      contents: [
+      model: VISION_MODEL,
+      messages: [
         {
-          parts: [
-            { text: DESCRIBE_PROMPT },
+          role: "user",
+          content: [
+            { type: "text", text: DESCRIBE_PROMPT },
             {
-              inline_data: {
-                mime_type: mimeType,
-                data: imageBuffer.toString("base64"),
-              },
+              type: "image_url",
+              image_url: { url: imageDataUrl(imageBuffer, mimeType) },
             },
           ],
         },
       ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "image_description",
+          strict: true,
+          schema: RESPONSE_SCHEMA,
+        },
       },
     };
 
     const data = await postJson(url, body);
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!raw) throw new Error("Gemini vision returned no content");
+    const raw = data?.choices?.[0]?.message?.content;
+    if (!raw) throw new Error("OpenAI vision returned no content");
 
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      throw new Error("Gemini vision returned malformed JSON");
+      throw new Error("OpenAI vision returned malformed JSON");
     }
     const description = (parsed.description || "").trim();
     if (!description)
-      throw new Error("Gemini vision returned an empty description");
+      throw new Error("OpenAI vision returned an empty description");
     const caption = (parsed.caption || "").trim();
     const tags = Array.isArray(parsed.tags)
       ? parsed.tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean)
@@ -220,43 +231,45 @@ class GeminiService {
   async compareImages(originalBuffer, suspectBuffer, mimeType = "image/jpeg") {
     return this._enqueue(async () => {
       if (!this.isAvailable())
-        throw new Error("GEMINI_API_KEY is not configured");
-      const url = `${GEMINI_API_BASE}/models/${VISION_MODEL}:generateContent`;
+        throw new Error("OPENAI_API_KEY is not configured");
+      const url = `${OPENAI_API_BASE}/chat/completions`;
       const body = {
-        contents: [
+        model: VISION_MODEL,
+        messages: [
           {
-            parts: [
-              { text: COMPARE_PROMPT },
-              { text: "IMAGE A (verified original):" },
+            role: "user",
+            content: [
+              { type: "text", text: COMPARE_PROMPT },
+              { type: "text", text: "IMAGE A (verified original):" },
               {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: originalBuffer.toString("base64"),
-                },
+                type: "image_url",
+                image_url: { url: imageDataUrl(originalBuffer, mimeType) },
               },
-              { text: "IMAGE B (uploaded copy to inspect):" },
+              { type: "text", text: "IMAGE B (uploaded copy to inspect):" },
               {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: suspectBuffer.toString("base64"),
-                },
+                type: "image_url",
+                image_url: { url: imageDataUrl(suspectBuffer, mimeType) },
               },
             ],
           },
         ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: COMPARE_SCHEMA,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "image_comparison",
+            strict: true,
+            schema: COMPARE_SCHEMA,
+          },
         },
       };
       const data = await postJson(url, body);
-      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!raw) throw new Error("Gemini comparison returned no content");
+      const raw = data?.choices?.[0]?.message?.content;
+      if (!raw) throw new Error("OpenAI comparison returned no content");
       let parsed;
       try {
         parsed = JSON.parse(raw);
       } catch {
-        throw new Error("Gemini comparison returned malformed JSON");
+        throw new Error("OpenAI comparison returned malformed JSON");
       }
       const changes = Array.isArray(parsed.changes)
         ? parsed.changes.map((c) => String(c).trim()).filter(Boolean)
@@ -269,24 +282,23 @@ class GeminiService {
     });
   }
 
-  async embedText(text, taskType = "SEMANTIC_SIMILARITY") {
+  async embedText(text) {
     if (!this.isAvailable())
-      throw new Error("GEMINI_API_KEY is not configured");
+      throw new Error("OPENAI_API_KEY is not configured");
     if (!text || !text.trim()) throw new Error("Cannot embed empty text");
-    const url = `${GEMINI_API_BASE}/models/${EMBED_MODEL}:embedContent`;
+    const url = `${OPENAI_API_BASE}/embeddings`;
     const body = {
-      model: `models/${EMBED_MODEL}`,
-      content: { parts: [{ text }] },
-      taskType,
-      outputDimensionality: EMBED_DIM,
+      model: EMBED_MODEL,
+      input: text,
+      dimensions: EMBED_DIM,
     };
     const data = await postJson(url, body);
-    const values = data?.embedding?.values;
+    const values = data?.data?.[0]?.embedding;
     if (!Array.isArray(values) || values.length === 0) {
-      throw new Error("Gemini embedding returned no vector");
+      throw new Error("OpenAI embedding returned no vector");
     }
-    // Truncated (<3072) embeddings are not unit-length; normalize for correct
-    // cosine behaviour and consistent stored vectors.
+    // Truncated (dimensions < native) embeddings are not unit-length;
+    // normalize for correct cosine behaviour and consistent stored vectors.
     return l2normalize(values);
   }
 
@@ -304,7 +316,7 @@ class GeminiService {
       // similarity. Caption + tags carry the distinguishing subject matter.
       const embedInput =
         [caption, tags.join(", ")].filter(Boolean).join(". ") || description;
-      const embedding = await this.embedText(embedInput, "SEMANTIC_SIMILARITY");
+      const embedding = await this.embedText(embedInput);
       return {
         description,
         caption,
@@ -319,5 +331,5 @@ class GeminiService {
   }
 }
 
-module.exports = new GeminiService();
+module.exports = new OpenAIService();
 module.exports.cosineSimilarity = cosineSimilarity;

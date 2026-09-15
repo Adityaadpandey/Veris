@@ -6,8 +6,8 @@ const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 const dbService = require('./dbService');
-const geminiService = require('./geminiService');
-const { cosineSimilarity } = geminiService;
+const openaiService = require('./openaiService');
+const { cosineSimilarity } = openaiService;
 const { enrichClaim, fetchImageBuffer } = require('./enrichService');
 const { sha256Hex, dHash, hammingDistance } = require('./imageHash');
 
@@ -32,7 +32,7 @@ const PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
 //   • visual  — deterministic perceptual-hash (dHash) closeness. Captures
 //               composition/framing, so a DIFFERENT ANGLE of the same scene
 //               scores LOW even when the content is alike.
-//   • content — Gemini text-embedding cosine. Captures subject matter, so two
+//   • content — OpenAI text-embedding cosine. Captures subject matter, so two
 //               different desks both described as "cluttered desk with laptop"
 //               score HIGH even though the photos look nothing alike.
 // Ranking by content alone made unrelated-but-similar-subject photos rank at
@@ -1138,8 +1138,8 @@ function requireAdminToken(req, res) {
 // literal path "backfill" as a claim id.
 app.post('/api/enrich/backfill', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
-  if (!geminiService.isAvailable()) {
-    return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
+  if (!openaiService.isAvailable()) {
+    return res.status(503).json({ success: false, error: 'OpenAI service is not configured' });
   }
   if (backfillStatus.running) {
     return res.status(409).json({ success: false, error: 'A backfill is already in progress', status: backfillStatus });
@@ -1189,8 +1189,8 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
     if (!claim) {
       return res.status(404).json({ success: false, error: 'Claim not found' });
     }
-    if (!geminiService.isAvailable()) {
-      return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
+    if (!openaiService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'OpenAI service is not configured' });
     }
     await enrichClaim(claim.claim_id, claim.cid);
     const updated = await dbService.getClaim(claim_id);
@@ -1213,8 +1213,8 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
 // Layers, in order of authority:
 //   1. exact  — SHA-256 == an on-chain image_hash  -> authentic original (proof)
 //   2. tamper — perceptual hash within PHASH_MAX_DISTANCE -> altered copy (deterministic)
-//   3. similar— Gemini embedding cosine match       -> similar content (fuzzy, labeled)
-//   4. ai_hint— Gemini vision guess                 -> AI-generated hint (non-authoritative)
+//   3. similar— OpenAI embedding cosine match        -> similar content (fuzzy, labeled)
+//   4. ai_hint— OpenAI vision guess                  -> AI-generated hint (non-authoritative)
 app.post('/api/search', upload.single('image'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
@@ -1267,15 +1267,15 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       }
     }
 
-    // ── Layers 3 & 4: Gemini description, embedding search, AI hint ──────────
-    // Best-effort: if Gemini is down, the hash verdict above is still returned.
+    // ── Layers 3 & 4: OpenAI description, embedding search, AI hint ──────────
+    // Best-effort: if OpenAI is down, the hash verdict above is still returned.
     let queryDescription = null;
     let aiHint = null;
     let similar = [];
 
-    if (geminiService.isAvailable()) {
+    if (openaiService.isAvailable()) {
       try {
-        const q = await geminiService.processImage(buffer, req.file.mimetype);
+        const q = await openaiService.processImage(buffer, req.file.mimetype);
         queryDescription = q.description || null;
         aiHint = {
           likely_ai_generated: Boolean(q.likelyAiGenerated),
@@ -1284,11 +1284,11 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         };
 
         // For an altered copy, describe WHAT changed vs the on-chain original by
-        // showing Gemini both images side by side. Non-authoritative, best-effort.
+        // showing OpenAI both images side by side. Non-authoritative, best-effort.
         if (verdict.type === 'altered_copy' && verdict.original_cid) {
           try {
             const { buffer: origBuffer } = await fetchImageBuffer(verdict.original_cid);
-            const diff = await geminiService.compareImages(origBuffer, buffer, req.file.mimetype);
+            const diff = await openaiService.compareImages(origBuffer, buffer, req.file.mimetype);
             verdict.changes = {
               summary: diff.summary || null,
               items: diff.changes,
@@ -1333,7 +1333,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           .sort((a, b) => b.similarity - a.similarity)
           .slice(0, 5);
       } catch (e) {
-        console.warn('⚠️  Gemini enrichment of query failed (hash verdict still returned):', e.message);
+        console.warn('⚠️  OpenAI enrichment of query failed (hash verdict still returned):', e.message);
       }
     }
 
@@ -1407,7 +1407,7 @@ app.get('/api/similar/:claim_id', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'LensMint Claim Server', gemini: geminiService.isAvailable() });
+  res.json({ status: 'ok', service: 'LensMint Claim Server', openai: openaiService.isAvailable() });
 });
 
 app.get('/api/image/:cid', async (req, res) => {
@@ -1472,7 +1472,7 @@ app.listen(PORT, async () => {
   console.log(`   - POST /api/enrich/:claim_id`);
   console.log(`   - POST /api/enrich/backfill?force=1  (requires X-Admin-Token)`);
   console.log(`   - GET  /api/enrich/backfill  (requires X-Admin-Token)`);
-  console.log(`🤖 Gemini enrichment: ${geminiService.isAvailable() ? 'enabled' : 'DISABLED (set GEMINI_API_KEY)'}`);
+  console.log(`🤖 OpenAI enrichment: ${openaiService.isAvailable() ? 'enabled' : 'DISABLED (set OPENAI_API_KEY)'}`);
   console.log(`🔑 Admin token: ${ADMIN_TOKEN ? 'configured' : '⚠️  not set — /api/enrich/backfill disabled'}`);
   console.log('═══════════════════════════════════════');
 });

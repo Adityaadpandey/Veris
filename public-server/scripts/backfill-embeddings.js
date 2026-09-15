@@ -2,7 +2,7 @@
 /**
  * backfill-embeddings.js
  *
- * One-time (idempotent) backfill of Gemini descriptions + embeddings for
+ * One-time (idempotent) backfill of OpenAI descriptions + embeddings for
  * claims that predate AI enrichment, or whose enrichment previously failed.
  *
  * Usage:
@@ -19,7 +19,7 @@
 require('dotenv').config();
 
 const dbService = require('../dbService');
-const geminiService = require('../geminiService');
+const openaiService = require('../openaiService');
 const { enrichClaim } = require('../enrichService');
 
 const DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
@@ -27,8 +27,8 @@ const DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
-  if (!geminiService.isAvailable()) {
-    console.error('❌ GEMINI_API_KEY is not configured. Aborting backfill.');
+  if (!openaiService.isAvailable()) {
+    console.error('❌ OPENAI_API_KEY is not configured. Aborting backfill.');
     process.exit(1);
   }
 
