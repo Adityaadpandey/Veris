@@ -108,3 +108,27 @@ def test_color_hist_identical_image_scores_high(dslr_image):
     small = dslr_image.resize((256, 256), Image.LANCZOS)
     score = signal_color_hist(small, small)
     assert score > 0.99, f"Identical image color hist score {score} should be ~1.0"
+
+
+@pytest.fixture(scope="module")
+def clip_signal():
+    """Load CLIP once for all tests in this module."""
+    from main import CLIPSignal
+    return CLIPSignal(device="cpu")
+
+
+def test_clip_same_scene_above_floor(clip_signal):
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    from main import preprocess_esp
+    esp = preprocess_esp(esp)
+    score = clip_signal.score(dslr, esp)
+    assert 0.0 <= score <= 1.0
+    assert score > 0.40, f"Same scene CLIP score {score} below floor"
+
+
+def test_clip_random_image_scores_lower(clip_signal, random_image):
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    same_score = clip_signal.score(dslr, dslr)
+    rand_score = clip_signal.score(dslr, random_image)
+    assert same_score > rand_score, "Random image should score lower than same image"
