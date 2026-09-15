@@ -20,6 +20,10 @@ app.use(express.json());
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://lensmint.onrender.com';
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
 const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
+// Shared secret required to trigger a batch backfill (POST /api/enrich/backfill).
+// Unset by default, which keeps that route disabled rather than open to anyone.
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const BACKFILL_DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
 // Max Hamming distance (out of 64 bits) for a perceptual hash to count as the
 // SAME source image (altered copy). Small = strict. Tunable without redeploy.
 const PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
@@ -1131,6 +1135,74 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
   }
 });
 
+// In-memory progress for the batch backfill below. Single-process server, so
+// a plain object is enough — no need for a job table for this.
+let backfillStatus = { running: false, total: 0, done: 0, failed: 0, force: false, startedAt: null, finishedAt: null };
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function requireAdminToken(req, res) {
+  if (!ADMIN_TOKEN) {
+    res.status(503).json({ success: false, error: 'ADMIN_TOKEN is not configured on the server' });
+    return false;
+  }
+  if (req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    res.status(401).json({ success: false, error: 'Missing or invalid X-Admin-Token header' });
+    return false;
+  }
+  return true;
+}
+
+// Batch-run AI enrichment for every claim that still needs it (never processed
+// or previously failed), or every claim with ?force=1. Fire-and-forget: kicks
+// the batch off in the background and responds immediately, since a large
+// backlog can take far longer than an HTTP request should stay open. Poll
+// GET /api/enrich/backfill for progress.
+app.post('/api/enrich/backfill', async (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  if (!geminiService.isAvailable()) {
+    return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
+  }
+  if (backfillStatus.running) {
+    return res.status(409).json({ success: false, error: 'A backfill is already in progress', status: backfillStatus });
+  }
+
+  try {
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const pending = force
+      ? await dbService.getAllClaimsWithCid()
+      : await dbService.getClaimsMissingAI();
+
+    backfillStatus = { running: true, total: pending.length, done: 0, failed: 0, force, startedAt: new Date().toISOString(), finishedAt: null };
+    res.json({ success: true, queued: pending.length, force, status: backfillStatus });
+
+    (async () => {
+      for (let i = 0; i < pending.length; i++) {
+        const claim = pending[i];
+        const status = await enrichClaim(claim.claim_id, claim.cid);
+        if (status === 'done') backfillStatus.done++; else backfillStatus.failed++;
+        if (i < pending.length - 1) await sleep(BACKFILL_DELAY_MS);
+      }
+      backfillStatus.running = false;
+      backfillStatus.finishedAt = new Date().toISOString();
+      console.log(`✅ Backfill complete: ${backfillStatus.done} enriched, ${backfillStatus.failed} failed.`);
+    })().catch(err => {
+      backfillStatus.running = false;
+      backfillStatus.finishedAt = new Date().toISOString();
+      console.error('❌ Backfill crashed:', err.message);
+    });
+  } catch (error) {
+    console.error('❌ Error starting backfill:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Progress for the currently (or most recently) running batch backfill.
+app.get('/api/enrich/backfill', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  res.json({ success: true, status: backfillStatus });
+});
+
 // Verify & Search: upload an image, get a deterministic authenticity verdict
 // (exact hash / altered copy / no match) plus similar verified photos.
 //
@@ -1394,7 +1466,10 @@ app.listen(PORT, async () => {
   console.log(`   - POST /api/search  (semantic image search)`);
   console.log(`   - GET  /api/similar/:claim_id`);
   console.log(`   - POST /api/enrich/:claim_id`);
+  console.log(`   - POST /api/enrich/backfill?force=1  (requires X-Admin-Token)`);
+  console.log(`   - GET  /api/enrich/backfill  (requires X-Admin-Token)`);
   console.log(`🤖 Gemini enrichment: ${geminiService.isAvailable() ? 'enabled' : 'DISABLED (set GEMINI_API_KEY)'}`);
+  console.log(`🔑 Admin token: ${ADMIN_TOKEN ? 'configured' : '⚠️  not set — /api/enrich/backfill disabled'}`);
   console.log('═══════════════════════════════════════');
 });
 
