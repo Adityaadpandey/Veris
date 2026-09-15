@@ -25,11 +25,19 @@
  * absorbed before the first real request arrives.
  *
  * This DOES add real memory to the public-server process (roughly
- * 150-250MB resident once loaded) — make sure the Render instance size
- * accounts for that. Set DISABLE_CLIP=1 to skip loading entirely on a
- * memory-constrained instance; every caller already checks isAvailable()
- * first (same pattern as openaiService), so the rest of Verify & Search
- * degrades gracefully without it.
+ * 150-250MB resident once loaded) — that's easily most of the budget on a
+ * small (e.g. 512MB) Render instance on top of everything else the process
+ * already holds (Postgres pool, Express, sharp, OpenAI client). So this is
+ * OPT-IN, off by default: set ENABLE_CLIP=1 explicitly once the instance size
+ * accounts for it. Every caller already checks isAvailable() first (same
+ * pattern as openaiService), so the rest of Verify & Search works completely
+ * normally without it — CLIP is purely an additive recovery signal, nothing
+ * else depends on it.
+ *
+ * Nothing loads at require-time even when enabled — the model is loaded
+ * lazily on the FIRST call that actually needs it (embedImage), so simply
+ * requiring this module never costs memory. That first call pays the ~10-15s
+ * load latency; every call after that is ~30ms on CPU.
  *
  * CommonJS wrapping a dynamic import, since @xenova/transformers is ESM-only.
  */
@@ -40,12 +48,12 @@ const fs = require('fs/promises');
 const crypto = require('crypto');
 
 const MODEL_ID = process.env.CLIP_MODEL_ID || 'Xenova/clip-vit-base-patch32';
-const DISABLED = process.env.DISABLE_CLIP === '1';
+const ENABLED = process.env.ENABLE_CLIP === '1' || process.env.ENABLE_CLIP === 'true';
 
 let extractorPromise = null;
 
 function isAvailable() {
-  return !DISABLED;
+  return ENABLED;
 }
 
 function loadExtractor() {
@@ -67,12 +75,6 @@ function loadExtractor() {
   return extractorPromise;
 }
 
-// Kick off loading at process start (not blocking server boot) so the ~10-15s
-// load time is usually absorbed before the first real search request.
-if (isAvailable()) {
-  loadExtractor().catch(err => console.warn('⚠️  CLIP model failed to preload:', err.message));
-}
-
 function l2normalize(vec) {
   let norm = 0;
   for (let i = 0; i < vec.length; i++) norm += vec[i] * vec[i];
@@ -89,7 +91,7 @@ function l2normalize(vec) {
  * @returns {Promise<number[]>} 512-dim L2-normalized embedding
  */
 async function embedImage(buffer, mimeType = 'image/jpeg') {
-  if (!isAvailable()) throw new Error('CLIP is disabled (DISABLE_CLIP=1)');
+  if (!isAvailable()) throw new Error('CLIP is disabled (set ENABLE_CLIP=1 to turn it on)');
 
   const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
   const tmpPath = path.join(os.tmpdir(), `veris-clip-${crypto.randomBytes(8).toString('hex')}.${ext}`);
