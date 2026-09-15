@@ -6,12 +6,29 @@
  *   - sha256Hex(buffer)     exact content hash (matches the hardware camera's
  *                           hashlib.sha256(image_data).hexdigest(), so an upload
  *                           of the original bytes matches the on-chain image_hash)
- *   - dHash(buffer)         64-bit perceptual (difference) hash, robust to
- *                           re-encoding / minor edits, returned as 16 hex chars
- *   - hammingDistance(a,b)  number of differing bits between two hex hashes
+ *   - dHash(buffer)         64-bit gradient hash. Robust to re-encoding and
+ *                           minor edits; sensitive to structural content changes.
+ *   - pHash(buffer)         64-bit DCT (frequency-domain) hash. Catches the
+ *                           edits dHash tends to miss — color/contrast grading,
+ *                           heavier JPEG recompression, blur/sharpen — because
+ *                           it looks at low-frequency structure rather than
+ *                           pixel-to-pixel gradients.
+ *   - aHash(buffer)         64-bit average (mean-threshold) hash. Cheap, catches
+ *                           near-duplicates fastest but is more brightness-
+ *                           sensitive; used as a third vote, weighted lowest.
+ *   - hammingDistance(a,b)  number of differing bits between two same-length hex
+ *                           hashes.
+ *   - computeHashes(buffer) all three perceptual hashes in one call.
+ *   - combinedHashDistance(a, b)  weighted 0..1 dissimilarity across whichever
+ *                           of {dhash, phash, ahash} both sides have, so a
+ *                           single missing hash (e.g. not yet backfilled)
+ *                           degrades gracefully instead of failing outright.
  *
  * These are pure functions with no external services — same input always yields
  * the same output — which is what makes the tamper verdict provable, not fuzzy.
+ * Combining three hash families matters because each is blind to a different
+ * class of edit; voting across all three is far harder to fool than any one
+ * alone.
  *
  * CommonJS to match the rest of public-server. Uses `sharp` for decoding.
  */
@@ -24,16 +41,23 @@ function sha256Hex(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+/** Pack an array of 0/1 bits (length must be a multiple of 4) into lowercase hex. */
+function bitsToHex(bits) {
+  let hex = '';
+  for (let i = 0; i < bits.length; i += 4) {
+    const nibble = (bits[i] << 3) | (bits[i + 1] << 2) | (bits[i + 2] << 1) | bits[i + 3];
+    hex += nibble.toString(16);
+  }
+  return hex;
+}
+
 /**
  * dHash: resize to 9x8 grayscale, then for each row compare each pixel to the
- * one on its right. 8 rows x 8 comparisons = 64 bits, packed into 16 hex chars.
- * Robust to scaling, compression, and small edits; sensitive to real content
- * changes. Deterministic for a given input.
+ * one on its right. 8 rows x 8 comparisons = 64 bits.
  */
 async function dHash(buffer) {
   const width = 9;
   const height = 8;
-  // raw single-channel (grayscale) pixel buffer, 72 bytes
   const pixels = await sharp(buffer)
     .grayscale()
     .resize(width, height, { fit: 'fill' })
@@ -48,14 +72,157 @@ async function dHash(buffer) {
       bits.push(left > right ? 1 : 0);
     }
   }
+  return bitsToHex(bits);
+}
 
-  // Pack 64 bits into a 16-char hex string, 4 bits at a time.
-  let hex = '';
-  for (let i = 0; i < bits.length; i += 4) {
-    const nibble = (bits[i] << 3) | (bits[i + 1] << 2) | (bits[i + 2] << 1) | bits[i + 3];
-    hex += nibble.toString(16);
+/**
+ * aHash: resize to 8x8 grayscale, threshold every pixel against the mean.
+ */
+async function aHash(buffer) {
+  const size = 8;
+  const pixels = await sharp(buffer)
+    .grayscale()
+    .resize(size, size, { fit: 'fill' })
+    .raw()
+    .toBuffer();
+
+  let sum = 0;
+  for (let i = 0; i < pixels.length; i++) sum += pixels[i];
+  const mean = sum / pixels.length;
+
+  const bits = [];
+  for (let i = 0; i < pixels.length; i++) bits.push(pixels[i] > mean ? 1 : 0);
+  return bitsToHex(bits);
+}
+
+// 1D DCT-II along one axis of an NxN matrix (applied twice for a 2D DCT).
+// N=32 keeps this at ~32k multiply-adds per axis pass — negligible even on
+// modest hardware, so no need for an FFT-based shortcut.
+function dct1d(vector) {
+  const n = vector.length;
+  const out = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      sum += vector[i] * Math.cos((Math.PI / n) * (i + 0.5) * k);
+    }
+    out[k] = sum * (k === 0 ? Math.sqrt(1 / n) : Math.sqrt(2 / n));
   }
-  return hex;
+  return out;
+}
+
+function dct2d(matrix, n) {
+  // Rows first.
+  const rows = [];
+  for (let r = 0; r < n; r++) {
+    rows.push(dct1d(matrix.subarray(r * n, r * n + n)));
+  }
+  // Then columns of the row-transformed result.
+  const out = new Float64Array(n * n);
+  for (let c = 0; c < n; c++) {
+    const col = new Float64Array(n);
+    for (let r = 0; r < n; r++) col[r] = rows[r][c];
+    const transformed = dct1d(col);
+    for (let r = 0; r < n; r++) out[r * n + c] = transformed[r];
+  }
+  return out;
+}
+
+/**
+ * pHash: the classic Krawetz perceptual hash.
+ *   1. Downscale to 32x32 grayscale (low-pass first via sharp's resize).
+ *   2. 2D DCT of the 32x32 block.
+ *   3. Keep the top-left 8x8 low-frequency coefficients (dropping the DC term).
+ *   4. Threshold each against their median -> 64 bits.
+ * Frequency-domain, so it's far less sensitive to pixel-level noise/gradient
+ * changes than dHash and catches color/contrast/blur edits dHash misses.
+ */
+async function pHash(buffer) {
+  const n = 32;
+  const raw = await sharp(buffer)
+    .grayscale()
+    .resize(n, n, { fit: 'fill' })
+    .raw()
+    .toBuffer();
+
+  const matrix = new Float64Array(n * n);
+  for (let i = 0; i < matrix.length; i++) matrix[i] = raw[i];
+
+  const freq = dct2d(matrix, n);
+
+  const keep = 8;
+  const coeffs = [];
+  for (let r = 0; r < keep; r++) {
+    for (let c = 0; c < keep; c++) {
+      if (r === 0 && c === 0) continue; // drop DC (overall brightness)
+      coeffs.push(freq[r * n + c]);
+    }
+  }
+
+  const sorted = [...coeffs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+  // 63 coefficients (8x8 minus DC) rounds down to 60 usable bits (multiple of
+  // 4 for hex packing); that's still a strong, well-tested signal in practice.
+  const bits = coeffs.slice(0, 60).map(v => (v > median ? 1 : 0));
+  return bitsToHex(bits);
+}
+
+/** Compute all three perceptual hashes for a buffer in parallel. */
+async function computeHashes(buffer) {
+  const [dhash, phash, ahash] = await Promise.all([
+    dHash(buffer).catch(() => null),
+    pHash(buffer).catch(() => null),
+    aHash(buffer).catch(() => null)
+  ]);
+  return { dhash, phash, ahash };
+}
+
+// The 8 members of the dihedral group D4: the 4 axis-aligned rotations, each
+// with and without a horizontal mirror. dHash/pHash/aHash all compare
+// pixels/coefficients at fixed positions, so none of them are rotation- or
+// mirror-invariant on their own — a physically rotated re-upload of an
+// on-chain image hashes completely differently at orientation '0'. Hashing
+// every orientation once at ingest time and matching a query against all of
+// them fixes that without needing the query itself to be rotated.
+const ORIENTATIONS = ['0', '90', '180', '270', '0-flip', '90-flip', '180-flip', '270-flip'];
+
+/**
+ * Render `buffer` rotated (0/90/180/270 degrees) and optionally mirrored
+ * horizontally. Uses an explicit numeric angle, which makes sharp rotate the
+ * actual pixel grid rather than just auto-orienting from EXIF, so this is a
+ * genuine pixel-level transform independent of whatever orientation tag the
+ * file carries.
+ */
+async function transformForOrientation(buffer, orientation) {
+  const [angleStr, flip] = orientation.split('-');
+  const angle = parseInt(angleStr, 10);
+  let pipeline = sharp(buffer);
+  if (angle) pipeline = pipeline.rotate(angle);
+  if (flip === 'flip') pipeline = pipeline.flop();
+  return pipeline.png().toBuffer();
+}
+
+/**
+ * All three perceptual hashes at each of the 8 orientations in ORIENTATIONS.
+ * Meant to be computed once per image at ingest/backfill time and stored, so
+ * search-time matching can compare a query's single hash set against every
+ * stored orientation (see bestCombinedHashDistance) instead of requiring the
+ * query to already be right-side-up.
+ */
+async function computeOrientationHashes(buffer) {
+  const results = [];
+  for (const orientation of ORIENTATIONS) {
+    try {
+      const transformed = orientation === '0' ? buffer : await transformForOrientation(buffer, orientation);
+      const hashes = await computeHashes(transformed);
+      results.push({ orientation, ...hashes });
+    } catch {
+      // Skip just this orientation rather than losing the whole set.
+    }
+  }
+  return results;
 }
 
 // Popcount lookup for a nibble (0-15).
@@ -79,4 +246,67 @@ function hammingDistance(a, b) {
   return dist;
 }
 
-module.exports = { sha256Hex, dHash, hammingDistance };
+// Relative weight of each hash family when voting on a combined distance.
+// dHash and pHash each catch edits the other misses (gradient vs frequency
+// domain), so they're weighted equally and heaviest; aHash is the noisiest
+// (pure brightness threshold) so it only nudges the result.
+const HASH_WEIGHTS = { dhash: 0.4, phash: 0.4, ahash: 0.2 };
+
+/**
+ * Weighted, normalized (0..1) dissimilarity across whichever hash families
+ * both `a` and `b` have populated. Missing hashes are skipped and the
+ * remaining weights renormalized, so a candidate that predates a hash type
+ * being added still compares fairly on what it does have.
+ * Returns { distance, coverage, breakdown } — distance is null if there was
+ * no usable overlap at all (coverage === 0).
+ */
+function combinedHashDistance(a, b) {
+  const breakdown = {};
+  let weightedSum = 0;
+  let weightTotal = 0;
+
+  for (const key of Object.keys(HASH_WEIGHTS)) {
+    const ha = a && a[key];
+    const hb = b && b[key];
+    if (!ha || !hb) continue;
+    const bits = ha.length * 4;
+    const dist = hammingDistance(ha, hb);
+    if (!Number.isFinite(dist)) continue;
+    const normalized = dist / bits; // 0..1
+    breakdown[key] = { distance: dist, bits, normalized: Math.round(normalized * 1000) / 1000 };
+    weightedSum += HASH_WEIGHTS[key] * normalized;
+    weightTotal += HASH_WEIGHTS[key];
+  }
+
+  if (weightTotal === 0) return { distance: null, coverage: 0, breakdown };
+  return {
+    distance: weightedSum / weightTotal,
+    coverage: weightTotal, // sum of weights actually used, out of 1.0
+    breakdown
+  };
+}
+
+/**
+ * Best (minimum-distance) combinedHashDistance between a single query hash
+ * set and an array of {orientation, dhash, phash, ahash} entries, as produced
+ * by computeOrientationHashes. This is what makes matching rotation/mirror
+ * tolerant: the query is hashed once as-is, and compared against every
+ * orientation the candidate was stored at.
+ * Same null-distance contract as combinedHashDistance when nothing matches.
+ */
+function bestCombinedHashDistance(query, entries) {
+  let best = { distance: null, coverage: 0, breakdown: {}, orientation: null };
+  for (const entry of entries || []) {
+    const cmp = combinedHashDistance(query, entry);
+    if (cmp.distance === null) continue;
+    if (best.distance === null || cmp.distance < best.distance) {
+      best = { ...cmp, orientation: entry.orientation || null };
+    }
+  }
+  return best;
+}
+
+module.exports = {
+  sha256Hex, dHash, pHash, aHash, computeHashes, hammingDistance, combinedHashDistance,
+  ORIENTATIONS, computeOrientationHashes, bestCombinedHashDistance
+};
