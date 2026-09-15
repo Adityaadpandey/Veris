@@ -2,11 +2,12 @@ import { useState, useRef } from "react";
 
 const API_URL = import.meta.env.VITE_CLAIM_SERVER_URL || "http://localhost:5001";
 
+// Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
+// key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
-  import.meta.env.VITE_IPFS_GATEWAY || 'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
-  'https://w3s.link/ipfs',
-  'https://ipfs.io/ipfs',
-  'https://dweb.link/ipfs',
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
+  'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
+  'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
 ]
 
 function SimilarityBar({ score, visual, content }) {

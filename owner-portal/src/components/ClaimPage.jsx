@@ -75,12 +75,13 @@ const deBrand = (v) =>
     ? v.replace(/lensmint/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
     : v
 
+// Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
+// key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
   `${CLAIM_API}/api/image`,
-  import.meta.env.VITE_IPFS_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
-  'https://w3s.link/ipfs',
-  'https://dweb.link/ipfs',
-  'https://ipfs.io/ipfs',
+  import.meta.env.VITE_IPFS_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
+  'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
+  'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
 ]
 const ipfsOnError = (cid) => (e) => {
   const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
