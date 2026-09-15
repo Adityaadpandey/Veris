@@ -8,11 +8,13 @@
 
 **A Web3 camera system that solves real problems for creators: prove photos are authentic (not AI-generated), create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others (attendees, people in photos).**
 
-[Gallery](#-gallery) • [Features](#-features) • [How It Works](#-how-it-works) • [Architecture](#-technical-architecture) • [Installation](#-installation) • [Hardware](#-hardware-requirements)
+<!-- [Gallery](#-gallery) • -->
+
+[Features](#-features) • [How It Works](#-how-it-works) • [Architecture](#-technical-architecture) • [Installation](#-installation) • [Hardware](#-hardware-requirements)
 
 </div>
 
----
+<!-- ---
 
 ## 📸 Gallery
 
@@ -90,7 +92,7 @@
       <td align="center" colspan="3"><img src="assets/IMG_1837.JPG" alt="Camera Image 13" width="300"/></td>
     </tr>
   </table>
-</div>
+</div> -->
 
 ---
 
