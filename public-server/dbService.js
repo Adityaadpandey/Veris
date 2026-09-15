@@ -308,6 +308,18 @@ class ClaimDBService {
     return rows;
   }
 
+  // Case-insensitive: recipient_address is stored however the wallet lib happened to checksum it
+  // at claim time, and callers query with whatever casing the connected wallet reports today.
+  async getClaimsByRecipient(recipient_address, limit = 200) {
+    const { rows } = await this.pool.query(`
+      SELECT * FROM claims
+      WHERE lower(recipient_address) = lower($1)
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [recipient_address, limit]);
+    return rows;
+  }
+
   async getClaimsByStatus(status) {
     const { rows } = await this.pool.query('SELECT * FROM claims WHERE status = $1 ORDER BY created_at DESC', [status]);
     return rows;
