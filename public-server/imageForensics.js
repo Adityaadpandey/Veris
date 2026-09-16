@@ -94,6 +94,39 @@ async function exifSignals(buffer) {
   };
 }
 
+// No Veris capture device today writes an OffsetTimeOriginal tag (Picamera2/libcamera doesn't add
+// one), so a DateTimeOriginal with no offset is naive local wall-clock time with nothing in the
+// file saying which timezone that is. Every device currently deployed runs its Pi's system clock
+// in India Standard Time (UTC+5:30, no DST) — used as the fallback so a delta against the phone's
+// real UTC-based capturedAt comes out close to zero for a simultaneous shot, instead of leaking the
+// full IST offset through as a bogus multi-hour gap.
+const DEVICE_FALLBACK_UTC_OFFSET_MINUTES = 5 * 60 + 30;
+
+const EXIF_DATE_RE = /^(\d{4})[-:](\d{2})[-:](\d{2})[ T](\d{2}):(\d{2}):(\d{2})/;
+const EXIF_OFFSET_RE = /^([+-])(\d{2}):(\d{2})$/;
+
+function parseOffsetMinutes(offset) {
+  const match = typeof offset === 'string' ? offset.trim().match(EXIF_OFFSET_RE) : null;
+  if (!match) return null;
+  const [, sign, hours, minutes] = match;
+  const total = Number(hours) * 60 + Number(minutes);
+  return sign === '-' ? -total : total;
+}
+
+// Resolves a naive EXIF date string ("2026:09:16 02:18:50") to the true UTC instant it represents,
+// given the camera's UTC offset in minutes. Deliberately does its own arithmetic instead of relying
+// on exifr's built-in Date revival for this tag: that revival constructs the Date using whatever
+// timezone the CURRENT process happens to be running in, which has nothing to do with the timezone
+// the camera actually captured in — the two only coincidentally match in local dev.
+function resolveExifTimestamp(raw, offsetMinutes) {
+  if (typeof raw !== 'string') return null;
+  const match = raw.trim().match(EXIF_DATE_RE);
+  if (!match) return null;
+  const [year, month, day, hours, minutes, seconds] = match.slice(1).map(Number);
+  const asUtc = Date.UTC(year, month - 1, day, hours, minutes, seconds);
+  return new Date(asUtc - offsetMinutes * 60000);
+}
+
 /**
  * Best-effort original capture timestamp from EXIF (DateTimeOriginal, falling
  * back to CreateDate). Used by Companion Capture to compare the device
@@ -102,12 +135,20 @@ async function exifSignals(buffer) {
  * trail the real capture by however long minting took). Never throws —
  * returns null when EXIF is missing or has no usable timestamp, same
  * "no metadata is itself informative, not an error" stance as exifSignals.
+ *
+ * Corrects for the camera's capture timezone using OffsetTimeOriginal/OffsetTime when the file
+ * has one, and DEVICE_FALLBACK_UTC_OFFSET_MINUTES otherwise — see resolveExifTimestamp.
  */
 async function extractCaptureTimestamp(buffer) {
   try {
-    const exif = await exifr.parse(buffer, { pick: ['DateTimeOriginal', 'CreateDate'] });
-    const timestamp = exif?.DateTimeOriginal || exif?.CreateDate;
-    return timestamp instanceof Date ? timestamp : null;
+    const exif = await exifr.parse(buffer, {
+      pick: ['DateTimeOriginal', 'CreateDate', 'OffsetTimeOriginal', 'OffsetTime'],
+      reviveValues: false
+    });
+    const raw = exif?.DateTimeOriginal || exif?.CreateDate;
+    if (!raw) return null;
+    const offsetMinutes = parseOffsetMinutes(exif?.OffsetTimeOriginal || exif?.OffsetTime) ?? DEVICE_FALLBACK_UTC_OFFSET_MINUTES;
+    return resolveExifTimestamp(raw, offsetMinutes);
   } catch {
     return null;
   }
