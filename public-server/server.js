@@ -13,7 +13,7 @@ const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
-const { processCompanionCapture } = require('./companionCapture');
+const { processCompanionLink, uploadCompanionImage } = require('./companionCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -166,21 +166,42 @@ app.post('/create-claim', async (req, res) => {
   }
 });
 
-// Companion Capture: the phone's own photo, submitted once the device's real
-// claim already exists. Acks immediately and does the Cloudinary/comparison/
-// AI-hint work in the background (mirrors the /create-claim -> enrichClaim
-// fire-and-forget pattern above) so a multi-second round trip never blocks
-// the mobile client on a phone connection.
-app.post('/api/claim/:claim_id/companion', upload.single('mobile_image'), async (req, res) => {
+// Companion Capture, step 1: upload the phone's own frame the instant it's
+// taken — no claim_id required, since the Pi's own capture -> Filecoin ->
+// ZK proof -> mint pipeline this pairs against can take far longer than a
+// single image upload. The mobile app fires this the moment the shutter
+// closes, in parallel with triggering the Pi, then links the result to the
+// real claim once that claim actually exists (see /link below). Splitting
+// upload from linking is what makes the pairing show up on the claim page
+// moments after minting finishes, instead of only starting the upload then.
+app.post('/api/companion/upload', upload.single('mobile_image'), async (req, res) => {
   try {
-    const { claim_id } = req.params;
-    const { captured_at } = req.body;
-
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ success: false, error: 'No mobile photo uploaded' });
     }
     if (!req.file.mimetype || !req.file.mimetype.startsWith('image/')) {
       return res.status(400).json({ success: false, error: 'Uploaded file must be an image' });
+    }
+
+    const result = await uploadCompanionImage(req.file.buffer);
+    res.json({ success: true, mobile_image_url: result.url, mobile_public_id: result.public_id });
+  } catch (error) {
+    console.error('❌ Error uploading companion photo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Companion Capture, step 2: link an already-uploaded companion photo (see
+// above) to its real claim and score it against the device image. Acks
+// immediately and does the fetch/comparison/AI-hint work in the background
+// (mirrors the /create-claim -> enrichClaim fire-and-forget pattern above).
+app.post('/api/claim/:claim_id/companion/link', async (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const { mobile_image_url, mobile_public_id, mobile_captured_at } = req.body;
+
+    if (!mobile_image_url || !mobile_public_id) {
+      return res.status(400).json({ success: false, error: 'mobile_image_url and mobile_public_id are required' });
     }
 
     const claim = await dbService.getClaim(claim_id);
@@ -193,11 +214,11 @@ app.post('/api/claim/:claim_id/companion', upload.single('mobile_image'), async 
 
     res.json({ success: true, claim_id, status: 'processing' });
 
-    processCompanionCapture(claim, req.file.buffer, captured_at || null).catch(err =>
-      console.error(`❌ Unexpected companion-capture error for ${claim_id}:`, err.message)
+    processCompanionLink(claim, mobile_image_url, mobile_public_id, mobile_captured_at || null).catch(err =>
+      console.error(`❌ Unexpected companion-link error for ${claim_id}:`, err.message)
     );
   } catch (error) {
-    console.error('❌ Error accepting companion capture:', error);
+    console.error('❌ Error linking companion capture:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
