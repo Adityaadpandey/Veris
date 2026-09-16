@@ -69,7 +69,15 @@ class ClaimDBService {
       { name: 'tags', type: 'TEXT' },        // JSON array string
       { name: 'ai_status', type: 'TEXT' },   // 'pending' | 'done' | 'failed'
       { name: 'ai_error', type: 'TEXT' },
-      { name: 'phash', type: 'TEXT' },       // 64-bit perceptual hash (16 hex chars)
+      { name: 'phash', type: 'TEXT' },       // dHash: 64-bit gradient hash (16 hex chars), orientation '0'
+      { name: 'phash_dct', type: 'TEXT' },   // pHash: 60-bit DCT/frequency hash (15 hex chars), orientation '0'
+      { name: 'ahash', type: 'TEXT' },       // aHash: 64-bit average hash (16 hex chars), orientation '0'
+      // JSON array of {orientation, dhash, phash, ahash} for all 8 rotation/mirror
+      // variants (see imageHash.computeOrientationHashes), so a physically rotated
+      // or mirrored re-upload still matches. phash/phash_dct/ahash above stay in
+      // sync as the orientation '0' entry, for any older reader that expects them.
+      { name: 'orientation_hashes', type: 'TEXT' },
+      { name: 'exif_signal', type: 'TEXT' }, // JSON: non-authoritative EXIF tamper hint
       { name: 'likely_ai_generated', type: 'INTEGER' }, // 0/1 non-authoritative hint
       { name: 'ai_assessment', type: 'TEXT' }           // one-line justification for the hint
     ];
@@ -288,7 +296,7 @@ class ClaimDBService {
 
   // ── AI enrichment (OpenAI descriptions + embeddings) ───────────────────────
 
-  async setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, likely_ai_generated = null, ai_assessment = null } = {}) {
+  async setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, phash_dct = null, ahash = null, orientation_hashes = null, exif_signal = null, likely_ai_generated = null, ai_assessment = null } = {}) {
     const fields = [];
     const values = [];
 
@@ -300,6 +308,16 @@ class ClaimDBService {
     if (ai_status !== null) { values.push(ai_status); fields.push(`ai_status = $${values.length}`); }
     if (ai_error !== null) { values.push(ai_error); fields.push(`ai_error = $${values.length}`); }
     if (phash !== null) { values.push(phash); fields.push(`phash = $${values.length}`); }
+    if (phash_dct !== null) { values.push(phash_dct); fields.push(`phash_dct = $${values.length}`); }
+    if (ahash !== null) { values.push(ahash); fields.push(`ahash = $${values.length}`); }
+    if (orientation_hashes !== null) {
+      values.push(typeof orientation_hashes === 'string' ? orientation_hashes : JSON.stringify(orientation_hashes));
+      fields.push(`orientation_hashes = $${values.length}`);
+    }
+    if (exif_signal !== null) {
+      values.push(typeof exif_signal === 'string' ? exif_signal : JSON.stringify(exif_signal));
+      fields.push(`exif_signal = $${values.length}`);
+    }
     if (likely_ai_generated !== null) { values.push(likely_ai_generated ? 1 : 0); fields.push(`likely_ai_generated = $${values.length}`); }
     if (ai_assessment !== null) { values.push(ai_assessment); fields.push(`ai_assessment = $${values.length}`); }
 
@@ -334,7 +352,7 @@ class ClaimDBService {
     const { rows } = await this.pool.query(`
       SELECT e.claim_id, e.cid, e.embedding, e.dim,
              c.token_id, c.recipient_address, c.device_id, c.status,
-             c.description, c.tags, c.phash, c.created_at
+             c.description, c.tags, c.phash, c.phash_dct, c.ahash, c.orientation_hashes, c.created_at
       FROM image_embeddings e
       JOIN claims c ON e.claim_id = c.claim_id
     `);
@@ -350,22 +368,39 @@ class ClaimDBService {
     return rows[0] || null;
   }
 
-  /** All claims that have a perceptual hash, for the tamper (Hamming) scan. */
+  /** All claims that have at least one perceptual hash, for the tamper scan. */
   async getClaimsWithPhash() {
     const { rows } = await this.pool.query(`
-      SELECT claim_id, cid, token_id, image_hash, phash,
+      SELECT claim_id, cid, token_id, image_hash, phash, phash_dct, ahash, orientation_hashes,
              recipient_address, device_id, status, description, tags, created_at
       FROM claims
-      WHERE phash IS NOT NULL AND phash != ''
+      WHERE (phash IS NOT NULL AND phash != '')
+         OR (phash_dct IS NOT NULL AND phash_dct != '')
+         OR (ahash IS NOT NULL AND ahash != '')
     `);
     return rows;
   }
 
-  /** Claims that still need enrichment (never processed or previously failed). */
-  async getClaimsMissingAI() {
+  /**
+   * Claims still missing SOMETHING the backfill can fill in: either AI
+   * enrichment (never processed or previously failed) or one of the
+   * deterministic forensic fields (multi-hash / orientation hashes / EXIF
+   * signal) added after earlier claims were already enriched. Callers should
+   * only re-run the (costly) OpenAI step when ai_status is actually
+   * null/failed — see enrichService.backfillForensics for the free-of-cost
+   * path that fills in just the forensic columns.
+   */
+  async getClaimsNeedingBackfill() {
     const { rows } = await this.pool.query(`
       SELECT * FROM claims
-      WHERE ai_status IS NULL OR ai_status = 'failed'
+      WHERE cid IS NOT NULL AND cid != ''
+        AND (
+          ai_status IS NULL OR ai_status = 'failed'
+          OR phash_dct IS NULL OR phash_dct = ''
+          OR ahash IS NULL OR ahash = ''
+          OR orientation_hashes IS NULL OR orientation_hashes = ''
+          OR exif_signal IS NULL OR exif_signal = ''
+        )
       ORDER BY created_at ASC
     `);
     return rows;

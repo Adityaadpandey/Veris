@@ -8,8 +8,9 @@ require('dotenv').config();
 const dbService = require('./dbService');
 const openaiService = require('./openaiService');
 const { cosineSimilarity } = openaiService;
-const { enrichClaim, fetchImageBuffer } = require('./enrichService');
-const { sha256Hex, dHash, hammingDistance } = require('./imageHash');
+const { enrichClaim, fetchImageBuffer, backfillForensics } = require('./enrichService');
+const { sha256Hex, computeHashes, bestCombinedHashDistance } = require('./imageHash');
+const { exifSignals } = require('./imageForensics');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -24,14 +25,27 @@ const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 // Unset by default, which keeps that route disabled rather than open to anyone.
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const BACKFILL_DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
-// Max Hamming distance (out of 64 bits) for a perceptual hash to count as the
-// SAME source image (altered copy). Small = strict. Tunable without redeploy.
-const PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
+// Tamper verdict is now a 3-way band over the WEIGHTED, NORMALIZED (0..1)
+// distance across all available hash families (dHash + pHash-DCT + aHash —
+// see imageHash.combinedHashDistance), rather than a single dHash cutoff:
+//   • <= RECOMPRESSED_MAX  -> same image, likely just re-saved/re-encoded
+//   • <= STRUCTURAL_MAX    -> same source image, but visibly edited
+//   •  <= POSSIBLE_MAX     -> probably the same source, lower confidence
+//   • above POSSIBLE_MAX   -> not treated as a match
+// Old PHASH_MAX_DISTANCE (bits out of 64) is still honored as the default for
+// STRUCTURAL_MAX so existing deployments don't silently change behavior.
+const LEGACY_PHASH_MAX_DISTANCE = parseInt(process.env.PHASH_MAX_DISTANCE || '10', 10);
+const TAMPER_RECOMPRESSED_MAX = parseFloat(process.env.TAMPER_RECOMPRESSED_MAX || '0.05');
+const TAMPER_STRUCTURAL_MAX = parseFloat(process.env.TAMPER_STRUCTURAL_MAX || String(LEGACY_PHASH_MAX_DISTANCE / 64));
+const TAMPER_POSSIBLE_MAX = parseFloat(process.env.TAMPER_POSSIBLE_MAX || '0.24');
 
 // The "similar photos" list blends two independent signals:
-//   • visual  — deterministic perceptual-hash (dHash) closeness. Captures
-//               composition/framing, so a DIFFERENT ANGLE of the same scene
-//               scores LOW even when the content is alike.
+//   • visual  — deterministic multi-hash (dHash + pHash-DCT + aHash) closeness.
+//               Captures composition/framing, so a DIFFERENT ANGLE of the same
+//               scene scores LOW even when the content is alike. Using three
+//               hash families instead of one closes the gap where dHash alone
+//               misses color-grading/blur edits that pHash's frequency domain
+//               catches (and vice versa for pixel-level noise).
 //   • content — OpenAI text-embedding cosine. Captures subject matter, so two
 //               different desks both described as "cluttered desk with laptop"
 //               score HIGH even though the photos look nothing alike.
@@ -56,6 +70,27 @@ function blendedSimilarity(visual, content) {
     visual: v,
     content: c
   };
+}
+
+// Build the {orientation, dhash, phash, ahash}[] list a claim row was stored
+// with, for orientation-tolerant matching (see imageHash.computeOrientationHashes
+// / bestCombinedHashDistance). Rows already backfilled with orientation_hashes
+// use that; older rows that only have the single orientation-'0' columns still
+// compare fine, they just won't match a rotated/mirrored re-upload until the
+// backfill job (POST /api/enrich/backfill) reaches them.
+function rowOrientationHashes(row) {
+  if (row.orientation_hashes) {
+    try {
+      const parsed = JSON.parse(row.orientation_hashes);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch {
+      // fall through to the legacy single-orientation shape below
+    }
+  }
+  if (row.phash || row.phash_dct || row.ahash) {
+    return [{ orientation: '0', dhash: row.phash, phash: row.phash_dct, ahash: row.ahash }];
+  }
+  return [];
 }
 
 // In-memory upload handling for the semantic search endpoint (10MB cap).
@@ -1127,29 +1162,35 @@ function requireAdminToken(req, res) {
   return true;
 }
 
-// Batch-run AI enrichment for every claim that still needs it (never processed
-// or previously failed), or every claim with ?force=1. Fire-and-forget: kicks
-// the batch off in the background and responds immediately, since a large
-// backlog can take far longer than an HTTP request should stay open. Poll
-// GET /api/enrich/backfill for progress.
+// Batch-run backfill for every claim that still needs SOMETHING: AI
+// enrichment (never processed or previously failed), or one of the
+// deterministic forensic fields (multi-hash / EXIF) added after earlier
+// claims were already enriched. Claims only missing forensics take the free
+// backfillForensics() path — no OpenAI call, so this is safe to run even
+// without OPENAI_API_KEY configured (those claims just won't get AI text
+// until a key is added and the route is re-run). ?force=1 re-runs FULL AI
+// enrichment for every claim and does require OpenAI to be configured.
+// Fire-and-forget: kicks the batch off in the background and responds
+// immediately, since a large backlog can take far longer than an HTTP
+// request should stay open. Poll GET /api/enrich/backfill for progress.
 //
 // Registered ABOVE POST /api/enrich/:claim_id on purpose — Express matches
 // routes in registration order, and :claim_id would otherwise swallow the
 // literal path "backfill" as a claim id.
 app.post('/api/enrich/backfill', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
-  if (!openaiService.isAvailable()) {
-    return res.status(503).json({ success: false, error: 'OpenAI service is not configured' });
-  }
   if (backfillStatus.running) {
     return res.status(409).json({ success: false, error: 'A backfill is already in progress', status: backfillStatus });
   }
 
   try {
     const force = req.query.force === '1' || req.query.force === 'true';
+    if (force && !openaiService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'OpenAI service is not configured (required for ?force=1 full re-enrichment)' });
+    }
     const pending = force
       ? await dbService.getAllClaimsWithCid()
-      : await dbService.getClaimsMissingAI();
+      : await dbService.getClaimsNeedingBackfill();
 
     backfillStatus = { running: true, total: pending.length, done: 0, failed: 0, force, startedAt: new Date().toISOString(), finishedAt: null };
     res.json({ success: true, queued: pending.length, force, status: backfillStatus });
@@ -1157,13 +1198,16 @@ app.post('/api/enrich/backfill', async (req, res) => {
     (async () => {
       for (let i = 0; i < pending.length; i++) {
         const claim = pending[i];
-        const status = await enrichClaim(claim.claim_id, claim.cid);
+        const needsAI = force || claim.ai_status == null || claim.ai_status === 'failed';
+        const status = needsAI && openaiService.isAvailable()
+          ? await enrichClaim(claim.claim_id, claim.cid)
+          : await backfillForensics(claim.claim_id, claim.cid);
         if (status === 'done') backfillStatus.done++; else backfillStatus.failed++;
         if (i < pending.length - 1) await sleep(BACKFILL_DELAY_MS);
       }
       backfillStatus.running = false;
       backfillStatus.finishedAt = new Date().toISOString();
-      console.log(`✅ Backfill complete: ${backfillStatus.done} enriched, ${backfillStatus.failed} failed.`);
+      console.log(`✅ Backfill complete: ${backfillStatus.done} done, ${backfillStatus.failed} failed.`);
     })().catch(err => {
       backfillStatus.running = false;
       backfillStatus.finishedAt = new Date().toISOString();
@@ -1211,10 +1255,15 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
 // (exact hash / altered copy / no match) plus similar verified photos.
 //
 // Layers, in order of authority:
-//   1. exact  — SHA-256 == an on-chain image_hash  -> authentic original (proof)
-//   2. tamper — perceptual hash within PHASH_MAX_DISTANCE -> altered copy (deterministic)
-//   3. similar— OpenAI embedding cosine match        -> similar content (fuzzy, labeled)
-//   4. ai_hint— OpenAI vision guess                  -> AI-generated hint (non-authoritative)
+//   1. exact   — SHA-256 == an on-chain image_hash -> authentic original (proof)
+//   2. tamper  — 3-way multi-hash vote (dHash + pHash-DCT + aHash), banded into
+//                recompressed / structural_edit / possible_match -> altered copy
+//                (deterministic; see imageHash.combinedHashDistance)
+//   3. exif    — EXIF forensics on the upload itself (editing-software
+//                signature, capture-vs-modify gap) -> soft hint, non-authoritative
+//   4. similar — OpenAI embedding cosine + multi-hash visual blend -> similar
+//                content (fuzzy, labeled)
+//   5. ai_hint — OpenAI vision guess                -> AI-generated hint (non-authoritative)
 app.post('/api/search', upload.single('image'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
@@ -1228,10 +1277,18 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
 
     // ── Layer 1 & 2: deterministic hashing (no external service needed) ──────
     const uploadSha = sha256Hex(buffer);
-    let uploadPhash = null;
-    try { uploadPhash = await dHash(buffer); } catch (e) {
-      console.warn('⚠️  Could not compute perceptual hash for upload:', e.message);
+    let uploadHashes = { dhash: null, phash: null, ahash: null };
+    try { uploadHashes = await computeHashes(buffer); } catch (e) {
+      console.warn('⚠️  Could not compute perceptual hashes for upload:', e.message);
     }
+    // computeHashes never actually rejects (each hash family catches its own
+    // sharp errors to null internally), so the try/catch above won't fire even
+    // when the format is undecodable — e.g. a HEIC photo straight off an
+    // iPhone, which this server's sharp build can't decode (no bundled HEVC
+    // decoder; AVIF works, HEIC doesn't). Detect that case explicitly so the
+    // response says "couldn't read this image" instead of silently returning
+    // "no match", which would otherwise look like a real negative result.
+    const hashDecodeFailed = !uploadHashes.dhash && !uploadHashes.phash && !uploadHashes.ahash;
 
     let verdict = { type: 'no_match', message: 'This image does not match any verified photo on-chain.' };
 
@@ -1245,29 +1302,59 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         image_hash: uploadSha,
         claim_url: `${FRONTEND_URL}/claim/${exact.claim_id}`
       };
-    } else if (uploadPhash) {
-      // Closest perceptual match among claims that have a phash.
+    } else if (uploadHashes.dhash || uploadHashes.phash || uploadHashes.ahash) {
+      // Closest match among claims that have at least one perceptual hash,
+      // scored by the weighted vote across all hash families both sides have.
       let best = null;
       for (const row of await dbService.getClaimsWithPhash()) {
-        const dist = hammingDistance(uploadPhash, row.phash);
-        if (best === null || dist < best.dist) best = { row, dist };
+        const cmp = bestCombinedHashDistance(uploadHashes, rowOrientationHashes(row));
+        if (cmp.distance === null) continue;
+        if (best === null || cmp.distance < best.distance) best = { row, ...cmp };
       }
-      if (best && best.dist <= PHASH_MAX_DISTANCE) {
+
+      if (best && best.distance <= TAMPER_POSSIBLE_MAX) {
+        const tier = best.distance <= TAMPER_RECOMPRESSED_MAX ? 'recompressed'
+          : best.distance <= TAMPER_STRUCTURAL_MAX ? 'structural_edit'
+          : 'possible_match';
+
+        const tierMessage = {
+          recompressed: 'Near-identical to a verified on-chain image — most likely just re-saved or '
+            + 're-encoded (e.g. re-exported at a different quality/format), not edited.',
+          structural_edit: 'Altered copy — this matches a verified on-chain image but is NOT byte-identical. '
+            + 'It has been cropped, edited, filtered, or AI-modified, so it is not the authentic original.',
+          possible_match: 'Possible altered copy — some visual similarity to a verified on-chain image, but '
+            + 'the match is weaker, so this is a lower-confidence signal rather than a firm conclusion.'
+        }[tier];
+
         verdict = {
           type: 'altered_copy',
+          tier,
           claim_id: best.row.claim_id,
           token_id: best.row.token_id || null,
-          message: 'Altered copy — this matches a verified on-chain image but is NOT byte-identical. '
-            + 'It has been re-encoded, cropped, edited, or AI-modified, so it is not the authentic original.',
-          bit_distance: best.dist,
-          visual_match: Math.round((1 - best.dist / 64) * 100),
+          message: tierMessage,
+          confidence: Math.round((1 - best.distance) * 100) / 100,
+          hash_coverage: Math.round(best.coverage * 100) / 100,
+          hash_breakdown: best.breakdown,
+          // Which stored rotation/mirror orientation matched best — e.g. '180'
+          // or '90-flip' means the upload is the same image, reoriented.
+          matched_orientation: best.orientation,
+          // Kept for backward-compat with any client reading the old single-hash fields.
+          bit_distance: best.breakdown.dhash ? best.breakdown.dhash.distance : null,
+          visual_match: Math.round((1 - best.distance) * 100),
           original_cid: best.row.cid || null,
           claim_url: `${FRONTEND_URL}/claim/${best.row.claim_id}`
         };
       }
     }
 
-    // ── Layers 3 & 4: OpenAI description, embedding search, AI hint ──────────
+    // ── Layer 3: EXIF forensics on the upload — soft, non-authoritative ──────
+    try {
+      verdict.exif_signal = await exifSignals(buffer);
+    } catch (e) {
+      console.warn('⚠️  Could not extract EXIF signal for upload:', e.message);
+    }
+
+    // ── Layers 4 & 5: OpenAI description, embedding search, AI hint ──────────
     // Best-effort: if OpenAI is down, the hash verdict above is still returned.
     let queryDescription = null;
     let aiHint = null;
@@ -1305,12 +1392,11 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           let stored;
           try { stored = JSON.parse(row.embedding); } catch { stored = null; }
           const content = stored ? cosineSimilarity(q.embedding, stored) : 0;
-          // Deterministic visual closeness via perceptual hash (if both exist).
-          let visual = null;
-          if (uploadPhash && row.phash) {
-            const dist = hammingDistance(uploadPhash, row.phash);
-            if (Number.isFinite(dist)) visual = 1 - dist / 64;
-          }
+          // Deterministic visual closeness via the multi-hash blend (if either
+          // side has at least one perceptual hash to compare), checked against
+          // every stored rotation/mirror orientation of the candidate.
+          const cmp = bestCombinedHashDistance(uploadHashes, rowOrientationHashes(row));
+          const visual = cmp.distance === null ? null : 1 - cmp.distance;
           const blend = blendedSimilarity(visual, content);
           let tags = [];
           try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
@@ -1335,6 +1421,13 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       } catch (e) {
         console.warn('⚠️  OpenAI enrichment of query failed (hash verdict still returned):', e.message);
       }
+    }
+
+    if (hashDecodeFailed && verdict.type !== 'authentic_original') {
+      verdict.hash_decode_failed = true;
+      verdict.hash_warning = 'Could not decode this image for visual comparison — the format may be '
+        + 'unsupported (e.g. HEIC straight off an iPhone — try exporting/sharing as JPEG or PNG first) '
+        + 'or the file may be corrupt. Only the exact byte-for-byte match check ran.';
     }
 
     res.json({
@@ -1371,18 +1464,21 @@ app.get('/api/similar/:claim_id', async (req, res) => {
 
     const allRows = await dbService.getAllEmbeddings();
     const selfRow = allRows.find(r => r.claim_id === claim_id);
-    const selfPhash = selfRow ? selfRow.phash : null;
+    // Query with just this claim's canonical (orientation '0') hash set — no
+    // need to query with all 8 of its own orientations, since it's the
+    // CANDIDATE rows below that get checked across all their stored
+    // orientations for a rotated/mirrored match.
+    const selfHashes = selfRow
+      ? { dhash: selfRow.phash, phash: selfRow.phash_dct, ahash: selfRow.ahash }
+      : { dhash: null, phash: null, ahash: null };
 
     const rows = allRows.filter(r => r.claim_id !== claim_id);
     const results = rows.map(row => {
       let stored;
       try { stored = JSON.parse(row.embedding); } catch { stored = null; }
       const content = stored ? cosineSimilarity(selfEmbedding, stored) : 0;
-      let visual = null;
-      if (selfPhash && row.phash) {
-        const dist = hammingDistance(selfPhash, row.phash);
-        if (Number.isFinite(dist)) visual = 1 - dist / 64;
-      }
+      const cmp = bestCombinedHashDistance(selfHashes, rowOrientationHashes(row));
+      const visual = cmp.distance === null ? null : 1 - cmp.distance;
       const blend = blendedSimilarity(visual, content);
       return {
         claim_id: row.claim_id,
