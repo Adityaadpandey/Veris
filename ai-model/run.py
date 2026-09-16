@@ -8,8 +8,8 @@ from main import ImageVerifier
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DATA_DIR = "./data"
-DSLR = os.path.join(DATA_DIR, "scene_001", "dslr.jpg")
-ESP = os.path.join(DATA_DIR, "scene_001", "esp.jpg")
+DSLR = os.path.join(DATA_DIR, "scene_001", "b.jpeg")
+ESP = os.path.join(DATA_DIR, "scene_001", "ras1.jpeg")
 
 print(f"Device : {DEVICE}")
 print(f"Image 1: {DSLR}")

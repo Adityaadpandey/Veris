@@ -11,18 +11,18 @@ from PIL import Image
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 SCENE_001 = os.path.join(DATA_DIR, "scene_001")
-DSLR_PATH = os.path.join(SCENE_001, "dslr.jpg")
-ESP_PATH = os.path.join(SCENE_001, "esp.jpg")
+COMPANION_PATH = os.path.join(SCENE_001, "dslr.jpg")
+TRUTH_PATH = os.path.join(SCENE_001, "esp.jpg")
 
 
 @pytest.fixture
-def dslr_image():
-    return Image.open(DSLR_PATH).convert("RGB")
+def companion_image():
+    return Image.open(COMPANION_PATH).convert("RGB")
 
 
 @pytest.fixture
-def esp_image():
-    return Image.open(ESP_PATH).convert("RGB")
+def truth_image():
+    return Image.open(TRUTH_PATH).convert("RGB")
 
 
 @pytest.fixture
@@ -33,13 +33,13 @@ def random_image():
 
 
 def test_data_exists():
-    assert os.path.exists(DSLR_PATH), f"Missing {DSLR_PATH}"
-    assert os.path.exists(ESP_PATH), f"Missing {ESP_PATH}"
+    assert os.path.exists(COMPANION_PATH), f"Missing {COMPANION_PATH}"
+    assert os.path.exists(TRUTH_PATH), f"Missing {TRUTH_PATH}"
 
 
-def test_preprocess_esp_sharpens_and_normalizes(esp_image):
-    from main import preprocess_esp
-    result = preprocess_esp(esp_image)
+def test_preprocess_truth_image_sharpens_and_normalizes(truth_image):
+    from main import preprocess_truth_image
+    result = preprocess_truth_image(truth_image)
     assert isinstance(result, Image.Image)
     assert result.mode == "RGB"
     arr = np.array(result)
@@ -49,63 +49,63 @@ def test_preprocess_esp_sharpens_and_normalizes(esp_image):
 
 def test_preprocess_pair_returns_correct_sizes():
     from main import preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    result = preprocess_pair(dslr, esp)
-    assert result["orb_dslr"].size == (512, 512)
-    assert result["orb_esp"].size == (512, 512)
-    assert result["small_dslr"].size == (256, 256)
-    assert result["small_esp"].size == (256, 256)
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    result = preprocess_pair(companion, truth)
+    assert result["orb_companion"].size == (512, 512)
+    assert result["orb_truth"].size == (512, 512)
+    assert result["small_companion"].size == (256, 256)
+    assert result["small_truth"].size == (256, 256)
 
 
 def test_orb_same_scene_scores_above_floor():
     from main import signal_orb, preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    pair = preprocess_pair(dslr, esp)
-    score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    pair = preprocess_pair(companion, truth)
+    score = signal_orb(pair["orb_companion"], pair["orb_truth"])
     assert 0.0 <= score <= 1.0
     assert score > 0.3, f"Same scene ORB score {score} below floor"
 
 
-def test_orb_random_image_scores_low(dslr_image, random_image):
+def test_orb_random_image_scores_low(companion_image, random_image):
     from main import signal_orb, preprocess_pair
-    pair = preprocess_pair(dslr_image, random_image)
-    score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
+    pair = preprocess_pair(companion_image, random_image)
+    score = signal_orb(pair["orb_companion"], pair["orb_truth"])
     assert 0.0 <= score <= 1.0
     assert score < 0.5, f"Random image ORB score {score} unexpectedly high"
 
 
 def test_ssim_edge_same_scene_above_floor():
     from main import signal_ssim_edge, preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    pair = preprocess_pair(dslr, esp)
-    score = signal_ssim_edge(pair["small_dslr"], pair["small_esp"])
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    pair = preprocess_pair(companion, truth)
+    score = signal_ssim_edge(pair["small_companion"], pair["small_truth"])
     assert 0.0 <= score <= 1.0
     assert score > 0.15, f"Same scene SSIM edge score {score} below floor"
 
 
-def test_ssim_edge_random_image_scores_low(dslr_image, random_image):
+def test_ssim_edge_random_image_scores_low(companion_image, random_image):
     from main import signal_ssim_edge, preprocess_pair
-    pair = preprocess_pair(dslr_image, random_image)
-    score = signal_ssim_edge(pair["small_dslr"], pair["small_esp"])
+    pair = preprocess_pair(companion_image, random_image)
+    score = signal_ssim_edge(pair["small_companion"], pair["small_truth"])
     assert 0.0 <= score <= 1.0
 
 
 def test_color_hist_same_scene_above_floor():
     from main import signal_color_hist, preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    pair = preprocess_pair(dslr, esp)
-    score = signal_color_hist(pair["small_dslr"], pair["small_esp"])
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    pair = preprocess_pair(companion, truth)
+    score = signal_color_hist(pair["small_companion"], pair["small_truth"])
     assert 0.0 <= score <= 1.0
     assert score > 0.10, f"Same scene color hist score {score} below floor"
 
 
-def test_color_hist_identical_image_scores_high(dslr_image):
+def test_color_hist_identical_image_scores_high(companion_image):
     from main import signal_color_hist
-    small = dslr_image.resize((256, 256), Image.LANCZOS)
+    small = companion_image.resize((256, 256), Image.LANCZOS)
     score = signal_color_hist(small, small)
     assert score > 0.99, f"Identical image color hist score {score} should be ~1.0"
 
@@ -118,41 +118,41 @@ def clip_signal():
 
 
 def test_clip_same_scene_above_floor(clip_signal):
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    from main import preprocess_esp
-    esp = preprocess_esp(esp)
-    score = clip_signal.score(dslr, esp)
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    from main import preprocess_truth_image
+    truth = preprocess_truth_image(truth)
+    score = clip_signal.score(companion, truth)
     assert 0.0 <= score <= 1.0
     assert score > 0.40, f"Same scene CLIP score {score} below floor"
 
 
 def test_clip_random_image_scores_lower(clip_signal, random_image):
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    same_score = clip_signal.score(dslr, dslr)
-    rand_score = clip_signal.score(dslr, random_image)
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    same_score = clip_signal.score(companion, companion)
+    rand_score = clip_signal.score(companion, random_image)
     assert same_score > rand_score, "Random image should score lower than same image"
 
 
-def test_phash_identical_image_scores_one(dslr_image):
+def test_phash_identical_image_scores_one(companion_image):
     from main import signal_phash
-    score = signal_phash(dslr_image, dslr_image)
+    score = signal_phash(companion_image, companion_image)
     assert score == 1.0, f"Identical image pHash score {score} should be 1.0"
 
 
 def test_phash_same_scene_above_floor():
     from main import signal_phash, preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    pair = preprocess_pair(dslr, esp)
-    score = signal_phash(pair["small_dslr"], pair["small_esp"])
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    pair = preprocess_pair(companion, truth)
+    score = signal_phash(pair["small_companion"], pair["small_truth"])
     assert 0.0 <= score <= 1.0
     assert score > 0.25, f"Same scene pHash score {score} below floor"
 
 
-def test_phash_random_image_scores_low(dslr_image, random_image):
+def test_phash_random_image_scores_low(companion_image, random_image):
     from main import signal_phash
-    score = signal_phash(dslr_image, random_image)
+    score = signal_phash(companion_image, random_image)
     assert 0.0 <= score <= 1.0
 
 
@@ -163,7 +163,7 @@ def verifier():
 
 
 def test_verifier_same_scene_authentic(verifier):
-    result = verifier.verify(DSLR_PATH, ESP_PATH)
+    result = verifier.verify(COMPANION_PATH, TRUTH_PATH)
     assert result["authentic"] is True, f"Same scene should be authentic, got score {result['score']}"
     assert 0.0 <= result["score"] <= 1.0
     assert result["confidence"] in ("high", "medium", "low")
@@ -183,7 +183,7 @@ def test_verifier_random_not_authentic(verifier):
         rand_img.save(f.name)
         rand_path = f.name
     try:
-        result = verifier.verify(DSLR_PATH, rand_path)
+        result = verifier.verify(COMPANION_PATH, rand_path)
         assert result["authentic"] is False, f"Random image should not be authentic, got score {result['score']}"
     finally:
         os.unlink(rand_path)
@@ -198,7 +198,7 @@ def test_verifier_floor_rejection(verifier):
         rand_img.save(f.name)
         rand_path = f.name
     try:
-        result = verifier.verify(DSLR_PATH, rand_path)
+        result = verifier.verify(COMPANION_PATH, rand_path)
         assert result["rejected_by"] is not None or result["authentic"] is False
     finally:
         os.unlink(rand_path)
@@ -239,7 +239,7 @@ def test_verifier_without_openai_key_falls_back_gracefully(monkeypatch):
     v = ImageVerifier(device="cpu", use_openai=True)
     assert v.openai is None
 
-    result = v.verify(DSLR_PATH, ESP_PATH)
+    result = v.verify(COMPANION_PATH, TRUTH_PATH)
     assert "openai_vision" not in result["signals"]
     assert 0.0 <= result["score"] <= 1.0
 
@@ -250,10 +250,10 @@ def test_verifier_without_openai_key_falls_back_gracefully(monkeypatch):
 )
 def test_openai_vision_same_scene_scores_above_floor():
     from main import OpenAIVisionSignal
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
     signal = OpenAIVisionSignal()
-    score = signal.score(dslr, esp)
+    score = signal.score(companion, truth)
     assert 0.0 <= score <= 1.0
     assert score > 0.35, f"Same scene OpenAI vision score {score} below floor"
 
@@ -262,10 +262,10 @@ def test_openai_vision_same_scene_scores_above_floor():
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY not set -- skipping live OpenAI vision call",
 )
-def test_openai_vision_random_image_scores_low(dslr_image, random_image):
+def test_openai_vision_random_image_scores_low(companion_image, random_image):
     from main import OpenAIVisionSignal
     signal = OpenAIVisionSignal()
-    score = signal.score(dslr_image, random_image)
+    score = signal.score(companion_image, random_image)
     assert 0.0 <= score <= 1.0
     assert score < 0.5, f"Unrelated image OpenAI vision score {score} unexpectedly high"
 
@@ -280,16 +280,16 @@ def test_openai_vision_random_image_scores_low(dslr_image, random_image):
 # own. a.jpeg is the matching upright same-scene photo, so this pair is a
 # real repro, not synthetic.
 
-ROTATED_ESP_PATH = os.path.join(SCENE_001, "ras1.jpeg")
-UPRIGHT_MATCH_PATH = os.path.join(SCENE_001, "a.jpeg")
+ROTATED_TRUTH_PATH = os.path.join(SCENE_001, "ras1.jpeg")
+UPRIGHT_COMPANION_PATH = os.path.join(SCENE_001, "a.jpeg")
 
 
 def test_load_image_applies_exif_orientation():
     from main import load_image
-    raw = Image.open(ROTATED_ESP_PATH)
+    raw = Image.open(ROTATED_TRUTH_PATH)
     assert raw.getexif().get(274) == 6, "fixture should carry EXIF orientation 6"
 
-    corrected = load_image(ROTATED_ESP_PATH)
+    corrected = load_image(ROTATED_TRUTH_PATH)
     # Orientation 6 is a 90-degree rotation, so width/height swap once
     # the tag is actually applied instead of ignored.
     assert corrected.size == (raw.size[1], raw.size[0])
@@ -303,7 +303,7 @@ def test_verify_handles_exif_rotated_companion_image():
     """
     from main import ImageVerifier
     v = ImageVerifier(device="cpu", use_openai=False)
-    result = v.verify(UPRIGHT_MATCH_PATH, ROTATED_ESP_PATH)
+    result = v.verify(UPRIGHT_COMPANION_PATH, ROTATED_TRUTH_PATH)
     assert result["signals"]["ssim_edge"] > 0.35, (
         f"ssim_edge {result['signals']['ssim_edge']} suggests EXIF orientation "
         "isn't being corrected before scoring"
@@ -320,12 +320,12 @@ def test_orb_score_independent_of_keypoint_budget():
     len(good) instead makes the score roughly stable across budgets.
     """
     from main import signal_orb, preprocess_pair
-    dslr = Image.open(DSLR_PATH).convert("RGB")
-    esp = Image.open(ESP_PATH).convert("RGB")
-    pair = preprocess_pair(dslr, esp)
+    companion = Image.open(COMPANION_PATH).convert("RGB")
+    truth = Image.open(TRUTH_PATH).convert("RGB")
+    pair = preprocess_pair(companion, truth)
 
-    score_1000 = signal_orb(pair["orb_dslr"], pair["orb_esp"], max_keypoints=1000)
-    score_3000 = signal_orb(pair["orb_dslr"], pair["orb_esp"], max_keypoints=3000)
+    score_1000 = signal_orb(pair["orb_companion"], pair["orb_truth"], max_keypoints=1000)
+    score_3000 = signal_orb(pair["orb_companion"], pair["orb_truth"], max_keypoints=3000)
 
     assert score_1000 > 0.3, f"Same-scene ORB score {score_1000} too low post-fix"
     assert abs(score_1000 - score_3000) < 0.25, (
