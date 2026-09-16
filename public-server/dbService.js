@@ -320,6 +320,21 @@ class ClaimDBService {
     return rows;
   }
 
+  // Every claim a given camera has ever produced, regardless of whether anyone's claimed it with a
+  // wallet yet. getClaimsByRecipient alone misses a claim until it's claimed — if the app that
+  // captured it never got the real-time "uploaded" signal (e.g. the phone's Bluetooth session to the
+  // Pi dropped mid-upload), an unclaimed claim is otherwise invisible to every device that owns that
+  // camera, forever. This is the archive's fallback discovery path for exactly that case.
+  async getClaimsByCamera(camera_id, limit = 200) {
+    const { rows } = await this.pool.query(`
+      SELECT * FROM claims
+      WHERE camera_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [camera_id, limit]);
+    return rows;
+  }
+
   async getClaimsByStatus(status) {
     const { rows } = await this.pool.query('SELECT * FROM claims WHERE status = $1 ORDER BY created_at DESC', [status]);
     return rows;
