@@ -64,7 +64,7 @@ class ClaimDBService {
       { name: 'longitude', type: 'REAL' },
       { name: 'location_name', type: 'TEXT' },
       { name: 'device_api_url', type: 'TEXT' },
-      // AI enrichment (Gemini): rich description, tags, and processing status
+      // AI enrichment (OpenAI): rich description, tags, and processing status
       { name: 'description', type: 'TEXT' },
       { name: 'tags', type: 'TEXT' },        // JSON array string
       { name: 'ai_status', type: 'TEXT' },   // 'pending' | 'done' | 'failed'
@@ -286,7 +286,7 @@ class ClaimDBService {
   }
 
 
-  // ── AI enrichment (Gemini descriptions + embeddings) ──────────────────────
+  // ── AI enrichment (OpenAI descriptions + embeddings) ───────────────────────
 
   async setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null, likely_ai_generated = null, ai_assessment = null } = {}) {
     const fields = [];
