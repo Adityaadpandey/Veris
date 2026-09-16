@@ -84,7 +84,12 @@ class ClaimDBService {
       { name: 'latitude', type: 'REAL' },
       { name: 'longitude', type: 'REAL' },
       { name: 'location_name', type: 'TEXT' },
-      { name: 'device_api_url', type: 'TEXT' }
+      { name: 'device_api_url', type: 'TEXT' },
+      // AI enrichment (Gemini): rich description, tags, and processing status
+      { name: 'description', type: 'TEXT' },
+      { name: 'tags', type: 'TEXT' },        // JSON array string
+      { name: 'ai_status', type: 'TEXT' },   // 'pending' | 'done' | 'failed'
+      { name: 'ai_error', type: 'TEXT' }
     ];
 
     columnsToAdd.forEach(col => {
@@ -108,8 +113,21 @@ class ClaimDBService {
 
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS image_embeddings (
+        claim_id TEXT PRIMARY KEY,
+        cid TEXT,
+        embedding TEXT,
+        model TEXT,
+        dim INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
+      )
+    `);
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
       CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid);
+      CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_claim ON edition_requests(claim_id);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status);
     `);
@@ -295,6 +313,70 @@ class ClaimDBService {
     return stmt.all(status);
   }
 
+
+  // ── AI enrichment (Gemini descriptions + embeddings) ──────────────────────
+
+  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null } = {}) {
+    const fields = [];
+    const values = [];
+
+    if (description !== null) { fields.push('description = ?'); values.push(description); }
+    if (tags !== null) {
+      fields.push('tags = ?');
+      values.push(Array.isArray(tags) ? JSON.stringify(tags) : tags);
+    }
+    if (ai_status !== null) { fields.push('ai_status = ?'); values.push(ai_status); }
+    if (ai_error !== null) { fields.push('ai_error = ?'); values.push(ai_error); }
+
+    if (fields.length === 0) return this.getClaim(claim_id);
+
+    values.push(claim_id);
+    const stmt = this.db.prepare(`UPDATE claims SET ${fields.join(', ')} WHERE claim_id = ?`);
+    stmt.run(...values);
+    return this.getClaim(claim_id);
+  }
+
+  upsertEmbedding(claim_id, cid, embedding, model, dim) {
+    const stmt = this.db.prepare(`
+      INSERT INTO image_embeddings (claim_id, cid, embedding, model, dim)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(claim_id) DO UPDATE SET
+        cid = excluded.cid,
+        embedding = excluded.embedding,
+        model = excluded.model,
+        dim = excluded.dim,
+        created_at = CURRENT_TIMESTAMP
+    `);
+    const serialized = Array.isArray(embedding) ? JSON.stringify(embedding) : embedding;
+    stmt.run(claim_id, cid, serialized, model, dim);
+  }
+
+  getEmbedding(claim_id) {
+    const stmt = this.db.prepare('SELECT * FROM image_embeddings WHERE claim_id = ?');
+    return stmt.get(claim_id) || null;
+  }
+
+  /** All embeddings joined with claim details useful for search results. */
+  getAllEmbeddings() {
+    const stmt = this.db.prepare(`
+      SELECT e.claim_id, e.cid, e.embedding, e.dim,
+             c.token_id, c.recipient_address, c.device_id, c.status,
+             c.description, c.tags, c.created_at
+      FROM image_embeddings e
+      JOIN claims c ON e.claim_id = c.claim_id
+    `);
+    return stmt.all();
+  }
+
+  /** Claims that still need enrichment (never processed or previously failed). */
+  getClaimsMissingAI() {
+    const stmt = this.db.prepare(`
+      SELECT * FROM claims
+      WHERE ai_status IS NULL OR ai_status = 'failed'
+      ORDER BY created_at ASC
+    `);
+    return stmt.all();
+  }
 
   close() {
     if (this.db) {
