@@ -30,9 +30,9 @@ One-time setup (per Pi + phone pair, done manually):
   2. On the phone: turn on Bluetooth tethering (Settings > Network >
      Hotspot & tethering > Bluetooth tethering).
   3. Set PHONE_MAC to the phone's MAC address in this app's environment
-     (e.g. in the .env file loaded by headless-camera.service).
+     (e.g. in the .env file loaded by headless-camera@<user>.service).
 
-No pairing UI is provided on either end - see headless-camera.service for
+No pairing UI is provided on either end - see headless-camera@.service for
 running this as a systemd unit.
 """
 
