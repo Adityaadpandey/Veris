@@ -101,90 +101,140 @@ function VerisLogoMark({ size = 22 }) {
   )
 }
 
-/* ── AI Score ring ── */
-function AiScoreRing({ score }) {
+/* ── Provenance score ──
+ * Deterministic 0-100 built ONLY from verifiable facts on the claim. No AI
+ * guesswork feeds the number — every point maps to a check that either passed
+ * or didn't, so the same photo always scores the same. The AI-generation hint
+ * is shown separately and clearly marked non-authoritative. */
+const PROVENANCE_FACTORS = [
+  { key: 'hash',   label: 'SHA-256 image hash recorded', points: 30 },
+  { key: 'sig',    label: 'Hardware ECDSA signature',     points: 25 },
+  { key: 'device', label: 'Camera device identity',       points: 20 },
+  { key: 'mint',   label: 'Minted on-chain (tx)',         points: 15 },
+  { key: 'ipfs',   label: 'Stored on IPFS / Filecoin',    points: 10 },
+]
+
+function computeProvenance({ imageHash, signature, deviceId, txHash, cid, onChainVerified }) {
+  const passed = {
+    hash: !!imageHash,
+    sig: !!signature,
+    device: !!deviceId,
+    mint: !!txHash,
+    ipfs: !!cid,
+  }
+  const score = PROVENANCE_FACTORS.reduce((sum, f) => sum + (passed[f.key] ? f.points : 0), 0)
+  return { score, passed, onChainVerified }
+}
+
+function ProvenanceScore({ imageHash, signature, deviceId, txHash, cid, onChainVerified, aiHint }) {
+  const { score, passed } = computeProvenance({ imageHash, signature, deviceId, txHash, cid, onChainVerified })
   const r = 26
-  const circ = 2 * Math.PI * r // ≈ 163.4
-  const offset = score != null ? circ * (1 - score / 100) : circ
+  const circ = 2 * Math.PI * r
+  const offset = circ * (1 - score / 100)
 
-  const color =
-    score == null ? '#646464'
-    : score >= 85 ? '#34d399'
-    : score >= 60 ? '#fbbf24'
-    : '#f87171'
-
+  const color = score >= 85 ? '#34d399' : score >= 60 ? '#fbbf24' : '#f87171'
   const label =
-    score == null ? 'Authenticity analysis pending…'
-    : score >= 90 ? 'Extremely unlikely to be AI-generated'
-    : score >= 70 ? 'Likely an authentic photograph'
-    : score >= 50 ? 'Some AI indicators present — review advised'
-    : 'High probability of AI generation'
+    score >= 90 ? 'Fully verifiable provenance'
+    : score >= 70 ? 'Strong verifiable provenance'
+    : score >= 50 ? 'Partial provenance on record'
+    : 'Limited provenance on record'
 
   return (
-    <div className="flex items-center gap-4 bg-white/[0.02] border border-white/[0.07] rounded-xl p-4">
-      <div className="relative w-16 h-16 shrink-0">
-        <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
-          <defs>
-            <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#E85002" />
-              <stop offset="60%" stopColor="#f97316" />
-              <stop offset="100%" stopColor="#34d399" />
-            </linearGradient>
-          </defs>
-          <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
-          <circle
-            cx="32" cy="32" r={r}
-            fill="none"
-            stroke={score != null ? 'url(#scoreGrad)' : 'rgba(255,255,255,0.06)'}
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeDasharray={circ}
-            strokeDashoffset={offset}
-            style={{ transition: 'stroke-dashoffset 1s ease' }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-extrabold leading-none" style={{ color }}>
-            {score ?? '—'}
-          </span>
-          <span className="text-[8px] text-text-muted">/100</span>
+    <div className="bg-white/[0.02] border border-white/[0.07] rounded-xl p-4">
+      <div className="flex items-center gap-4">
+        <div className="relative w-16 h-16 shrink-0">
+          <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+            <defs>
+              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#E85002" />
+                <stop offset="60%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#34d399" />
+              </linearGradient>
+            </defs>
+            <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+            <circle
+              cx="32" cy="32" r={r}
+              fill="none"
+              stroke="url(#scoreGrad)"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={circ}
+              strokeDashoffset={offset}
+              style={{ transition: 'stroke-dashoffset 1s ease' }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-lg font-extrabold leading-none" style={{ color }}>{score}</span>
+            <span className="text-[8px] text-text-muted">/100</span>
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-text-primary">Provenance Score</p>
+          <p className="text-[10px] text-text-muted leading-relaxed mt-0.5">{label}</p>
+          <div className="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-1000"
+              style={{ width: `${score}%`, background: 'linear-gradient(90deg, #E85002, #f97316, #34d399)' }}
+            />
+          </div>
         </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-text-primary">AI Authenticity</p>
-        <p className="text-[10px] text-text-muted leading-relaxed mt-0.5">{label}</p>
-        <div className="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-1000"
-            style={{
-              width: `${score ?? 0}%`,
-              background: 'linear-gradient(90deg, #E85002, #f97316, #34d399)',
-            }}
-          />
-        </div>
+
+      {/* Deterministic breakdown — every point is explainable */}
+      <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-1.5">
+        {PROVENANCE_FACTORS.map((f) => (
+          <div key={f.key} className="flex items-center gap-2">
+            {passed[f.key]
+              ? <CheckCircle2 size={11} className="text-[#34d399] shrink-0" strokeWidth={2.5} />
+              : <span className="w-[11px] h-[11px] rounded-full border border-white/20 shrink-0" />}
+            <span className={`text-[10px] flex-1 ${passed[f.key] ? 'text-text-secondary' : 'text-text-muted'}`}>{f.label}</span>
+            <span className={`text-[10px] font-mono ${passed[f.key] ? 'text-text-secondary' : 'text-text-muted/50'}`}>
+              {passed[f.key] ? `+${f.points}` : `+0`}
+            </span>
+          </div>
+        ))}
       </div>
+
+      {/* AI-generation hint — separate, explicitly non-authoritative */}
+      {aiHint && aiHint.assessed && (
+        <div className="mt-3 pt-3 border-t border-white/[0.06]">
+          <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">
+            AI-generation hint · non-authoritative
+          </p>
+          <p className={`text-[10px] leading-relaxed ${aiHint.likely ? 'text-[#fbbf24]' : 'text-text-secondary'}`}>
+            {aiHint.likely ? '⚠︎ May be AI-generated / manipulated' : '✓ No AI-generation artifacts detected'}
+            {aiHint.note ? ` — ${aiHint.note}` : ''}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
 
-/* ── Proof stat card ── */
-function ProofStatCard({ icon: Icon, title, sub, color }) {
+/* ── Proof stat card ──
+ * `verified` drives the real state: a green check only when the underlying fact
+ * is actually present, otherwise a muted "not on record" state. `sub` should
+ * describe whichever state is true. */
+function ProofStatCard({ icon: Icon, title, sub, color, verified }) {
   const variants = {
     green:  { card: 'border-[#34d399]/15 bg-[#34d399]/[0.04]', icon: 'bg-[#34d399]/10', check: 'text-[#34d399]' },
     orange: { card: 'border-brand/15 bg-brand/[0.04]',          icon: 'bg-brand/10',       check: 'text-brand'     },
     blue:   { card: 'border-[#60a5fa]/15 bg-[#60a5fa]/[0.04]', icon: 'bg-[#60a5fa]/10',  check: 'text-[#60a5fa]' },
   }
-  const v = variants[color]
+  const muted = { card: 'border-white/[0.07] bg-white/[0.02]', icon: 'bg-white/[0.04]', check: 'text-text-muted' }
+  const v = verified ? variants[color] : muted
   return (
     <div className={`flex items-center gap-3 border rounded-xl px-3 py-2.5 ${v.card}`}>
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${v.icon}`}>
         <Icon size={13} className={v.check} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-semibold text-text-primary">{title}</p>
+        <p className={`text-[11px] font-semibold ${verified ? 'text-text-primary' : 'text-text-muted'}`}>{title}</p>
         <p className="text-[9px] text-text-muted mt-0.5">{sub}</p>
       </div>
-      <CheckCircle2 size={13} className={`shrink-0 ${v.check}`} strokeWidth={2} />
+      {verified
+        ? <CheckCircle2 size={13} className={`shrink-0 ${v.check}`} strokeWidth={2} />
+        : <span className="w-3 h-3 rounded-full border border-white/20 shrink-0" title="Not on record" />}
     </div>
   )
 }
@@ -623,10 +673,40 @@ export default function ClaimPage() {
 
           {/* Right: Stats + CTA */}
           <div className="p-5 flex flex-col gap-3">
-            <AiScoreRing score={claim?.ai_score ?? null} />
-            <ProofStatCard icon={Lock}     title="ECDSA Signed"       sub="Hardware key · TPM 2.0" color="green"  />
-            <ProofStatCard icon={Zap}      title="ZK Proof Verified"  sub="Groth16 · vlayer"        color="orange" />
-            <ProofStatCard icon={Database} title="IPFS Stored"        sub="Filecoin · Lighthouse"   color="blue"   />
+            <ProvenanceScore
+              imageHash={imageHash}
+              signature={signature}
+              deviceId={deviceId}
+              txHash={claim?.tx_hash}
+              cid={cid}
+              onChainVerified={onChainVerified}
+              aiHint={{
+                assessed: claim?.likely_ai_generated != null,
+                likely: !!claim?.likely_ai_generated,
+                note: claim?.ai_assessment || null,
+              }}
+            />
+            <ProofStatCard
+              icon={Lock}
+              title="ECDSA Signed"
+              verified={!!signature}
+              sub={signature ? (onChainVerified ? 'Hardware key · verified on-chain' : 'Hardware key · on record') : 'No signature on record'}
+              color="green"
+            />
+            <ProofStatCard
+              icon={Zap}
+              title="On-Chain Verified"
+              verified={onChainVerified}
+              sub={onChainVerified ? 'Sepolia · live contract read' : 'Not yet readable on-chain'}
+              color="orange"
+            />
+            <ProofStatCard
+              icon={Database}
+              title="IPFS Stored"
+              verified={!!cid}
+              sub={cid ? 'Filecoin · Lighthouse' : 'No CID on record'}
+              color="blue"
+            />
 
             {/* CTA section */}
             <div className="mt-auto pt-2">
