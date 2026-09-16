@@ -88,10 +88,14 @@ NODE_ENV=production
 CLAIM_SERVER_URL=https://your-app.onrender.com
 FRONTEND_URL=https://your-owner-portal.vercel.app
 CORS_ORIGIN=*
-DATABASE_PATH=/var/data/Veris-claims.db
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 ```
 
-> On Render: set env vars in the dashboard, set `DATABASE_PATH` to a persistent disk path.
+> Render's disk is ephemeral (wiped on every deploy/restart), so the claim server uses a
+> hosted Postgres database (e.g. [Neon](https://neon.tech), free tier) instead of a local
+> SQLite file. Create the Postgres instance first, then paste its connection string in as
+> `DATABASE_URL` in the Render dashboard's env vars. The server creates its own tables on
+> first boot — no manual migration needed.
 
 Start command: `npm run start`
 
