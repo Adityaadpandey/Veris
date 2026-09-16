@@ -32,12 +32,12 @@ async function main() {
     process.exit(1);
   }
 
-  dbService.initialize();
+  await dbService.initialize();
 
   const force = process.argv.includes('--force') || process.env.BACKFILL_FORCE === '1';
   const pending = force
-    ? dbService.getAllClaimsWithCid()
-    : dbService.getClaimsMissingAI();
+    ? await dbService.getAllClaimsWithCid()
+    : await dbService.getClaimsMissingAI();
   console.log(`🔎 Found ${pending.length} claim(s) ${force ? 'to re-enrich (--force)' : 'needing enrichment'}.`);
 
   let done = 0, failed = 0;
@@ -50,7 +50,7 @@ async function main() {
   }
 
   console.log(`\n✅ Backfill complete: ${done} enriched, ${failed} failed.`);
-  dbService.close();
+  await dbService.close();
   process.exit(failed > 0 ? 1 : 0);
 }
 
