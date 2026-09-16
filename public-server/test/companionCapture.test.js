@@ -109,6 +109,33 @@ test('compareDeviceAndMobile tolerates the mobile photo having a tighter field o
   );
 });
 
+test('compareDeviceAndMobile downscales oversized frames instead of comparing them full-resolution', async () => {
+  // Real captures are much bigger than any of the synthetic images above (a Pi frame is ~2600x1950,
+  // a phone photo is commonly 3000x4000+) — decoding them at full size for every hash/crop/SSIM step
+  // was measured to peak around 300MB RSS per comparison on a real device+phone pair, one bad moment
+  // away from crashing a 512MB Render instance. This just checks a comparison at realistic size still
+  // finishes fast and scores a genuine near-duplicate highly, i.e. the downscale isn't throwing away
+  // the content that matters.
+  const patch = await sharp({ create: { width: 300, height: 300, channels: 3, background: { r: 40, g: 180, b: 210 } } })
+    .jpeg()
+    .toBuffer();
+  const device = await sharp({ create: { width: 2600, height: 1950, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: patch, left: 1100, top: 800 }])
+    .jpeg()
+    .toBuffer();
+  const mobile = await sharp({ create: { width: 3000, height: 4000, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: await sharp(patch).resize(360, 360).toBuffer(), left: 1300, top: 1700 }])
+    .jpeg()
+    .toBuffer();
+
+  const start = Date.now();
+  const { consistency } = await compareDeviceAndMobile(device, mobile);
+  const elapsedMs = Date.now() - start;
+
+  assert.ok(consistency.score > 0.5, `expected a real near-duplicate to still score well, got ${consistency.score}`);
+  assert.ok(elapsedMs < 5000, `expected the downscaled comparison to stay fast, took ${elapsedMs}ms`);
+});
+
 test('compareDeviceAndMobile does not let two different scenes hide behind a shared plain background', async () => {
   // Block-wise SSIM (and hashing) treat a flat, featureless region as a perfect match by
   // construction, since there's no texture there for either side to disagree on. Two genuinely
