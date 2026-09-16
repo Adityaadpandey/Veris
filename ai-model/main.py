@@ -16,6 +16,9 @@ Usage:
 """
 
 import os
+import io
+import json
+import base64
 import cv2
 import torch
 import torch.nn.functional as F
@@ -28,6 +31,17 @@ try:
     from transformers import CLIPProcessor, CLIPModel
 except ImportError:
     raise ImportError("Run: pip install transformers")
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 
 # ------------------------------------------------------------------
@@ -221,27 +235,104 @@ def signal_phash(img1: Image.Image, img2: Image.Image,
 
 
 # ------------------------------------------------------------------
+#  SIGNAL 6: OPENAI VISION JUDGMENT
+# ------------------------------------------------------------------
+
+class OpenAIVisionSignal:
+    """
+    Asks a GPT-4o-class vision model whether two photos show the same
+    physical scene, shot by different cameras (DSLR vs a cheap embedded
+    sensor). This catches cases the pixel-level signals miss -- e.g. a
+    reused/staged photo that happens to share color and edge statistics
+    with the real capture, or a genuine same-scene pair that pixel signals
+    undervalue because of exposure/lens differences.
+    """
+
+    def __init__(self, api_key: str = None, model: str = None):
+        if OpenAI is None:
+            raise RuntimeError("openai package not installed. Run: pip install openai")
+        api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY not set")
+        self.model = model or os.environ.get("OPENAI_VISION_MODEL", "gpt-5.6-luna")
+        self.client = OpenAI(api_key=api_key)
+
+    @staticmethod
+    def _to_data_url(img: Image.Image, max_side: int = 768, quality: int = 80) -> str:
+        img = img.copy()
+        img.thumbnail((max_side, max_side), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=quality)
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{b64}"
+
+    def score(self, img1: Image.Image, img2: Image.Image) -> float:
+        prompt = (
+            "You are comparing two photos that may show the same physical scene, "
+            "captured moments apart by two different cameras (one a DSLR, one a "
+            "cheap embedded camera). Ignore differences in exposure, color grading, "
+            "sharpness, and sensor noise -- those are expected. Judge only whether "
+            "the underlying scene, subject, and framing match.\n\n"
+            'Respond with ONLY a JSON object, no markdown fences: '
+            '{"same_scene": true|false, "confidence": 0.0-1.0, "reason": "<one sentence>"}'
+        )
+        resp = self.client.chat.completions.create(
+            model=self.model,
+            max_completion_tokens=300,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": self._to_data_url(img1)}},
+                    {"type": "image_url", "image_url": {"url": self._to_data_url(img2)}},
+                ],
+            }],
+        )
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        data = json.loads(raw)
+
+        confidence = max(0.0, min(float(data.get("confidence", 0.0)), 1.0))
+        if not data.get("same_scene", False):
+            confidence = min(confidence, 0.3)
+        return confidence
+
+
+# ------------------------------------------------------------------
 #  IMAGE VERIFIER - MULTI-SIGNAL FUSION
 # ------------------------------------------------------------------
 
 SIGNAL_CONFIG = {
-    "orb":        {"weight": 0.10, "floor": 0.00},
-    "ssim_edge":  {"weight": 0.20, "floor": 0.10},
-    "color_hist": {"weight": 0.20, "floor": 0.05},
-    "clip":       {"weight": 0.30, "floor": 0.40},
-    "phash":      {"weight": 0.20, "floor": 0.20},
+    "orb":           {"weight": 0.05, "floor": 0.00},
+    "ssim_edge":     {"weight": 0.15, "floor": 0.10},
+    "color_hist":    {"weight": 0.15, "floor": 0.05},
+    "clip":          {"weight": 0.20, "floor": 0.40},
+    "phash":         {"weight": 0.15, "floor": 0.20},
+    "openai_vision": {"weight": 0.30, "floor": 0.35},
 }
 
 
 class ImageVerifier:
     """
     Multi-signal image authenticity verifier.
-    Combines 5 independent signals with weighted fusion and per-signal floors.
+    Combines 6 independent signals with weighted fusion and per-signal floors:
+    5 pixel/embedding-level signals plus a GPT-4o-class vision judgment.
     """
 
-    def __init__(self, device: str = "cpu", config: dict = None):
+    def __init__(self, device: str = "cpu", config: dict = None, use_openai: bool = True):
         self.config = config or SIGNAL_CONFIG
         self.clip = CLIPSignal(device=device)
+
+        self.openai = None
+        if use_openai:
+            try:
+                self.openai = OpenAIVisionSignal()
+            except RuntimeError as e:
+                print(f"[ImageVerifier] OpenAI vision signal disabled: {e}")
 
     def verify(self, dslr_path: str, esp_path: str,
                threshold: float = 0.45) -> dict:
@@ -257,26 +348,39 @@ class ImageVerifier:
             "phash": signal_phash(pair["small_dslr"], pair["small_esp"]),
         }
 
+        openai_error = None
+        if self.openai is not None:
+            try:
+                signals["openai_vision"] = self.openai.score(pair["clip_dslr"], pair["clip_esp"])
+            except Exception as e:
+                openai_error = str(e)
+
+        # Signals that didn't run (no key, or a transient API failure) are
+        # excluded rather than silently scored as 0 -- their weight is
+        # redistributed proportionally across the signals that did run.
+        active_config = {k: self.config[k] for k in signals}
+        weight_total = sum(cfg["weight"] for cfg in active_config.values())
+
         # Check floors — reject if any signal is below its minimum
         rejected_by = None
         for name, value in signals.items():
-            floor = self.config[name]["floor"]
+            floor = active_config[name]["floor"]
             if value < floor:
                 rejected_by = name
                 break
 
-        # Weighted fusion
+        # Weighted fusion (renormalized if a signal was skipped)
         score = sum(
-            signals[name] * self.config[name]["weight"]
+            signals[name] * active_config[name]["weight"]
             for name in signals
-        )
+        ) / weight_total
         score = round(float(score), 4)
 
         authentic = rejected_by is None and score >= threshold
         confidence = ("high" if score >= 0.85 else
                       "medium" if score >= threshold else "low")
 
-        return {
+        result = {
             "authentic": authentic,
             "score": score,
             "confidence": confidence,
@@ -284,6 +388,9 @@ class ImageVerifier:
             "rejected_by": rejected_by,
             "signals": {k: round(v, 4) for k, v in signals.items()},
         }
+        if openai_error:
+            result["openai_error"] = openai_error
+        return result
 
     def diagnose(self, data_dir: str, threshold: float = 0.45) -> list:
         """Run verification on all scene pairs and print a summary table."""
@@ -294,8 +401,8 @@ class ImageVerifier:
 
         results = []
         print(f"\n{'Scene':<16} {'Score':>6} {'ORB':>6} {'SSIM':>6} "
-              f"{'Color':>6} {'CLIP':>6} {'pHash':>6} {'Result':>8}")
-        print("-" * 72)
+              f"{'Color':>6} {'CLIP':>6} {'pHash':>6} {'GPT':>6} {'Result':>8}")
+        print("-" * 80)
 
         for scene in scenes:
             dslr_p = os.path.join(data_dir, scene, "dslr.jpg")
@@ -306,10 +413,11 @@ class ImageVerifier:
 
             r = self.verify(dslr_p, esp_p, threshold=threshold)
             s = r["signals"]
+            gpt = f"{s['openai_vision']:.3f}" if "openai_vision" in s else "  n/a"
             flag = "PASS" if r["authentic"] else f"FAIL({r['rejected_by'] or 'score'})"
             print(f"{scene:<16} {r['score']:>6.3f} {s['orb']:>6.3f} "
                   f"{s['ssim_edge']:>6.3f} {s['color_hist']:>6.3f} "
-                  f"{s['clip']:>6.3f} {s['phash']:>6.3f} {flag:>8}")
+                  f"{s['clip']:>6.3f} {s['phash']:>6.3f} {gpt:>6} {flag:>8}")
             results.append({"scene": scene, "score": r["score"],
                             "authentic": r["authentic"], "signals": s})
 
