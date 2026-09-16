@@ -24,20 +24,15 @@ Usage:
 
 import os
 import io
+import re
 import json
+import time
 import base64
 import cv2
-import torch
-import torch.nn.functional as F
 import numpy as np
 import imagehash
 from PIL import Image, ImageFilter, ImageOps
 from skimage.metrics import structural_similarity as ssim
-
-try:
-    from transformers import CLIPProcessor, CLIPModel
-except ImportError:
-    raise ImportError("Run: pip install transformers")
 
 try:
     from dotenv import load_dotenv
@@ -46,9 +41,22 @@ except ImportError:
     pass
 
 try:
-    from openai import OpenAI
+    from openai import (
+        OpenAI, APIConnectionError, APITimeoutError,
+        RateLimitError, InternalServerError,
+    )
+    RETRYABLE_OPENAI_ERRORS = (
+        APIConnectionError, APITimeoutError, RateLimitError, InternalServerError,
+    )
 except ImportError:
     OpenAI = None
+    RETRYABLE_OPENAI_ERRORS = ()
+
+# CLIP needs torch + transformers loaded, and the model weights alone are
+# ~600MB in fp32 -- that blows past a 512MB instance (e.g. Render free tier)
+# before a single image is processed. Off by default; set ENABLE_CLIP=1 on
+# a box with enough headroom to bring the signal back.
+ENABLE_CLIP = os.environ.get("ENABLE_CLIP") == "1"
 
 
 # ------------------------------------------------------------------
@@ -211,11 +219,19 @@ class CLIPSignal:
     MODEL_ID = "openai/clip-vit-base-patch32"
 
     def __init__(self, device: str = "cpu"):
+        try:
+            from transformers import CLIPProcessor, CLIPModel
+        except ImportError:
+            raise ImportError("Run: pip install transformers")
+
         self.device = device
         self.model = CLIPModel.from_pretrained(self.MODEL_ID).to(device).eval()
         self.processor = CLIPProcessor.from_pretrained(self.MODEL_ID)
 
-    def _encode(self, img: Image.Image) -> torch.Tensor:
+    def _encode(self, img: Image.Image) -> "torch.Tensor":
+        import torch
+        import torch.nn.functional as F
+
         pixel_values = self.processor(
             images=img, return_tensors="pt"
         ).pixel_values.to(self.device)
@@ -282,66 +298,120 @@ class OpenAIVisionSignal:
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         return f"data:image/jpeg;base64,{b64}"
 
-    def score(self, companion_img: Image.Image, truth_img: Image.Image) -> float:
-        prompt = (
-            "You are a forensic image analyst. Image 2 is a hardware-verified "
-            "camera capture -- ground truth, unedited. Image 1 is a candidate "
-            "photo submitted as allegedly showing the same real moment.\n\n"
-            "Determine whether Image 1 is an authentic, unedited photo of the "
-            "same real scene as Image 2, or whether it has been digitally "
-            "altered -- e.g. a person or object inserted/composited in, a face "
-            "swapped, or part of the image AI-generated. Differences in "
-            "exposure, color grading, sharpness, and sensor noise between the "
-            "two cameras are expected and NOT evidence of tampering on their "
-            "own. Look specifically for: mismatched lighting/shadows between "
-            "people or objects in the same frame, a rendering style or "
-            "sharpness on one subject that doesn't match the rest of the "
-            "scene, blending seams, or a person/object that could not "
-            "plausibly have been photographed in that moment (e.g. a public "
-            "figure appearing in an ordinary candid setting).\n\n"
-            'Respond with ONLY a JSON object, no markdown fences: '
-            '{"same_scene": true|false, "tampered": true|false, '
-            '"confidence": 0.0-1.0, "reason": "<one sentence>"}'
-        )
-        raw = self._complete(companion_img, truth_img, prompt)
-        data = json.loads(raw)
+    _PROMPT = (
+        "You are a forensic image analyst. Image 2 is a hardware-verified "
+        "camera capture -- ground truth, unedited. Image 1 is a candidate "
+        "photo submitted as allegedly showing the same real moment.\n\n"
+        "Determine whether Image 1 is an authentic, unedited photo of the "
+        "same real scene as Image 2, or whether it has been digitally "
+        "altered -- e.g. a person or object inserted/composited in, a face "
+        "swapped, or part of the image AI-generated. Differences in "
+        "exposure, color grading, sharpness, and sensor noise between the "
+        "two cameras are expected and NOT evidence of tampering on their "
+        "own. Look specifically for: mismatched lighting/shadows between "
+        "people or objects in the same frame, a rendering style or "
+        "sharpness on one subject that doesn't match the rest of the "
+        "scene, blending seams, or a person/object that could not "
+        "plausibly have been photographed in that moment (e.g. a public "
+        "figure appearing in an ordinary candid setting).\n\n"
+        'Respond with ONLY a JSON object, no markdown fences: '
+        '{"same_scene": true|false, "tampered": true|false, '
+        '"confidence": 0.0-1.0, "reason": "<one sentence>"}'
+    )
 
+    def score(self, companion_img: Image.Image, truth_img: Image.Image,
+              floor: float = 0.35) -> float:
+        """
+        A single reasoning-model pass isn't fully deterministic: the exact
+        same pair of genuine, unedited photos has been observed to score
+        confidence 0.30 ("tampered") on one call and 0.86 ("clean") on a
+        retry with identical inputs. Since a score below `floor` hard-
+        rejects in ImageVerifier, one unlucky response could reject a real
+        photo -- so any result landing below the floor gets one
+        confirmatory second opinion before it's trusted. Only a result
+        both calls agree is below-floor gets returned as a confident
+        reject. A first result that already clears the floor is trusted
+        immediately; that's the common case and doesn't pay for a second
+        call.
+        """
+        first = self._authenticity_confidence(self._judge(companion_img, truth_img))
+        if first >= floor:
+            return first
+
+        second = self._authenticity_confidence(self._judge(companion_img, truth_img))
+        if second < floor:
+            return min(first, second)
+
+        # The two calls disagree -- not the confident, repeatable signal a
+        # hard reject needs. Trust the second (clean) read rather than
+        # freeze on the first response's noise.
+        return second
+
+    def _judge(self, companion_img: Image.Image, truth_img: Image.Image) -> dict:
+        raw = self._complete(companion_img, truth_img, self._PROMPT)
+        return self._parse_json(raw)
+
+    @staticmethod
+    def _authenticity_confidence(data: dict) -> float:
+        """Map the model's raw judgement to an authenticity confidence in
+        [0, 1]. If it reports tampering (or a scene mismatch), "confidence"
+        in the response means confidence-that-it's-fake, so it's capped
+        low regardless of the raw number -- a confident "this is fake"
+        (e.g. tampered=true, confidence=0.99) must score low, not high."""
         confidence = max(0.0, min(float(data.get("confidence", 0.0)), 1.0))
         if data.get("tampered", False) or not data.get("same_scene", False):
-            confidence = min(confidence, 0.3)
+            return min(confidence, 0.3)
         return confidence
 
     def _complete(self, img1: Image.Image, img2: Image.Image, prompt: str,
-                  max_completion_tokens: int = 600) -> str:
+                  max_completion_tokens: int = 600, max_retries: int = 2) -> str:
         """
-        Reasoning models can spend the whole completion-token budget on
-        internal reasoning and return empty content (finish_reason="length",
-        reasoning_tokens == budget) with nothing left for the actual answer.
-        One retry at double the budget covers the cases that need more
-        headroom without paying that cost on every call.
+        Two independent failure modes, two independent retries:
+
+        1. Transient API errors (rate limit, timeout, connection drop, 5xx)
+           -- retried with exponential backoff, same token budget.
+        2. Reasoning models can spend the whole completion-token budget on
+           internal reasoning and return empty content (finish_reason=
+           "length", reasoning_tokens == budget) with nothing left for the
+           actual answer -- retried with the budget doubled.
         """
-        for attempt_tokens in (max_completion_tokens, max_completion_tokens * 2):
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                max_completion_tokens=attempt_tokens,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": self._to_data_url(img1)}},
-                        {"type": "image_url", "image_url": {"url": self._to_data_url(img2)}},
-                    ],
-                }],
-            )
+        tokens = max_completion_tokens
+        last_finish_reason = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    max_completion_tokens=tokens,
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": self._to_data_url(img1)}},
+                            {"type": "image_url", "image_url": {"url": self._to_data_url(img2)}},
+                        ],
+                    }],
+                )
+            except RETRYABLE_OPENAI_ERRORS:
+                if attempt == max_retries:
+                    raise
+                time.sleep(2 ** attempt)
+                continue
+
             content = resp.choices[0].message.content
             if content:
-                break
-        else:
-            raise RuntimeError(
-                f"OpenAI vision signal returned no content after retry "
-                f"(finish_reason={resp.choices[0].finish_reason})"
-            )
+                return self._strip_markdown_fence(content)
 
+            last_finish_reason = resp.choices[0].finish_reason
+            tokens *= 2
+
+        raise RuntimeError(
+            f"OpenAI vision signal returned no content after "
+            f"{max_retries + 1} attempts (finish_reason={last_finish_reason})"
+        )
+
+    @staticmethod
+    def _strip_markdown_fence(content: str) -> str:
         raw = content.strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
@@ -349,6 +419,19 @@ class OpenAIVisionSignal:
                 raw = raw[4:]
             raw = raw.strip()
         return raw
+
+    @staticmethod
+    def _parse_json(raw: str) -> dict:
+        """The prompt asks for JSON-only output, but a model can still wrap
+        it in a stray sentence. Fall back to pulling out the first {...}
+        block before giving up."""
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if not match:
+                raise
+            return json.loads(match.group(0))
 
 
 # ------------------------------------------------------------------
@@ -361,7 +444,7 @@ SIGNAL_CONFIG = {
     "color_hist":    {"weight": 0.15, "floor": 0.05},
     "clip":          {"weight": 0.20, "floor": 0.40},
     "phash":         {"weight": 0.15, "floor": 0.20},
-    "openai_vision": {"weight": 0.30, "floor": 0.35},
+    "vision": {"weight": 0.30, "floor": 0.35},
 }
 
 
@@ -378,7 +461,8 @@ class ImageVerifier:
 
     def __init__(self, device: str = "cpu", config: dict = None, use_openai: bool = True):
         self.config = config or SIGNAL_CONFIG
-        self.clip = CLIPSignal(device=device)
+        self.clip = CLIPSignal(device=device) if ENABLE_CLIP else None
+        self.use_openai = use_openai
 
         self.openai = None
         if use_openai:
@@ -402,14 +486,18 @@ class ImageVerifier:
             "orb": signal_orb(pair["orb_companion"], pair["orb_truth"]),
             "ssim_edge": signal_ssim_edge(pair["small_companion"], pair["small_truth"]),
             "color_hist": signal_color_hist(pair["small_companion"], pair["small_truth"]),
-            "clip": self.clip.score(pair["clip_companion"], pair["clip_truth"]),
             "phash": signal_phash(pair["small_companion"], pair["small_truth"]),
         }
+        if self.clip is not None:
+            signals["clip"] = self.clip.score(pair["clip_companion"], pair["clip_truth"])
 
         openai_error = None
         if self.openai is not None:
             try:
-                signals["openai_vision"] = self.openai.score(pair["clip_companion"], pair["clip_truth"])
+                signals["vision"] = self.openai.score(
+                    pair["clip_companion"], pair["clip_truth"],
+                    floor=self.config["vision"]["floor"],
+                )
             except Exception as e:
                 openai_error = str(e)
 
@@ -434,6 +522,17 @@ class ImageVerifier:
         ) / weight_total
         score = round(float(score), 4)
 
+        # vision is the only signal that can catch a person/object
+        # composited into an otherwise real background -- the other 5 are
+        # global/coarse and pass a good composite (see main.py module
+        # docstring). If the caller asked for it (use_openai=True) but it
+        # didn't run this call -- no key, a transient API error, whatever --
+        # don't let the remaining signals alone decide "authentic". Reject
+        # and say why, instead of silently falling back to weaker checks.
+        forensic_unavailable = self.use_openai and "vision" not in signals
+        if forensic_unavailable and rejected_by is None:
+            rejected_by = "vision_unavailable"
+
         authentic = rejected_by is None and score >= threshold
         confidence = ("high" if score >= 0.85 else
                       "medium" if score >= threshold else "low")
@@ -446,6 +545,8 @@ class ImageVerifier:
             "rejected_by": rejected_by,
             "signals": {k: round(v, 4) for k, v in signals.items()},
         }
+        if forensic_unavailable:
+            result["forensic_signal_unavailable"] = True
         if openai_error:
             result["openai_error"] = openai_error
         return result
@@ -471,11 +572,12 @@ class ImageVerifier:
 
             r = self.verify(companion_p, truth_p, threshold=threshold)
             s = r["signals"]
-            gpt = f"{s['openai_vision']:.3f}" if "openai_vision" in s else "  n/a"
+            gpt = f"{s['vision']:.3f}" if "vision" in s else "  n/a"
+            clip = f"{s['clip']:.3f}" if "clip" in s else "  n/a"
             flag = "PASS" if r["authentic"] else f"FAIL({r['rejected_by'] or 'score'})"
             print(f"{scene:<16} {r['score']:>6.3f} {s['orb']:>6.3f} "
                   f"{s['ssim_edge']:>6.3f} {s['color_hist']:>6.3f} "
-                  f"{s['clip']:>6.3f} {s['phash']:>6.3f} {gpt:>6} {flag:>8}")
+                  f"{clip:>6} {s['phash']:>6.3f} {gpt:>6} {flag:>8}")
             results.append({"scene": scene, "score": r["score"],
                             "authentic": r["authentic"], "signals": s})
 
@@ -546,7 +648,11 @@ class ImageVerifier:
 # ------------------------------------------------------------------
 
 if __name__ == "__main__":
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    if ENABLE_CLIP:
+        import torch
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        DEVICE = "cpu"
     DATA_DIR = "./data"
     COMPANION = os.path.join(DATA_DIR, "scene_001", "dslr.jpg")
     TRUTH = os.path.join(DATA_DIR, "scene_001", "esp.jpg")

@@ -9,6 +9,12 @@ import pytest
 import numpy as np
 from PIL import Image
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 SCENE_001 = os.path.join(DATA_DIR, "scene_001")
 COMPANION_PATH = os.path.join(SCENE_001, "dslr.jpg")
@@ -171,8 +177,9 @@ def test_verifier_same_scene_authentic(verifier):
     assert "orb" in result["signals"]
     assert "ssim_edge" in result["signals"]
     assert "color_hist" in result["signals"]
-    assert "clip" in result["signals"]
     assert "phash" in result["signals"]
+    from main import ENABLE_CLIP
+    assert ("clip" in result["signals"]) == ENABLE_CLIP
 
 
 def test_verifier_random_not_authentic(verifier):
@@ -240,7 +247,7 @@ def test_verifier_without_openai_key_falls_back_gracefully(monkeypatch):
     assert v.openai is None
 
     result = v.verify(COMPANION_PATH, TRUTH_PATH)
-    assert "openai_vision" not in result["signals"]
+    assert "vision" not in result["signals"]
     assert 0.0 <= result["score"] <= 1.0
 
 
