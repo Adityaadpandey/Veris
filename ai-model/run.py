@@ -3,13 +3,20 @@ Minimal image verification test using ImageVerifier
 """
 
 import os
-import torch
-from main import ImageVerifier
+from main import ImageVerifier, ENABLE_CLIP
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+if ENABLE_CLIP:
+    import torch
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+else:
+    DEVICE = "cpu"
 DATA_DIR = "./data"
+# DSLR = os.path.join(DATA_DIR, "scene_001", "a.jpeg")
+# ESP = os.path.join(DATA_DIR, "scene_001", "ras1.jpeg")
+
 DSLR = os.path.join(DATA_DIR, "scene_001", "b.jpeg")
-ESP = os.path.join(DATA_DIR, "scene_001", "ras1.jpeg")
+ESP = os.path.join(DATA_DIR, "scene_001", "ras2.jpeg")
+
 
 print(f"Device : {DEVICE}")
 print(f"Image 1: {DSLR}")
