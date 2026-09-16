@@ -82,3 +82,57 @@ test('compareDeviceAndMobile always returns consistency.score between 0 and 1', 
   assert.ok(consistency.visual >= 0 && consistency.visual <= 1, `visual out of range: ${consistency.visual}`);
   assert.ok(consistency.content >= 0 && consistency.content <= 1, `content out of range: ${consistency.content}`);
 });
+
+test('compareDeviceAndMobile tolerates the mobile photo having a tighter field of view (crop + rotation + exposure)', async () => {
+  // A phone and a device camera mounted together almost never share a focal length, so the mobile
+  // shot is very often a genuine sub-region of the device's wider frame, not just a squished copy of
+  // the whole thing — this is the scenario that made real captures score ~25% before the fix.
+  const patch = await sharp({ create: { width: 80, height: 80, channels: 3, background: { r: 40, g: 180, b: 210 } } })
+    .jpeg()
+    .toBuffer();
+  const device = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: patch, left: 160, top: 110 }])
+    .jpeg()
+    .toBuffer();
+  const mobile = await sharp(device)
+    .extract({ left: 90, top: 40, width: 220, height: 220 })
+    .resize(220, 300) // narrower FOV, different aspect ratio than the device
+    .modulate({ brightness: 1.25 }) // a second camera sensor won't agree on exposure either
+    .rotate(90) // and won't necessarily be mounted the same way up
+    .jpeg()
+    .toBuffer();
+
+  const { consistency } = await compareDeviceAndMobile(device, mobile);
+  assert.ok(
+    consistency.score > 0.55,
+    `expected the crop+rotation+exposure search to recover a decent score, got ${consistency.score}`
+  );
+});
+
+test('compareDeviceAndMobile does not let two different scenes hide behind a shared plain background', async () => {
+  // Block-wise SSIM (and hashing) treat a flat, featureless region as a perfect match by
+  // construction, since there's no texture there for either side to disagree on. Two genuinely
+  // different photos that happen to share a plain backdrop (a wall, a sky, a table) could otherwise
+  // score deceptively high purely on that shared blandness rather than on any real correspondence.
+  const patchA = await sharp({ create: { width: 80, height: 80, channels: 3, background: { r: 40, g: 180, b: 210 } } })
+    .jpeg()
+    .toBuffer();
+  const device = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: patchA, left: 160, top: 110 }])
+    .jpeg()
+    .toBuffer();
+
+  const patchB = await sharp({ create: { width: 80, height: 80, channels: 3, background: { r: 210, g: 40, b: 40 } } })
+    .jpeg()
+    .toBuffer();
+  const differentScene = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: patchB, left: 30, top: 190 }])
+    .jpeg()
+    .toBuffer();
+
+  const { consistency } = await compareDeviceAndMobile(device, differentScene);
+  assert.ok(
+    consistency.score < 0.5,
+    `expected a genuinely different scene to score well below a real pairing despite the shared background, got ${consistency.score}`
+  );
+});

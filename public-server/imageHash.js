@@ -252,20 +252,34 @@ function hammingDistance(a, b) {
 // (pure brightness threshold) so it only nudges the result.
 const HASH_WEIGHTS = { dhash: 0.4, phash: 0.4, ahash: 0.2 };
 
+// Same idea, tuned for comparing two different CAMERAS pointed at the same
+// scene (companion capture) rather than checking whether a single image was
+// re-uploaded unmodified. aHash is a pure brightness threshold, and two
+// separate sensors virtually never agree on exposure even when they're
+// looking at the same thing, so it gets zeroed out here instead of just
+// down-weighted — otherwise a perfectly good pairing loses points purely for
+// one camera metering brighter than the other.
+const COMPANION_HASH_WEIGHTS = { dhash: 0.55, phash: 0.45, ahash: 0 };
+
 /**
  * Weighted, normalized (0..1) dissimilarity across whichever hash families
  * both `a` and `b` have populated. Missing hashes are skipped and the
  * remaining weights renormalized, so a candidate that predates a hash type
  * being added still compares fairly on what it does have.
+ * `weights` defaults to HASH_WEIGHTS but can be overridden (e.g.
+ * COMPANION_HASH_WEIGHTS above) by a caller comparing images for a different
+ * purpose than tamper detection.
  * Returns { distance, coverage, breakdown } — distance is null if there was
  * no usable overlap at all (coverage === 0).
  */
-function combinedHashDistance(a, b) {
+function combinedHashDistance(a, b, weights = HASH_WEIGHTS) {
   const breakdown = {};
   let weightedSum = 0;
   let weightTotal = 0;
 
-  for (const key of Object.keys(HASH_WEIGHTS)) {
+  for (const key of Object.keys(weights)) {
+    const w = weights[key];
+    if (!w) continue;
     const ha = a && a[key];
     const hb = b && b[key];
     if (!ha || !hb) continue;
@@ -274,8 +288,8 @@ function combinedHashDistance(a, b) {
     if (!Number.isFinite(dist)) continue;
     const normalized = dist / bits; // 0..1
     breakdown[key] = { distance: dist, bits, normalized: Math.round(normalized * 1000) / 1000 };
-    weightedSum += HASH_WEIGHTS[key] * normalized;
-    weightTotal += HASH_WEIGHTS[key];
+    weightedSum += w * normalized;
+    weightTotal += w;
   }
 
   if (weightTotal === 0) return { distance: null, coverage: 0, breakdown };
@@ -294,10 +308,10 @@ function combinedHashDistance(a, b) {
  * orientation the candidate was stored at.
  * Same null-distance contract as combinedHashDistance when nothing matches.
  */
-function bestCombinedHashDistance(query, entries) {
+function bestCombinedHashDistance(query, entries, weights = HASH_WEIGHTS) {
   let best = { distance: null, coverage: 0, breakdown: {}, orientation: null };
   for (const entry of entries || []) {
-    const cmp = combinedHashDistance(query, entry);
+    const cmp = combinedHashDistance(query, entry, weights);
     if (cmp.distance === null) continue;
     if (best.distance === null || cmp.distance < best.distance) {
       best = { ...cmp, orientation: entry.orientation || null };
@@ -306,7 +320,59 @@ function bestCombinedHashDistance(query, entries) {
   return best;
 }
 
+// Candidate crop windows tried when two frames plausibly show the same scene
+// at different fields of view — a phone and a device camera mounted together
+// virtually never share a focal length or exact framing, so comparing only
+// full-frame-vs-full-frame (or a uniform 'fill' squish) systematically
+// under-scores a perfectly good pairing. Each candidate is a square window
+// sized as a fraction of the shorter side, recentered by (dx, dy) as a
+// fraction of the frame; kept small and center-biased since two cameras
+// mounted together are rarely offset by much more than that.
+const CROP_CANDIDATES = [
+  { size: 1.0, dx: 0, dy: 0 },
+  { size: 0.85, dx: 0, dy: 0 },
+  { size: 0.85, dx: -0.1, dy: 0 },
+  { size: 0.85, dx: 0.1, dy: 0 },
+  { size: 0.85, dx: 0, dy: -0.1 },
+  { size: 0.85, dx: 0, dy: 0.1 },
+  { size: 0.7, dx: 0, dy: 0 },
+  { size: 0.7, dx: -0.12, dy: 0 },
+  { size: 0.7, dx: 0.12, dy: 0 },
+  { size: 0.7, dx: 0, dy: -0.12 },
+  { size: 0.7, dx: 0, dy: 0.12 },
+  { size: 0.55, dx: 0, dy: 0 }
+];
+
+/**
+ * Grayscale standard deviation of `buffer` — a cheap texture/detail estimate.
+ * A near-flat region (sky, a blank wall, a synthetic solid-color patch) has a
+ * stddev near 0; both perceptual hashes AND block SSIM treat "two flat
+ * regions" as a perfect match (a flat block has zero gradients and zero
+ * variance, so there's nothing in either signal to actually disagree on),
+ * which makes flat regions a cheap way to fake a "match" that isn't really
+ * evidence of anything. Used to keep the companion-capture crop search (see
+ * companionCapture.js) from picking a flat, uninformative window as its
+ * "best" alignment.
+ */
+async function textureStdDev(buffer) {
+  const stats = await sharp(buffer).grayscale().stats();
+  return stats.channels[0].stdev;
+}
+
+/** Extracts the square sub-region described by `candidate` (see CROP_CANDIDATES) from `buffer`. */
+async function cropCandidate(buffer, candidate) {
+  const { width, height } = await sharp(buffer).metadata();
+  if (!width || !height) return buffer;
+  const side = Math.max(8, Math.round(Math.min(width, height) * candidate.size));
+  const cx = width / 2 + candidate.dx * width;
+  const cy = height / 2 + candidate.dy * height;
+  const left = Math.max(0, Math.min(width - side, Math.round(cx - side / 2)));
+  const top = Math.max(0, Math.min(height - side, Math.round(cy - side / 2)));
+  return sharp(buffer).extract({ left, top, width: side, height: side }).toBuffer();
+}
+
 module.exports = {
   sha256Hex, dHash, pHash, aHash, computeHashes, hammingDistance, combinedHashDistance,
-  ORIENTATIONS, computeOrientationHashes, bestCombinedHashDistance, transformForOrientation
+  ORIENTATIONS, computeOrientationHashes, bestCombinedHashDistance, transformForOrientation,
+  COMPANION_HASH_WEIGHTS, CROP_CANDIDATES, cropCandidate, textureStdDev
 };
