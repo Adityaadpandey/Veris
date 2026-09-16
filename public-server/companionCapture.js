@@ -152,20 +152,28 @@ async function textureWeightedContentScore(bufferA, bufferB) {
  * question is already settled by the time this runs.
  */
 async function bestCroppedMatch(source, target, weights) {
-  const attempts = await Promise.all(
-    CROP_CANDIDATES.filter((c) => c.size !== 1).map(async (candidate) => {
-      try {
-        const cropped = await cropCandidate(source, candidate);
-        const [hashes, stdev] = await Promise.all([computeHashes(cropped), textureStdDev(cropped)]);
-        if (stdev < MIN_CROP_TEXTURE_STDDEV) return null;
-        const cmp = combinedHashDistance(hashes, target, weights);
-        return cmp.distance === null ? null : { distance: cmp.distance, buffer: cropped };
-      } catch {
-        return null; // a degenerate crop (e.g. tiny source image) just drops out of the running
+  // Sequential, not Promise.all — public-server runs on a 512MB/0.15-vCPU Render instance, and each
+  // candidate here decodes a full extra image buffer. Running all of them concurrently means every
+  // one of those buffers is alive in memory at once, which was enough to crash the whole process in
+  // production; one at a time keeps peak memory to a single crop's worth, which matters far more
+  // than the extra wall-clock time on a box this small.
+  let best = null;
+  for (const candidate of CROP_CANDIDATES) {
+    if (candidate.size === 1) continue;
+    try {
+      const cropped = await cropCandidate(source, candidate);
+      const stdev = await textureStdDev(cropped);
+      if (stdev < MIN_CROP_TEXTURE_STDDEV) continue;
+      const hashes = await computeHashes(cropped);
+      const cmp = combinedHashDistance(hashes, target, weights);
+      if (cmp.distance !== null && (!best || cmp.distance < best.distance)) {
+        best = { distance: cmp.distance, buffer: cropped };
       }
-    })
-  );
-  return attempts.reduce((best, cur) => (cur && (!best || cur.distance < best.distance) ? cur : best), null);
+    } catch {
+      // A degenerate crop (e.g. tiny source image) just drops out of the running.
+    }
+  }
+  return best;
 }
 
 /**
@@ -183,10 +191,11 @@ async function bestCroppedMatch(source, target, weights) {
 async function bestFramingAlignment(deviceBuffer, deviceHashes, alignedMobile, baseline) {
   const alignedMobileHashes = await computeHashes(alignedMobile);
 
-  const [croppedDevice, croppedMobile] = await Promise.all([
-    bestCroppedMatch(deviceBuffer, alignedMobileHashes, COMPANION_HASH_WEIGHTS),
-    bestCroppedMatch(alignedMobile, deviceHashes, COMPANION_HASH_WEIGHTS)
-  ]);
+  // Sequential, not Promise.all, for the same reason as bestCroppedMatch above — trying both sides
+  // at once doubles the peak number of decoded crop buffers alive simultaneously for no real benefit
+  // on a memory-constrained box.
+  const croppedDevice = await bestCroppedMatch(deviceBuffer, alignedMobileHashes, COMPANION_HASH_WEIGHTS);
+  const croppedMobile = await bestCroppedMatch(alignedMobile, deviceHashes, COMPANION_HASH_WEIGHTS);
 
   let best = { distance: baseline.distance, deviceCrop: null, mobileCrop: null };
   if (croppedDevice && (best.distance === null || croppedDevice.distance < best.distance)) {
@@ -280,16 +289,16 @@ async function compareDeviceAndMobile(deviceBuffer, mobileBuffer) {
   let usedClip = false;
   if (clipService.isAvailable()) {
     try {
-      const [fullDevice, fullMobile, deviceCropEmb, mobileCropEmb] = await Promise.all([
+      // Just the two full frames, not also a crop embedding — CLIP already costs real memory (a
+      // resident ONNX model) and each embedding call is its own CPU-bound inference pass, on a box
+      // (512MB/0.15 vCPU) with very little headroom for either. The hash+texture crop search above
+      // already gets most of the framing-tolerance benefit; a third CLIP call on top wasn't worth
+      // the resource pressure it added.
+      const [fullDevice, fullMobile] = await Promise.all([
         clipService.embedImage(deviceBuffer, 'image/jpeg'),
-        clipService.embedImage(alignedMobile, 'image/jpeg'),
-        alignment.deviceCrop ? clipService.embedImage(alignment.deviceCrop, 'image/jpeg') : null,
-        alignment.mobileCrop ? clipService.embedImage(alignment.mobileCrop, 'image/jpeg') : null
+        clipService.embedImage(alignedMobile, 'image/jpeg')
       ]);
-      const candidates = [Math.max(0, clipService.cosineSimilarity(fullDevice, fullMobile))];
-      if (deviceCropEmb) candidates.push(Math.max(0, clipService.cosineSimilarity(deviceCropEmb, fullMobile)));
-      if (mobileCropEmb) candidates.push(Math.max(0, clipService.cosineSimilarity(fullDevice, mobileCropEmb)));
-      content = round(Math.max(...candidates));
+      content = round(Math.max(content, Math.max(0, clipService.cosineSimilarity(fullDevice, fullMobile))));
       usedClip = true;
     } catch (clipErr) {
       console.warn(`⚠️  CLIP companion comparison failed, falling back to SSIM: ${clipErr.message}`);
