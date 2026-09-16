@@ -1069,9 +1069,151 @@ app.post('/api/mint-pending', async (req, res) => {
   }
 });
 
-app.post('/api/retry-pending', async (req, res) => {
+/**
+ * Sweeps every image stuck short of 'minted' and pushes it through whichever phases it's still
+ * missing (Filecoin upload -> claim registration -> mint). Shared by the manual /api/retry-pending
+ * route and the automatic sweep below — this used to be the route handler's body only, which meant
+ * an image that failed here (e.g. the Pi's Bluetooth PAN tethering hadn't finished coming up yet)
+ * stayed stuck until someone remembered to call the route by hand. Returns `null` (does nothing) if
+ * OWNER_WALLET_ADDRESS or web3Service aren't ready yet — same precondition the route already checked.
+ */
+async function retryPendingUploads() {
   const ownerWallet = process.env.OWNER_WALLET_ADDRESS;
-  if (!ownerWallet) {
+  if (!ownerWallet || !web3Service.initialized) return null;
+
+  const savedImages = dbService.getImages('saved', 50);
+  const uploadedImages = dbService.getImages('uploaded', 50);
+
+  // Phase 2: Filecoin done + claim registered, but mint failed
+  const needsMintOnly = uploadedImages.filter(img => img.claim_id && !img.token_id);
+  // Phase 3: Filecoin done but claim registration failed
+  const needsClaimAndMint = uploadedImages.filter(img => !img.claim_id && img.filecoin_cid);
+
+  const candidates = [
+    ...savedImages.map(img => ({ ...img, _phase: 1 })),
+    ...needsClaimAndMint.map(img => ({ ...img, _phase: 3 })),
+    ...needsMintOnly.map(img => ({ ...img, _phase: 2 })),
+  ];
+
+  if (candidates.length === 0) return [];
+
+  const results = [];
+
+  for (const image of candidates) {
+    if (retryingImages.has(image.id)) {
+      results.push({ id: image.id, phase: image._phase, status: 'skipped', reason: 'already in progress' });
+      continue;
+    }
+    retryingImages.add(image.id);
+    const result = { id: image.id, phase: image._phase };
+
+    try {
+      // Phase 1: saved → upload to Filecoin
+      if (image._phase === 1) {
+        if (!filecoinService.initialized) throw new Error('Filecoin not initialized — set LIGHTHOUSE_API_KEY');
+        if (!fs.existsSync(image.filepath)) throw new Error('Local file not found');
+
+        const filecoinCid = await filecoinService.uploadImage(image.filepath);
+        const deviceInfo = dbService.getDevice(image.device_address);
+        const deviceId = deviceInfo?.device_id || 'unknown';
+        const metadata = filecoinService.createMetadata({
+          name: `LensMint Photo #${image.id}`,
+          description: 'Captured by LensMint Camera',
+          imageCid: filecoinCid,
+          deviceAddress: image.device_address,
+          deviceId,
+          cameraId: image.camera_id,
+          imageHash: image.image_hash,
+          signature: image.signature,
+          timestamp: image.created_at
+        });
+        const metadataCid = await filecoinService.uploadMetadata(metadata);
+        dbService.updateImageStatus(image.id, 'uploaded', { filecoin_cid: filecoinCid, filecoin_metadata_cid: metadataCid });
+        image.filecoin_cid = filecoinCid;
+        image.filecoin_metadata_cid = metadataCid;
+        result.filecoinCid = filecoinCid;
+        console.log(`✅ [Retry P1] Filecoin upload done for image ${image.id}: ${filecoinCid}`);
+        image._phase = 3;
+      }
+
+      // Phase 3: uploaded + no claimId → create claim
+      if (image._phase === 3) {
+        const claimId = (await import('uuid')).v4();
+        const deviceInfo = dbService.getDevice(image.device_address);
+        const deviceId = deviceInfo?.device_id || 'unknown';
+        const claimResult = await claimClient.createClaim(
+          claimId,
+          image.filecoin_cid,
+          image.filecoin_metadata_cid,
+          deviceId,
+          image.camera_id,
+          image.image_hash,
+          image.signature,
+          image.device_address
+        );
+        dbService.createClaim(claimId, image.id, image.filecoin_cid);
+        dbService.updateImageStatus(image.id, 'uploaded', { claim_id: claimId });
+        image.claim_id = claimId;
+        result.claimId = claimId;
+        result.claimUrl = claimResult.claim_url;
+        console.log(`✅ [Retry P3] Claim created ${claimId} for image ${image.id}`);
+        image._phase = 2;
+      }
+
+      // Phase 2: uploaded + claimId + no tokenId → mint
+      if (image._phase === 2) {
+        const mintResult = await web3Service.mintOriginal({
+          recipient: ownerWallet,
+          ipfsHash: image.filecoin_cid,
+          imageHash: image.image_hash,
+          signature: image.signature,
+          maxEditions: 0
+        });
+        dbService.updateImageStatus(image.id, 'minted', {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet
+        });
+        dbService.updateClaim(image.claim_id, {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet,
+          status: 'open'
+        });
+        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+        result.status = 'minted';
+        result.tokenId = mintResult.tokenId;
+        result.txHash = mintResult.txHash;
+        console.log(`✅ [Retry P2] Minted token #${mintResult.tokenId} for image ${image.id}`);
+      }
+
+      if (!result.status) result.status = 'processed';
+    } catch (err) {
+      dbService.setImageError(image.id, err.message);
+      result.status = 'failed';
+      result.error = err.message;
+      console.error(`❌ [Retry P${image._phase}] Image ${image.id}: ${err.message}`);
+    } finally {
+      retryingImages.delete(image.id);
+    }
+    results.push(result);
+  }
+
+  return results;
+}
+
+// Automatic safety net on top of claimClient's own fast in-request retries: those cover a link that
+// comes back within a few seconds, but a longer outage (tethering genuinely down, claim server
+// unreachable for a while) still needs something to notice once things recover, instead of leaving
+// an image sitting there until someone remembers to call /api/retry-pending by hand. Runs
+// independently of whether anyone's phone is even connected right now.
+const AUTO_RETRY_INTERVAL_MS = parseInt(process.env.AUTO_RETRY_INTERVAL_MS || '60000', 10);
+setInterval(() => {
+  retryPendingUploads().catch(err => console.error('❌ Automatic retry sweep failed:', err.message));
+}, AUTO_RETRY_INTERVAL_MS);
+
+app.post('/api/retry-pending', async (req, res) => {
+  if (!process.env.OWNER_WALLET_ADDRESS) {
     return res.status(400).json({ success: false, error: 'OWNER_WALLET_ADDRESS not set in .env' });
   }
   if (!web3Service.initialized) {
@@ -1079,126 +1221,10 @@ app.post('/api/retry-pending', async (req, res) => {
   }
 
   try {
-    const savedImages = dbService.getImages('saved', 50);
-    const uploadedImages = dbService.getImages('uploaded', 50);
-
-    // Phase 2: Filecoin done + claim registered, but mint failed
-    const needsMintOnly = uploadedImages.filter(img => img.claim_id && !img.token_id);
-    // Phase 3: Filecoin done but claim registration failed
-    const needsClaimAndMint = uploadedImages.filter(img => !img.claim_id && img.filecoin_cid);
-
-    const candidates = [
-      ...savedImages.map(img => ({ ...img, _phase: 1 })),
-      ...needsClaimAndMint.map(img => ({ ...img, _phase: 3 })),
-      ...needsMintOnly.map(img => ({ ...img, _phase: 2 })),
-    ];
-
-    if (candidates.length === 0) {
+    const results = await retryPendingUploads();
+    if (results.length === 0) {
       return res.json({ success: true, message: 'Nothing to retry', processed: 0 });
     }
-
-    const results = [];
-
-    for (const image of candidates) {
-      if (retryingImages.has(image.id)) {
-        results.push({ id: image.id, phase: image._phase, status: 'skipped', reason: 'already in progress' });
-        continue;
-      }
-      retryingImages.add(image.id);
-      const result = { id: image.id, phase: image._phase };
-
-      try {
-        // Phase 1: saved → upload to Filecoin
-        if (image._phase === 1) {
-          if (!filecoinService.initialized) throw new Error('Filecoin not initialized — set LIGHTHOUSE_API_KEY');
-          if (!fs.existsSync(image.filepath)) throw new Error('Local file not found');
-
-          const filecoinCid = await filecoinService.uploadImage(image.filepath);
-          const deviceInfo = dbService.getDevice(image.device_address);
-          const deviceId = deviceInfo?.device_id || 'unknown';
-          const metadata = filecoinService.createMetadata({
-            name: `LensMint Photo #${image.id}`,
-            description: 'Captured by LensMint Camera',
-            imageCid: filecoinCid,
-            deviceAddress: image.device_address,
-            deviceId,
-            cameraId: image.camera_id,
-            imageHash: image.image_hash,
-            signature: image.signature,
-            timestamp: image.created_at
-          });
-          const metadataCid = await filecoinService.uploadMetadata(metadata);
-          dbService.updateImageStatus(image.id, 'uploaded', { filecoin_cid: filecoinCid, filecoin_metadata_cid: metadataCid });
-          image.filecoin_cid = filecoinCid;
-          image.filecoin_metadata_cid = metadataCid;
-          result.filecoinCid = filecoinCid;
-          console.log(`✅ [Retry P1] Filecoin upload done for image ${image.id}: ${filecoinCid}`);
-          image._phase = 3;
-        }
-
-        // Phase 3: uploaded + no claimId → create claim
-        if (image._phase === 3) {
-          const claimId = (await import('uuid')).v4();
-          const deviceInfo = dbService.getDevice(image.device_address);
-          const deviceId = deviceInfo?.device_id || 'unknown';
-          const claimResult = await claimClient.createClaim(
-            claimId,
-            image.filecoin_cid,
-            image.filecoin_metadata_cid,
-            deviceId,
-            image.camera_id,
-            image.image_hash,
-            image.signature,
-            image.device_address
-          );
-          dbService.createClaim(claimId, image.id, image.filecoin_cid);
-          dbService.updateImageStatus(image.id, 'uploaded', { claim_id: claimId });
-          image.claim_id = claimId;
-          result.claimId = claimId;
-          result.claimUrl = claimResult.claim_url;
-          console.log(`✅ [Retry P3] Claim created ${claimId} for image ${image.id}`);
-          image._phase = 2;
-        }
-
-        // Phase 2: uploaded + claimId + no tokenId → mint
-        if (image._phase === 2) {
-          const mintResult = await web3Service.mintOriginal({
-            recipient: ownerWallet,
-            ipfsHash: image.filecoin_cid,
-            imageHash: image.image_hash,
-            signature: image.signature,
-            maxEditions: 0
-          });
-          dbService.updateImageStatus(image.id, 'minted', {
-            token_id: mintResult.tokenId,
-            tx_hash: mintResult.txHash,
-            recipient_address: ownerWallet
-          });
-          dbService.updateClaim(image.claim_id, {
-            token_id: mintResult.tokenId,
-            tx_hash: mintResult.txHash,
-            recipient_address: ownerWallet,
-            status: 'open'
-          });
-          await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
-          result.status = 'minted';
-          result.tokenId = mintResult.tokenId;
-          result.txHash = mintResult.txHash;
-          console.log(`✅ [Retry P2] Minted token #${mintResult.tokenId} for image ${image.id}`);
-        }
-
-        if (!result.status) result.status = 'processed';
-      } catch (err) {
-        dbService.setImageError(image.id, err.message);
-        result.status = 'failed';
-        result.error = err.message;
-        console.error(`❌ [Retry P${image._phase}] Image ${image.id}: ${err.message}`);
-      } finally {
-        retryingImages.delete(image.id);
-      }
-      results.push(result);
-    }
-
     res.json({ success: true, processed: results.length, results });
   } catch (error) {
     console.error('❌ Retry pending error:', error);
