@@ -120,57 +120,101 @@ function mockChainRef(mobileBuffer) {
   return `0x${sha256Hex(mobileBuffer)}`;
 }
 
+// A real device/mobile capture gap should never be more than this — the two shots are triggered
+// from the same button press. Anything past it is almost certainly EXIF's DateTimeOriginal being
+// the device's LOCAL wall-clock time with no timezone marker (e.g. IST), misread by a server
+// running in UTC as if it already were UTC — a multi-hour "gap" that isn't real. Falls back to the
+// claims.created_at estimate in that case instead of showing a nonsense number.
+const EXIF_TIMESTAMP_SANITY_SECONDS = 600;
+
+// How long to let the (slowest) AI-hint call hold up the FIRST write before persisting without it
+// and patching it in separately once it resolves. Keeps a slow/unavailable OpenAI call from being
+// the thing the whole pairing card waits on.
+const AI_HINT_GRACE_MS = 2500;
+
+function timestampDelta(mobileCapturedAt, deviceCapturedAt) {
+  return Math.round(Math.abs((mobileCapturedAt.getTime() - deviceCapturedAt.getTime()) / 1000) * 10) / 10;
+}
+
+/**
+ * Best-effort AI hint for the mobile photo — same non-authoritative check already run on the
+ * device image at enrichment time. Uses describeImage (not the full processImage pipeline) since
+ * companion pairing has no use for the embedding half of that call, and skipping it roughly halves
+ * this step's latency. Never throws; resolves null on failure or when OpenAI isn't configured.
+ */
+async function getMobileAiHint(mobileBuffer, claimId) {
+  if (!openaiService.isAvailable()) return null;
+  try {
+    const described = await openaiService.describeImage(mobileBuffer, 'image/jpeg');
+    return { likely_ai_generated: described.likelyAiGenerated, note: described.aiAssessment };
+  } catch (err) {
+    console.warn(`⚠️  Could not get AI hint for companion photo on ${claimId}: ${err.message}`);
+    return null;
+  }
+}
+
 /**
  * Full background pipeline for a submitted companion photo: upload to
- * Cloudinary, fetch the device image bytes, score consistency, get an
- * AI-generated hint for the mobile photo, and persist the result onto the
- * claim row. Mirrors enrichService.enrichClaim's shape — never throws, so
- * the route handler can call this fire-and-forget after acking the request.
+ * Cloudinary, fetch the device image bytes, score consistency, and persist
+ * the result onto the claim row. Mirrors enrichService.enrichClaim's shape —
+ * never throws, so the route handler can call this fire-and-forget after
+ * acking the request.
+ *
+ * Everything independent runs in parallel (Cloudinary upload, device-image
+ * fetch, AI hint) instead of one after another, and the AI hint specifically
+ * is never on the critical path for the first write — it's the slowest step
+ * (an OpenAI round trip) and the card doesn't need it to render (see
+ * CompanionCaptureCard's AiFlagChip, which just omits itself until it's
+ * there). The main record — image, score, forensic read, timestamps — lands
+ * as soon as the upload + comparison are done; the hint gets patched in
+ * moments later if it wasn't ready in time.
  */
 async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
   try {
-    const upload = await cloudinaryService.uploadBuffer(mobileBuffer, COMPANION_FOLDER);
-    const { buffer: deviceBuffer } = await fetchImageBuffer(claim.cid);
+    const aiHintPromise = getMobileAiHint(mobileBuffer, claim.claim_id);
+    const [upload, { buffer: deviceBuffer }] = await Promise.all([
+      cloudinaryService.uploadBuffer(mobileBuffer, COMPANION_FOLDER),
+      fetchImageBuffer(claim.cid)
+    ]);
+
     const { consistency, forensic } = await compareDeviceAndMobile(deviceBuffer, mobileBuffer);
 
-    // Best-effort — same non-authoritative AI hint already computed for the
-    // device image at enrichment time, just for the mobile photo instead.
-    let aiHint = { likely_ai_generated: null, note: 'AI check unavailable' };
-    if (openaiService.isAvailable()) {
-      try {
-        const described = await openaiService.processImage(mobileBuffer, 'image/jpeg');
-        aiHint = { likely_ai_generated: described.likelyAiGenerated, note: described.aiAssessment };
-      } catch (aiErr) {
-        console.warn(`⚠️  Could not get AI hint for companion photo on ${claim.claim_id}: ${aiErr.message}`);
-      }
-    }
-
-    // Prefer the device image's own EXIF capture timestamp — claims.created_at
-    // is when the claim ROW was created, which trails the actual Pi shutter
-    // press by however long the mint pipeline (Filecoin upload, ZK proof,
-    // on-chain mint) took, often several seconds. That gap was showing up as
-    // a misleadingly large timestamp_delta_seconds for two photos taken at
-    // the same instant. Only fall back to created_at when the device image
-    // has no usable EXIF timestamp at all.
     const mobileCapturedAt = capturedAt ? new Date(capturedAt) : new Date();
     const deviceExifCapturedAt = await extractCaptureTimestamp(deviceBuffer);
-    const deviceCapturedAt = deviceExifCapturedAt || (claim.created_at ? new Date(claim.created_at) : new Date());
-    const timestampDeltaSeconds = Math.abs((mobileCapturedAt.getTime() - deviceCapturedAt.getTime()) / 1000);
+    let deviceCapturedAt = deviceExifCapturedAt || (claim.created_at ? new Date(claim.created_at) : new Date());
+    let timestampDeltaSeconds = timestampDelta(mobileCapturedAt, deviceCapturedAt);
+    if (deviceExifCapturedAt && timestampDeltaSeconds > EXIF_TIMESTAMP_SANITY_SECONDS) {
+      deviceCapturedAt = claim.created_at ? new Date(claim.created_at) : new Date();
+      timestampDeltaSeconds = timestampDelta(mobileCapturedAt, deviceCapturedAt);
+    }
+
+    // Race the AI hint against a short grace window: if it's already back (or lands within the
+    // window), include it in this first write; otherwise persist without it and patch it in below.
+    const raceResult = await Promise.race([
+      aiHintPromise.then((hint) => ({ ready: true, hint })),
+      new Promise((resolve) => setTimeout(() => resolve({ ready: false }), AI_HINT_GRACE_MS))
+    ]);
 
     const companionCapture = {
       mobile_image_url: upload.url,
       mobile_public_id: upload.public_id,
       mobile_captured_at: mobileCapturedAt.toISOString(),
-      mobile_ai_hint: aiHint,
+      mobile_ai_hint: raceResult.ready ? raceResult.hint : null,
       consistency,
       forensic,
-      timestamp_delta_seconds: Math.round(timestampDeltaSeconds * 10) / 10,
+      timestamp_delta_seconds: timestampDeltaSeconds,
       mock_chain_ref: mockChainRef(mobileBuffer),
       paired_at: new Date().toISOString()
     };
 
     await dbService.setCompanionCapture(claim.claim_id, companionCapture);
     console.log(`🔗 Paired companion capture for ${claim.claim_id} (${Math.round(consistency.score * 100)}% consistency)`);
+
+    if (!raceResult.ready) {
+      aiHintPromise
+        .then((hint) => hint && dbService.patchCompanionCapture(claim.claim_id, { mobile_ai_hint: hint }))
+        .catch(() => {});
+    }
   } catch (error) {
     console.error(`❌ Companion capture processing failed for ${claim.claim_id}:`, error.message);
   }
