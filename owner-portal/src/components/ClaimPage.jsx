@@ -712,6 +712,22 @@ export default function ClaimPage() {
               tags={claim?.tags}
               pending={claim?.ai_status === 'pending' || claim?.ai_status == null}
             />
+
+            {claim?.companion_capture?.mobile_image_url && (
+              <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-[#141414] px-2.5 py-2">
+                <img
+                  src={claim.companion_capture.mobile_image_url}
+                  alt="Companion phone capture"
+                  className="w-9 h-9 rounded-lg object-cover border border-white/[0.08] shrink-0"
+                />
+                <span className="text-[11px] font-semibold text-text-primary">
+                  Paired ✓{' '}
+                  {claim.companion_capture.consistency
+                    ? `${Math.round(claim.companion_capture.consistency.score * 100)}% match`
+                    : 'processing…'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right: Stats + CTA */}
