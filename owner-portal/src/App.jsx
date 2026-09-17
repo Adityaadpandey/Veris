@@ -8,6 +8,7 @@ import OwnerDashboard from "./components/OwnerDashboard";
 import ClaimPage from "./components/ClaimPage";
 import LandingPage from "./components/LandingPage";
 import SearchPage from "./components/SearchPage";
+import AuthenticityCheckPage from "./components/AuthenticityCheckPage";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
 
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/dashboard" element={<OwnerDashboard />} />
               <Route path="/claim/:claimId" element={<ClaimPage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/authenticity-check" element={<AuthenticityCheckPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
