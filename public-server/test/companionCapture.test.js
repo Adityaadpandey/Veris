@@ -55,6 +55,25 @@ test('compareDeviceAndMobile finds a localized edit and its region', async () =>
   assert.ok(forensic.region_bbox, 'expected a region_bbox for a localized edit');
 });
 
+test('compareDeviceAndMobile tolerates the mobile photo being rotated relative to the device', async () => {
+  // Asymmetric content (an off-center patch) so a 90-degree rotation actually changes the hashes —
+  // a uniform color square would look identical to itself rotated and wouldn't exercise the fix.
+  const patch = await sharp({ create: { width: 60, height: 60, channels: 3, background: { r: 230, g: 30, b: 30 } } })
+    .jpeg()
+    .toBuffer();
+  const device = await sharp({ create: { width: 256, height: 256, channels: 3, background: { r: 90, g: 90, b: 90 } } })
+    .composite([{ input: patch, left: 10, top: 10 }])
+    .jpeg()
+    .toBuffer();
+  const rotatedMobile = await sharp(device).rotate(90).jpeg().toBuffer();
+
+  const { consistency } = await compareDeviceAndMobile(device, rotatedMobile);
+  assert.ok(
+    consistency.score > 0.9,
+    `expected a high score once the best-matching orientation is found, got ${consistency.score}`
+  );
+});
+
 test('compareDeviceAndMobile always returns consistency.score between 0 and 1', async () => {
   const device = await makeTestImage({ color: { r: 30, g: 200, b: 90 } });
   const mobile = await makeTestImage({ color: { r: 220, g: 40, b: 10 } });

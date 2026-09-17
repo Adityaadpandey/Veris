@@ -18,11 +18,13 @@
  * CommonJS to match the rest of public-server.
  */
 
-const { computeHashes, combinedHashDistance, sha256Hex } = require('./imageHash');
+const { computeHashes, computeOrientationHashes, bestCombinedHashDistance, transformForOrientation, sha256Hex } = require('./imageHash');
 const { computeForensicDiff } = require('./pixelDiff');
+const { extractCaptureTimestamp } = require('./imageForensics');
 const dbService = require('./dbService');
 const cloudinaryService = require('./cloudinaryService');
 const openaiService = require('./openaiService');
+const clipService = require('./clipService');
 const { fetchImageBuffer } = require('./enrichService');
 
 const COMPANION_FOLDER = process.env.CLOUDINARY_COMPANION_FOLDER || 'veris/companion';
@@ -35,16 +37,29 @@ function round(value) {
  * Compares a device (source-of-truth) image against its companion mobile
  * photo.
  *
- * - visual: 1 - weighted perceptual-hash distance (dHash/pHash/aHash) — a
- *   coarse "same general shot" signal, tolerant of the two cameras' slightly
- *   different position/lens/framing.
- * - content: block-wise SSIM from the same forensic-diff pass used for
- *   tamper detection — finer-grained pixel-structure agreement.
- * - score: simple mean of the two. Deliberately not weighted like
- *   similarPhotos.blendedSimilarity — that blend tunes for "same exact
- *   photo, maybe edited"; here neither signal is more authoritative than
- *   the other, since both cameras are shooting slightly different frames
- *   by construction.
+ * - visual: 1 - weighted perceptual-hash distance (dHash/pHash/aHash),
+ *   checked against all 8 rotation/mirror orientations of the mobile photo
+ *   (imageHash.computeOrientationHashes) and keeping the best match. This
+ *   matters a lot here specifically: the phone is very often held portrait
+ *   while the device camera is fixed landscape (or vice versa), so comparing
+ *   only at orientation '0' compares two images that are sideways relative
+ *   to each other — same failure mode a physically-rotated re-upload has in
+ *   the tamper check, just from mounting angle instead of a re-upload.
+ * - content: CLIP cosine similarity (semantic/visual, robust to the framing,
+ *   aspect-ratio, and exposure differences two separate camera sensors will
+ *   always have) when CLIP is enabled (ENABLE_CLIP=1); otherwise falls back
+ *   to block-wise SSIM from the same forensic-diff pass used for tamper
+ *   detection. SSIM assumes near-identical framing, which two different
+ *   cameras never have, so it's a strictly weaker signal here than in the
+ *   tamper-check case — used only when CLIP isn't available.
+ * - score: blends visual and content. Weighted toward content when that
+ *   content signal is CLIP (the more trustworthy read for "two different
+ *   cameras, same scene"); even split when it's the weaker SSIM fallback.
+ *
+ * The mobile buffer is re-rendered at whichever orientation best matched the
+ * device photo before computing SSIM/CLIP, so both signals compare aligned
+ * images rather than two frames that are simply rotated relative to each
+ * other.
  *
  * @returns {Promise<{
  *   consistency: { score: number, visual: number, content: number },
@@ -52,16 +67,38 @@ function round(value) {
  * }>}
  */
 async function compareDeviceAndMobile(deviceBuffer, mobileBuffer) {
-  const [deviceHashes, mobileHashes, forensic] = await Promise.all([
+  const [deviceHashes, mobileOrientations] = await Promise.all([
     computeHashes(deviceBuffer),
-    computeHashes(mobileBuffer),
-    computeForensicDiff(deviceBuffer, mobileBuffer)
+    computeOrientationHashes(mobileBuffer)
   ]);
 
-  const hashCmp = combinedHashDistance(deviceHashes, mobileHashes);
+  const hashCmp = bestCombinedHashDistance(deviceHashes, mobileOrientations);
   const visual = hashCmp.distance === null ? 0 : round(1 - hashCmp.distance);
-  const content = round(forensic.ssim);
-  const score = round((visual + content) / 2);
+
+  const alignedMobile = hashCmp.orientation && hashCmp.orientation !== '0'
+    ? await transformForOrientation(mobileBuffer, hashCmp.orientation)
+    : mobileBuffer;
+
+  const forensic = await computeForensicDiff(deviceBuffer, alignedMobile);
+
+  let content = round(forensic.ssim);
+  let usedClip = false;
+  if (clipService.isAvailable()) {
+    try {
+      const [deviceEmbedding, mobileEmbedding] = await Promise.all([
+        clipService.embedImage(deviceBuffer, 'image/jpeg'),
+        clipService.embedImage(alignedMobile, 'image/jpeg')
+      ]);
+      content = round(Math.max(0, clipService.cosineSimilarity(deviceEmbedding, mobileEmbedding)));
+      usedClip = true;
+    } catch (clipErr) {
+      console.warn(`⚠️  CLIP companion comparison failed, falling back to SSIM: ${clipErr.message}`);
+    }
+  }
+
+  const score = usedClip
+    ? round(0.35 * visual + 0.65 * content)
+    : round((visual + content) / 2);
 
   return {
     consistency: { score, visual, content },
@@ -108,12 +145,16 @@ async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
       }
     }
 
-    // claims.created_at is the closest existing field to "when the device
-    // captured" — the claim row is created immediately off the Pi's capture
-    // in the real flow, so this is a reasonable stand-in for an explicit
-    // device-capture timestamp.
+    // Prefer the device image's own EXIF capture timestamp — claims.created_at
+    // is when the claim ROW was created, which trails the actual Pi shutter
+    // press by however long the mint pipeline (Filecoin upload, ZK proof,
+    // on-chain mint) took, often several seconds. That gap was showing up as
+    // a misleadingly large timestamp_delta_seconds for two photos taken at
+    // the same instant. Only fall back to created_at when the device image
+    // has no usable EXIF timestamp at all.
     const mobileCapturedAt = capturedAt ? new Date(capturedAt) : new Date();
-    const deviceCapturedAt = claim.created_at ? new Date(claim.created_at) : new Date();
+    const deviceExifCapturedAt = await extractCaptureTimestamp(deviceBuffer);
+    const deviceCapturedAt = deviceExifCapturedAt || (claim.created_at ? new Date(claim.created_at) : new Date());
     const timestampDeltaSeconds = Math.abs((mobileCapturedAt.getTime() - deviceCapturedAt.getTime()) / 1000);
 
     const companionCapture = {
