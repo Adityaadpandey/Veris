@@ -65,7 +65,7 @@ def test_orb_same_scene_scores_above_floor():
     pair = preprocess_pair(dslr, esp)
     score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
     assert 0.0 <= score <= 1.0
-    assert score > 0.03, f"Same scene ORB score {score} below floor"
+    assert score > 0.3, f"Same scene ORB score {score} below floor"
 
 
 def test_orb_random_image_scores_low(dslr_image, random_image):
@@ -218,3 +218,66 @@ def test_calibrate_returns_threshold(verifier):
     threshold = verifier.calibrate(DATA_DIR)
     assert isinstance(threshold, float)
     assert 0.0 < threshold < 1.0
+# ------------------------------------------------------------------
+#  REGRESSION: EXIF orientation + ORB normalization
+# ------------------------------------------------------------------
+#
+# scene_001/ras1.jpeg is a real Picamera2 (Raspberry Pi / OV5647) capture
+# that carries EXIF orientation tag 6 -- the exact case that silently broke
+# every signal, because PIL's Image.open() never applies that tag on its
+# own. a.jpeg is the matching upright same-scene photo, so this pair is a
+# real repro, not synthetic.
+
+ROTATED_ESP_PATH = os.path.join(SCENE_001, "ras1.jpeg")
+UPRIGHT_MATCH_PATH = os.path.join(SCENE_001, "a.jpeg")
+
+
+def test_load_image_applies_exif_orientation():
+    from main import load_image
+    raw = Image.open(ROTATED_ESP_PATH)
+    assert raw.getexif().get(274) == 6, "fixture should carry EXIF orientation 6"
+
+    corrected = load_image(ROTATED_ESP_PATH)
+    # Orientation 6 is a 90-degree rotation, so width/height swap once
+    # the tag is actually applied instead of ignored.
+    assert corrected.size == (raw.size[1], raw.size[0])
+
+
+def test_verify_handles_exif_rotated_companion_image():
+    """
+    Before the fix, main.py read this pair with raw Image.open() and fed
+    every signal a 90-degree-misaligned image, tanking ssim_edge/phash/clip
+    even though the photos show the same real scene.
+    """
+    from main import ImageVerifier
+    v = ImageVerifier(device="cpu", use_openai=False)
+    result = v.verify(UPRIGHT_MATCH_PATH, ROTATED_ESP_PATH)
+    assert result["signals"]["ssim_edge"] > 0.35, (
+        f"ssim_edge {result['signals']['ssim_edge']} suggests EXIF orientation "
+        "isn't being corrected before scoring"
+    )
+    assert result["authentic"] is True
+
+
+def test_orb_score_independent_of_keypoint_budget():
+    """
+    signal_orb used to divide inliers by the number of keypoints *detected*
+    (bounded by max_keypoints) instead of the number that actually matched.
+    That meant raising max_keypoints alone would silently crater the score
+    for a real match, with no change in match quality. Normalizing by
+    len(good) instead makes the score roughly stable across budgets.
+    """
+    from main import signal_orb, preprocess_pair
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    pair = preprocess_pair(dslr, esp)
+
+    score_1000 = signal_orb(pair["orb_dslr"], pair["orb_esp"], max_keypoints=1000)
+    score_3000 = signal_orb(pair["orb_dslr"], pair["orb_esp"], max_keypoints=3000)
+
+    assert score_1000 > 0.3, f"Same-scene ORB score {score_1000} too low post-fix"
+    assert abs(score_1000 - score_3000) < 0.25, (
+        f"ORB score swung from {score_1000} to {score_3000} just from raising "
+        "max_keypoints -- normalization is likely dividing by detected "
+        "keypoints again instead of matched ones"
+    )

@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import imagehash
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 from skimage.metrics import structural_similarity as ssim
 
 try:
@@ -33,6 +33,20 @@ except ImportError:
 # ------------------------------------------------------------------
 #  PREPROCESSING
 # ------------------------------------------------------------------
+
+def load_image(path: str) -> Image.Image:
+    """
+    Open an image and bake in its EXIF orientation.
+
+    Cameras (the Pi's OV5647 in particular) write an EXIF orientation tag
+    instead of rotating the pixel data. PIL's Image.open() ignores that tag,
+    so a portrait shot stored sideways stays sideways in the pixel array --
+    every downstream signal then compares against a 90-degree-rotated image
+    and scores garbage. exif_transpose() applies the tag so pixels match
+    what the photo actually looks like.
+    """
+    return ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+
 
 def preprocess_esp(img: Image.Image) -> Image.Image:
     """Sharpen + auto-contrast the ESP image to reduce quality gap."""
@@ -101,9 +115,15 @@ def signal_orb(img1: Image.Image, img2: Image.Image,
     if mask is None:
         return 0.0
 
+    # Score is the fraction of *matched* keypoints RANSAC accepts as
+    # geometrically consistent -- not a fraction of total keypoints
+    # detected. ORB always returns up to max_keypoints regardless of scene
+    # content, so dividing by that count instead of len(good) made the
+    # score collapse toward zero for every cross-camera pair: two different
+    # sensors rarely produce more than a few dozen matching descriptors out
+    # of a thousand detected, even for a perfect same-scene match.
     inliers = int(mask.sum())
-    min_kp = min(len(kp1), len(kp2))
-    score = inliers / max(min_kp, 1)
+    score = inliers / max(len(good), 1)
     return min(score, 1.0)
 
 
@@ -225,8 +245,8 @@ class ImageVerifier:
 
     def verify(self, dslr_path: str, esp_path: str,
                threshold: float = 0.45) -> dict:
-        dslr_img = Image.open(dslr_path).convert("RGB")
-        esp_img = Image.open(esp_path).convert("RGB")
+        dslr_img = load_image(dslr_path)
+        esp_img = load_image(esp_path)
         pair = preprocess_pair(dslr_img, esp_img)
 
         signals = {
