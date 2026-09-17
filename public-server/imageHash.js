@@ -326,20 +326,22 @@ function bestCombinedHashDistance(query, entries, weights = HASH_WEIGHTS) {
 // full-frame-vs-full-frame (or a uniform 'fill' squish) systematically
 // under-scores a perfectly good pairing. Each candidate is a square window
 // sized as a fraction of the shorter side, recentered by (dx, dy) as a
-// fraction of the frame; kept small and center-biased since two cameras
-// mounted together are rarely offset by much more than that.
+// fraction of the frame.
+//
+// Deliberately just 3 non-baseline candidates, center-only, no directional
+// offsets: public-server runs on a 512MB/0.15-vCPU Render instance, and each
+// candidate here means a full image decode+crop on BOTH sides of a companion
+// comparison (see bestFramingAlignment) — the original 11-candidate version
+// (also trying off-center offsets) was enough extra memory/CPU pressure per
+// comparison to repeatedly crash the whole process, not just slow this one
+// feature down. Pure FOV/zoom differences (what these 3 sizes cover) are the
+// dominant real-world case for two cameras mounted together; a genuine
+// positional offset large enough to need the dropped off-center candidates
+// is comparatively rare and not worth this box crashing to catch.
 const CROP_CANDIDATES = [
   { size: 1.0, dx: 0, dy: 0 },
   { size: 0.85, dx: 0, dy: 0 },
-  { size: 0.85, dx: -0.1, dy: 0 },
-  { size: 0.85, dx: 0.1, dy: 0 },
-  { size: 0.85, dx: 0, dy: -0.1 },
-  { size: 0.85, dx: 0, dy: 0.1 },
   { size: 0.7, dx: 0, dy: 0 },
-  { size: 0.7, dx: -0.12, dy: 0 },
-  { size: 0.7, dx: 0.12, dy: 0 },
-  { size: 0.7, dx: 0, dy: -0.12 },
-  { size: 0.7, dx: 0, dy: 0.12 },
   { size: 0.55, dx: 0, dy: 0 }
 ];
 
