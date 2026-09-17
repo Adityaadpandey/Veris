@@ -375,6 +375,35 @@ app.get('/check-claim', async (req, res) => {
 // Every claim this wallet address has actually claimed on-chain — lets a phone that never
 // captured anything itself (a fresh install, a second device) still see the wallet's full
 // archive, instead of only whatever claim ids happen to be cached in this device's local storage.
+// Shared by /claims/by-wallet and /claims/by-camera — same summary shape either way.
+function serializeClaimForList(claim) {
+  return {
+    claim_id: claim.claim_id,
+    status: claim.status,
+    recipient_address: claim.recipient_address || null,
+    token_id: claim.token_id || null,
+    tx_hash: claim.tx_hash || null,
+    cid: claim.cid,
+    metadata_cid: claim.metadata_cid || null,
+    device_id: claim.device_id || null,
+    camera_id: claim.camera_id || null,
+    device_address: claim.device_address || null,
+    image_hash: claim.image_hash || null,
+    signature: claim.signature || null,
+    latitude: claim.latitude || null,
+    longitude: claim.longitude || null,
+    location_name: claim.location_name || null,
+    description: claim.description || null,
+    tags: (() => { try { return claim.tags ? JSON.parse(claim.tags) : []; } catch { return []; } })(),
+    ai_status: claim.ai_status || null,
+    likely_ai_generated: claim.likely_ai_generated == null ? null : Boolean(claim.likely_ai_generated),
+    ai_assessment: claim.ai_assessment || null,
+    created_at: claim.created_at,
+    claimed_at: claim.claimed_at || null,
+    completed_at: claim.completed_at || null
+  };
+}
+
 app.get('/claims/by-wallet/:address', async (req, res) => {
   try {
     const { address } = req.params;
@@ -383,37 +412,29 @@ app.get('/claims/by-wallet/:address', async (req, res) => {
     }
 
     const claims = await dbService.getClaimsByRecipient(address);
-
-    res.json({
-      success: true,
-      claims: claims.map((claim) => ({
-        claim_id: claim.claim_id,
-        status: claim.status,
-        recipient_address: claim.recipient_address || null,
-        token_id: claim.token_id || null,
-        tx_hash: claim.tx_hash || null,
-        cid: claim.cid,
-        metadata_cid: claim.metadata_cid || null,
-        device_id: claim.device_id || null,
-        camera_id: claim.camera_id || null,
-        device_address: claim.device_address || null,
-        image_hash: claim.image_hash || null,
-        signature: claim.signature || null,
-        latitude: claim.latitude || null,
-        longitude: claim.longitude || null,
-        location_name: claim.location_name || null,
-        description: claim.description || null,
-        tags: (() => { try { return claim.tags ? JSON.parse(claim.tags) : []; } catch { return []; } })(),
-        ai_status: claim.ai_status || null,
-        likely_ai_generated: claim.likely_ai_generated == null ? null : Boolean(claim.likely_ai_generated),
-        ai_assessment: claim.ai_assessment || null,
-        created_at: claim.created_at,
-        claimed_at: claim.claimed_at || null,
-        completed_at: claim.completed_at || null
-      }))
-    });
+    res.json({ success: true, claims: claims.map(serializeClaimForList) });
   } catch (error) {
     console.error('❌ Error listing claims by wallet:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Fallback discovery for the archive: every claim a camera has ever produced, claimed or not. A
+// claim only shows up via /claims/by-wallet once someone's actually claimed it, and only shows up in
+// the capturing app's local archive if that app's Bluetooth session was still connected when the
+// upload finished — an unclaimed claim that missed both never surfaces anywhere otherwise, even
+// though the capturing device already knows its own camera_id from earlier claims.
+app.get('/claims/by-camera/:camera_id', async (req, res) => {
+  try {
+    const { camera_id } = req.params;
+    if (!camera_id) {
+      return res.status(400).json({ success: false, error: 'camera_id is required' });
+    }
+
+    const claims = await dbService.getClaimsByCamera(camera_id);
+    res.json({ success: true, claims: claims.map(serializeClaimForList) });
+  } catch (error) {
+    console.error('❌ Error listing claims by camera:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1671,6 +1692,7 @@ app.listen(PORT, async () => {
   console.log(`   - POST /create-claim`);
   console.log(`   - GET  /check-claim?claim_id=<id>`);
   console.log(`   - GET  /claims/by-wallet/:address`);
+  console.log(`   - GET  /claims/by-camera/:camera_id`);
   console.log(`   - GET  /claim/:claim_id`);
   console.log(`   - POST /claim/:claim_id/submit`);
   console.log(`   - POST /complete-claim`);
