@@ -313,7 +313,7 @@ app.get('/api/balance', async (req, res) => {
     console.log(`   ${hasEnoughEth ? '✅' : '⚠️'} ETH Status: ${hasEnoughEth ? 'Sufficient' : 'Low - needs funding'}`);
 
     const lighthouseReady = filecoinService.initialized;
-    console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set FILEBASE_RPC_TOKEN or LIGHTHOUSE_API_KEY)'}`);
+    console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set LIGHTHOUSE_API_KEY)'}`);
 
     const allFunded = hasEnoughEth && lighthouseReady;
     const needsFunding = !hasEnoughEth || !lighthouseReady;
@@ -1110,7 +1110,7 @@ async function retryPendingUploads() {
     try {
       // Phase 1: saved → upload to Filecoin
       if (image._phase === 1) {
-        if (!filecoinService.initialized) throw new Error('Filecoin not initialized — set FILEBASE_RPC_TOKEN or LIGHTHOUSE_API_KEY');
+        if (!filecoinService.initialized) throw new Error('Filecoin not initialized — set LIGHTHOUSE_API_KEY');
         if (!fs.existsSync(image.filepath)) throw new Error('Local file not found');
 
         const filecoinCid = await filecoinService.uploadImage(image.filepath);
