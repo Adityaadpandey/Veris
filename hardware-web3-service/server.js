@@ -819,7 +819,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
         } catch (claimError) {
           console.error(`   ❌ Claim creation error: ${claimError.message}`);
           console.error(`   ⚠️ Filecoin upload succeeded but claim creation failed`);
-          console.error(`   ⚠️ Check if claim server is running at ${process.env.CLAIM_SERVER_URL || 'https://veris.onrender.com'}`);
+          console.error(`   ⚠️ Check if claim server is running at ${process.env.CLAIM_SERVER_URL || 'https://api.veris.live'}`);
           dbService.setImageError(image.id, `Claim creation failed: ${claimError.message}`);
         }
       } else {
@@ -971,7 +971,7 @@ app.get('/api/images/:id', async (req, res) => {
     }
 
     const claimUrl = image.claim_id
-      ? `${process.env.CLAIM_SERVER_URL || 'https://veris.onrender.com'}/claim/${image.claim_id}`
+      ? `${process.env.CLAIM_SERVER_URL || 'https://api.veris.live'}/claim/${image.claim_id}`
       : null;
 
     res.json({
@@ -1339,7 +1339,7 @@ app.post('/api/privy/mint-with-signer', async (req, res) => {
     }
 
     // Get contract ABI and address
-    const verisAddress = deploymentService.getVerisAddress() || process.env.VERIS_ERC1155_ADDRESS;
+    const verisAddress = deploymentService.getVerisAddress() || process.env.VERIS_ERC1155_ADDRESS || process.env.VERIS_ERC1155_ADDRESS;
     
     if (!verisAddress) {
       return res.status(400).json({
