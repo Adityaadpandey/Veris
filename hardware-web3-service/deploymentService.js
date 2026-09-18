@@ -91,7 +91,7 @@ class DeploymentService {
   }
 
   getVerisAddress() {
-    return this.getContractAddress('VerisERC1155');
+    return this.getContractAddress('CandidERC1155');
   }
 
   getDeviceRegistryABI() {
@@ -99,7 +99,7 @@ class DeploymentService {
   }
 
   getVerisABI() {
-    return this.getContractABI('VerisERC1155');
+    return this.getContractABI('CandidERC1155');
   }
 }
 
