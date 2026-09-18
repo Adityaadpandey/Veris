@@ -18,7 +18,6 @@ import {
 // gateway subdomain has changed over time (key rotations), so older claims live behind older
 // subdomains. Current one first, then the previous ones as fallback.
 const IPFS_GATEWAYS = [
-  'https://brainy-coral-silverfish.myfilebase.com/ipfs',
   'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
   'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
   'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
