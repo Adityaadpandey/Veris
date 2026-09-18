@@ -4,6 +4,8 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/ibm-plex-sans";
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+/* Mobile app's "brutal glass" claim-page type system (Archivo / Archivo Black / IBM Plex Mono) */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ── Tailwind v4 design tokens ── */
 @theme {
@@ -152,6 +154,11 @@
     cursor: pointer;
   }
 }
+
+/* ── Claim page "brutal glass" type helpers (mirrors mobile-app/src/constants/typography.ts) ── */
+.font-brutal-display { font-family: 'Archivo Black', sans-serif; text-transform: uppercase; }
+.font-brutal-mono     { font-family: 'IBM Plex Mono', monospace; }
+.font-brutal-body     { font-family: 'Archivo', sans-serif; }
 
 /* ── Animations ── */
 @keyframes floatIn {
