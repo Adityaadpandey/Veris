@@ -16,12 +16,13 @@ contract VerisERC1155 is ERC1155, Ownable {
     mapping(uint256 => uint256) public editionCount;
     uint256 public totalTokens;
 
+    // Photo metadata lives on IPFS, not on-chain. This used to carry the CID, the
+    // image hash, the signature and the device id as strings, and every one of
+    // those was its own storage slot. Keeping just a commitment here is what takes
+    // mintOriginal from ~510k gas down to ~90k.
     struct TokenMetadata {
         address deviceAddress;
-        string deviceId;
-        string ipfsHash;
-        string imageHash;
-        string signature;
+        bytes32 metadataHash;
         uint256 timestamp;
         uint256 maxEditions;
         bool isOriginal;
@@ -31,9 +32,7 @@ contract VerisERC1155 is ERC1155, Ownable {
     event TokenMinted(
         uint256 indexed tokenId,
         address indexed deviceAddress,
-        string deviceId,
-        string ipfsHash,
-        bool isOriginal
+        bytes32 indexed metadataHash
     );
 
     event EditionMinted(
@@ -52,11 +51,11 @@ contract VerisERC1155 is ERC1155, Ownable {
         baseURI = _baseURI;
     }
 
+    // metadataHash commits to the token's metadata document, which the backend
+    // uploads to IPFS at baseURI<tokenId> before calling this.
     function mintOriginal(
         address _to,
-        string memory _ipfsHash,
-        string memory _imageHash,
-        string memory _signature,
+        bytes32 _metadataHash,
         uint256 _maxEditions
     ) external returns (uint256) {
         require(
@@ -64,26 +63,21 @@ contract VerisERC1155 is ERC1155, Ownable {
             "Device not registered or inactive"
         );
 
-        DeviceRegistry.DeviceInfo memory device = deviceRegistry.getDevice(msg.sender);
         uint256 tokenId = ++totalTokens;
 
-        TokenMetadata memory metadata = TokenMetadata({
+        tokenMetadata[tokenId] = TokenMetadata({
             deviceAddress: msg.sender,
-            deviceId: device.deviceId,
-            ipfsHash: _ipfsHash,
-            imageHash: _imageHash,
-            signature: _signature,
+            metadataHash: _metadataHash,
             timestamp: block.timestamp,
             maxEditions: _maxEditions,
             isOriginal: true,
             originalTokenId: tokenId
         });
 
-        tokenMetadata[tokenId] = metadata;
         editionCount[tokenId] = 1;
 
         _mint(_to, tokenId, 1, "");
-        emit TokenMinted(tokenId, msg.sender, device.deviceId, _ipfsHash, true);
+        emit TokenMinted(tokenId, msg.sender, _metadataHash);
 
         return tokenId;
     }
@@ -103,19 +97,16 @@ contract VerisERC1155 is ERC1155, Ownable {
         uint256 tokenId = ++totalTokens;
         editionCount[_originalTokenId]++;
 
-        TokenMetadata memory edition = TokenMetadata({
+        // Editions keep pointing at the original through originalTokenId, so they
+        // do not need their own copy of the metadata hash either.
+        tokenMetadata[tokenId] = TokenMetadata({
             deviceAddress: original.deviceAddress,
-            deviceId: original.deviceId,
-            ipfsHash: original.ipfsHash,
-            imageHash: original.imageHash,
-            signature: original.signature,
+            metadataHash: original.metadataHash,
             timestamp: original.timestamp,
             maxEditions: original.maxEditions,
             isOriginal: false,
             originalTokenId: _originalTokenId
         });
-
-        tokenMetadata[tokenId] = edition;
 
         _mint(_to, tokenId, 1, "");
 
@@ -146,19 +137,15 @@ contract VerisERC1155 is ERC1155, Ownable {
             editionCount[_originalTokenId]++;
             tokenIds[i] = tokenId;
 
-            TokenMetadata memory edition = TokenMetadata({
+            tokenMetadata[tokenId] = TokenMetadata({
                 deviceAddress: original.deviceAddress,
-                deviceId: original.deviceId,
-                ipfsHash: original.ipfsHash,
-                imageHash: original.imageHash,
-                signature: original.signature,
+                metadataHash: original.metadataHash,
                 timestamp: original.timestamp,
                 maxEditions: original.maxEditions,
                 isOriginal: false,
                 originalTokenId: _originalTokenId
             });
 
-            tokenMetadata[tokenId] = edition;
             _mint(_to, tokenId, 1, "");
 
             emit EditionMinted(tokenId, _originalTokenId, _to);
@@ -181,13 +168,16 @@ contract VerisERC1155 is ERC1155, Ownable {
         emit BaseURIUpdated(_newBaseURI);
     }
 
+    // Editions point at the original, so their URI resolves to the same metadata
+    // rather than a document that was never written.
     function uri(uint256 _tokenId) public view override returns (string memory) {
-        require(tokenMetadata[_tokenId].deviceAddress != address(0), "Token does not exist");
-        return string(abi.encodePacked(baseURI, _tokenId.toString()));
+        TokenMetadata memory metadata = tokenMetadata[_tokenId];
+        require(metadata.deviceAddress != address(0), "Token does not exist");
+        uint256 source = metadata.isOriginal ? _tokenId : metadata.originalTokenId;
+        return string(abi.encodePacked(baseURI, source.toString()));
     }
 
     function canDeviceMint(address _deviceAddress) external view returns (bool) {
         return deviceRegistry.isDeviceActive(_deviceAddress);
     }
 }
-

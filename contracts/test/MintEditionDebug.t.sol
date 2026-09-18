@@ -39,9 +39,7 @@ contract MintEditionDebugTest is Test {
         vm.prank(deviceAddress);
         uint256 originalTokenId = veris.mintOriginal(
             owner,
-            "QmTest123",
-            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-            "0xsignature123",
+            keccak256("veris-photo-metadata"),
             0
         );
         
@@ -74,9 +72,7 @@ contract MintEditionDebugTest is Test {
         vm.prank(deviceAddress);
         uint256 originalTokenId = veris.mintOriginal(
             owner,
-            "QmTest123",
-            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-            "0xsignature123",
+            keccak256("veris-photo-metadata"),
             0
         );
         
