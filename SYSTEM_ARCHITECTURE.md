@@ -1,4 +1,4 @@
-# Veris / Veris — System Architecture
+# Veris — System Architecture
 
 Three diagrams, grounded strictly in the current codebase (no speculative components).
 Anything not in the running code (e.g. ESP32 hot-shoe firmware, multi-signal AI verifier) is explicitly labeled as such.

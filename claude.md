@@ -12,7 +12,7 @@ Veris is a Web3 camera system that creates verifiable, blockchain-backed photo N
 |-----------|---------|
 | `hardware-camera-app/` | Python/Kivy GUI on Raspberry Pi for camera capture |
 | `hardware-web3-service/` | Node.js backend for Filecoin upload, ZK proofs, NFT minting |
-| `veris-public-server/` | Node.js claim server with SQLite, generates QR codes |
+| `public-server/` | Node.js claim server with SQLite, generates QR codes |
 | `owner-portal/` | React/Vite dashboard for users to claim/mint NFTs |
 | `contracts/` | Solidity smart contracts with Foundry toolchain |
 
@@ -37,7 +37,7 @@ npm run start     # Production
 
 ### Public Claim Server (Node.js)
 ```bash
-cd veris-public-server
+cd public-server
 npm install
 npm run dev       # nodemon dev server
 npm run start     # Production
@@ -68,13 +68,13 @@ Raspberry Pi Camera
         → Generate ZK proof (vlayer API)
         → Register device on DeviceRegistry contract
         → Mint ERC-1155 NFT via VerisERC1155
-        → Create claim in veris-public-server (Postgres)
+        → Create claim in public-server (Postgres)
         → Return QR code to camera app
 
 User scans QR code → owner-portal (React)
     → Privy wallet auth
     → Wagmi/Viem to interact with contracts
-    → Claim NFT via veris-public-server + hardware-web3-service
+    → Claim NFT via public-server + hardware-web3-service
 
 Smart Contracts (Solidity):
     → DeviceRegistry: device identity and validation
@@ -88,7 +88,7 @@ Smart Contracts (Solidity):
 - **Web3 client**: Wagmi 2 + Viem 2 for contract interaction
 - **Storage**: Filecoin via Synapse SDK; Lighthouse as fallback
 - **ZK proofs**: vlayer API + RISC Zero for verifiable image provenance
-- **Database**: better-sqlite3 in `hardware-web3-service` (local, no migrations framework); `veris-public-server` uses hosted Postgres (`pg`) via `DATABASE_URL` since it runs on Render, which has an ephemeral disk
+- **Database**: better-sqlite3 in `hardware-web3-service` (local, no migrations framework); `public-server` uses hosted Postgres (`pg`) via `DATABASE_URL` since it runs on Render, which has an ephemeral disk
 - **NFT standard**: ERC-1155 (not ERC-721) — supports batch minting per claim
 - **Contract toolchain**: Foundry (foundry.toml: solc 0.8.24, optimizer on)
 
@@ -98,7 +98,7 @@ Each service requires its own `.env`. See `.env.example` in each directory:
 
 - `hardware-web3-service/.env.example` — Filecoin contract address, Privy keys, vlayer endpoint, RPC URL
 - `owner-portal` — Privy app ID configured in source (check `src/main.jsx` or `src/App.jsx`)
-- `veris-public-server` — port and `DATABASE_URL` (Postgres connection string)
+- `public-server` — port and `DATABASE_URL` (Postgres connection string)
 
 ## Module System
 
