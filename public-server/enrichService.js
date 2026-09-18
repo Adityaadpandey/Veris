@@ -15,14 +15,7 @@ const clipService = require('./clipService');
 const { computeOrientationHashes } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 
-const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
-
-const IPFS_GATEWAYS = [
-  LIGHTHOUSE_GATEWAY,
-  'https://w3s.link/ipfs',
-  'https://ipfs.io/ipfs',
-  'https://dweb.link/ipfs'
-];
+const { IPFS_GATEWAYS } = require('./ipfsGateways');
 
 /**
  * Fetch raw image bytes for a CID, trying each gateway in turn.
