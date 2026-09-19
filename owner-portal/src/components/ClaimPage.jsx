@@ -25,13 +25,6 @@ const cleanCid = (hash) => {
   return hash
 }
 
-// Display-only branding: rewrite legacy "veris" naming to "veris" for UI
-// text. Note: this is cosmetic and may not match the raw on-chain value.
-const deBrand = (v) =>
-  typeof v === 'string'
-    ? v.replace(/veris/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
-    : v
-
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
@@ -624,7 +617,7 @@ export default function ClaimPage() {
         {/* ── Meta ── */}
         <div className="mt-5 space-y-2.5">
           <MetaRow label="CAPTURED" value={fmt(capturedAt)} />
-          <MetaRow label="DEVICE" value={deBrand(deviceId) || '—'} />
+          <MetaRow label="DEVICE" value={deviceId || '—'} />
           {(claim?.location_name || claim?.latitude) && (
             <MetaRow
               label="LOCATION"

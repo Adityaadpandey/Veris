@@ -33,15 +33,6 @@ const CLAIM_SERVER_URL =
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || window.location.origin;
 
-// Display-only branding: rewrite legacy "veris" naming to "veris" for UI
-// text (cosmetic; may not match the raw on-chain value).
-const deBrand = (v) =>
-  typeof v === "string"
-    ? v.replace(/veris/gi, (m) =>
-        m[0] === m[0].toUpperCase() ? "Veris" : "veris",
-      )
-    : v;
-
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
@@ -297,7 +288,7 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
                   <span className="text-text-muted/40 uppercase tracking-wide mr-1">
                     cam
                   </span>
-                  {deBrand(img.deviceId)}
+                  {img.deviceId}
                 </span>
               )}
               <div className="ml-auto flex gap-1.5">
@@ -446,7 +437,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
             <span className="text-text-muted/40 uppercase tracking-wide mr-1">
               cam
             </span>
-            {deBrand(img.deviceId)}
+            {img.deviceId}
           </div>
         )}
         {img.filecoinCid && (
@@ -923,7 +914,7 @@ export default function OwnerDashboard() {
             </p>
             {deviceId && (
               <p className="text-[9px] text-text-muted truncate">
-                {deBrand(deviceId)}
+                {deviceId}
               </p>
             )}
           </div>
@@ -1268,7 +1259,7 @@ export default function OwnerDashboard() {
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-text-secondary">Device ID</span>
                           <span className="font-mono text-text-primary text-xs">
-                            {deBrand(deviceStatus.device.deviceId) || "—"}
+                            {deviceStatus.device.deviceId || "—"}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
