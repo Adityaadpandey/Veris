@@ -33,6 +33,17 @@ const CLAIM_SERVER_URL =
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
 const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || window.location.origin;
 
+// Anything captured before this moment is hidden from the dashboard (fresh start after the
+// wallet switch). The data is still in the backend, we just don't show it.
+const HIDE_BEFORE = Date.parse("2026-10-29T19:00:00Z");
+const isFresh = (img) => {
+  if (!img.createdAt) return true;
+  const iso = img.createdAt.includes("T") || img.createdAt.endsWith("Z")
+    ? img.createdAt
+    : img.createdAt.replace(" ", "T") + "Z";
+  return Date.parse(iso) >= HIDE_BEFORE;
+};
+
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
@@ -793,7 +804,7 @@ export default function OwnerDashboard() {
     } catch (_) {}
   };
 
-  const activeImages = backendOffline ? onChainImages : images;
+  const activeImages = (backendOffline ? onChainImages : images).filter(isFresh);
 
   const stats = {
     total: activeImages.length,
@@ -801,7 +812,7 @@ export default function OwnerDashboard() {
     processing: activeImages.filter((i) => i.status === "uploaded").length,
     failed: activeImages.filter((i) => i.status === "saved").length,
   };
-  const retryableCount = images.filter((i) => i.status !== "minted").length;
+  const retryableCount = images.filter((i) => i.status !== "minted" && isFresh(i)).length;
 
   const FILTER_TABS = [
     { key: "all", label: "All", color: null, count: activeImages.length },
