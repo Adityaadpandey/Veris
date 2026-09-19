@@ -1,5 +1,3 @@
-import NetInfo from '@react-native-community/netinfo';
-import { File } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
@@ -30,32 +28,8 @@ const storage = {
 
 const PENDING_COMPANION_KEY = 'veris.capture.pending-companion';
 
-/**
- * The phone's own shot, from the moment it's taken until it's linked to the Pi's claim. It starts
- * as just a local file; the upload fills in the two mobile_* fields, and the Pi's UPLOADED status
- * fills in claim_url. Each step is retried on its own, so a bad connection only delays things.
- */
-export type PendingCompanion = {
-  local_uri: string;
-  mobile_captured_at: string;
-  mobile_image_url?: string;
-  mobile_public_id?: string;
-  claim_url?: string;
-};
-
-const SYNC_RETRY_MS = 30000;
-const REQUEST_TIMEOUT_MS = 45000;
-
-/** fetch that gives up instead of hanging forever on a half-dead connection. */
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/** An already-uploaded companion photo (see companion-capture-card.tsx) waiting for its claim to exist. */
+export type PendingCompanion = { mobile_image_url: string; mobile_public_id: string; mobile_captured_at: string };
 
 export type TriggerConnectionState = 'disconnected' | 'connecting' | 'connected' | 'unsupported';
 export type TriggerStage =
@@ -78,8 +52,8 @@ type PiTriggerState = {
   shutterDisabled: boolean;
   connect: () => Promise<void>;
   sendCapture: () => Promise<void>;
-  /** Called by the capture screen the moment the phone's own frame is taken. Uploading and linking are handled (and retried) from here. */
-  registerCompanionPhoto: (localUri: string, capturedAt: string) => void;
+  /** Called by the capture screen the moment its own upload to Cloudinary lands — see companion-capture-card.tsx / capture.tsx. */
+  registerCompanionUpload: (pending: PendingCompanion) => void;
 };
 
 const PiTriggerContext = createContext<PiTriggerState | null>(null);
@@ -115,141 +89,67 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
   const [claimUrl, setClaimUrl] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
 
-  // The phone's frame waiting to be uploaded and linked to the Pi's claim. Persisted to disk (not
-  // just this ref) so a bad connection, an app restart or a QUEUED_OFFLINE capture's later retry
-  // never loses it, and lives here rather than on the capture screen so navigating away right
-  // after the shutter press doesn't drop the pairing either.
+  // A companion photo already uploaded to Cloudinary (see /api/companion/upload), waiting for the
+  // Pi's own claim to finish minting so it can be linked. Persisted to disk (not just this ref) so
+  // it survives an app restart during a QUEUED_OFFLINE capture's later automatic retry, and lives
+  // here rather than on the capture screen so navigating away right after the shutter press — same
+  // failure mode addSealedClaim was moved here to fix — never drops the pairing.
   const pendingCompanionRef = useRef<PendingCompanion | null>(null);
-  const syncingRef = useRef(false);
-  const syncAgainRef = useRef(false);
 
-  const appendLog = useCallback((line: string) => {
-    setLog((prev) => [...prev.slice(-49), line]);
-  }, []);
-
-  const savePending = useCallback((pending: PendingCompanion | null) => {
-    pendingCompanionRef.current = pending;
-    storage.set(PENDING_COMPANION_KEY, pending ? JSON.stringify(pending) : null).catch(() => {});
-  }, []);
-
-  // Only clears the exact capture that was synced, so a newer shot taken mid-sync is left alone.
-  const clearPendingCompanion = useCallback(
-    (capturedAt?: string) => {
-      const cur = pendingCompanionRef.current;
-      if (cur && (!capturedAt || cur.mobile_captured_at === capturedAt)) savePending(null);
-    },
-    [savePending]
-  );
-
-  // One pass over whatever is left to do: upload the photo, then link it once the claim exists.
-  // A failed step just returns and stays on disk — it's retried by the timer below, when the
-  // network comes back, and when the Pi reports its claim.
-  const syncCompanion = useCallback(async () => {
-    if (syncingRef.current) {
-      syncAgainRef.current = true;
-      return;
-    }
-    syncingRef.current = true;
-    try {
-      do {
-        syncAgainRef.current = false;
-        let pending = pendingCompanionRef.current;
-        if (!pending) return;
-
-        if (!pending.mobile_image_url || !pending.mobile_public_id) {
-          try {
-            const form = new FormData();
-            form.append('mobile_image', new File(pending.local_uri));
-            const res = await fetchWithTimeout(`${CLAIM_SERVER_URL}/api/companion/upload`, { method: 'POST', body: form });
-            const data = await res.json().catch(() => null);
-            if (res.ok && data?.success && data.mobile_image_url && data.mobile_public_id) {
-              pending = { ...pending, mobile_image_url: data.mobile_image_url, mobile_public_id: data.mobile_public_id };
-              if (pendingCompanionRef.current?.mobile_captured_at === pending.mobile_captured_at) {
-                // Keep a claim_url that arrived while the upload was in flight.
-                pending = { ...pending, claim_url: pendingCompanionRef.current.claim_url };
-                savePending(pending);
-              }
-              appendLog('Companion photo uploaded');
-            } else if (res.status >= 400 && res.status < 500) {
-              appendLog(`Companion upload rejected (${res.status}), dropping it`);
-              clearPendingCompanion(pending.mobile_captured_at);
-              continue;
-            } else {
-              appendLog(`Companion upload failed (${res.status}), will retry`);
-              continue;
-            }
-          } catch (err) {
-            appendLog(`Companion upload failed: ${(err as Error).message}, will retry`);
-            continue;
-          }
-        }
-
-        const claimId = pending.claim_url ? extractClaimId(pending.claim_url) : null;
-        if (!claimId) continue; // no claim yet, the Pi's UPLOADED status will trigger another pass
-
-        try {
-          const res = await fetchWithTimeout(`${CLAIM_SERVER_URL}/api/claim/${claimId}/companion/link`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              mobile_image_url: pending.mobile_image_url,
-              mobile_public_id: pending.mobile_public_id,
-              mobile_captured_at: pending.mobile_captured_at,
-            }),
-          });
-          const data = await res.json().catch(() => null);
-          if (res.ok && data?.success) {
-            appendLog('Companion photo linked');
-            clearPendingCompanion(pending.mobile_captured_at);
-          } else if (res.status >= 400 && res.status < 500) {
-            appendLog(`Companion link rejected (${res.status}), dropping it`);
-            clearPendingCompanion(pending.mobile_captured_at);
-          } else {
-            appendLog(`Companion link failed (${res.status}), will retry`);
-          }
-        } catch (err) {
-          appendLog(`Companion link failed: ${(err as Error).message}, will retry`);
-        }
-      } while (syncAgainRef.current);
-    } finally {
-      syncingRef.current = false;
-    }
-  }, [appendLog, savePending, clearPendingCompanion]);
-
-  const registerCompanionPhoto = useCallback(
-    (localUri: string, capturedAt: string) => {
-      savePending({ local_uri: localUri, mobile_captured_at: capturedAt });
-      syncCompanion().catch(() => {});
-    },
-    [savePending, syncCompanion]
-  );
-
-  // Pick up a photo left over from a previous run, then keep nudging it along: on a timer (covers
-  // "connected but painfully slow") and the moment the network comes back.
   useEffect(() => {
     storage.get(PENDING_COMPANION_KEY).then((raw) => {
-      if (raw && !pendingCompanionRef.current) {
+      if (raw) {
         try {
           pendingCompanionRef.current = JSON.parse(raw);
-          syncCompanion().catch(() => {});
         } catch {
           storage.set(PENDING_COMPANION_KEY, null).catch(() => {});
         }
       }
     });
-    const timer = setInterval(() => {
-      if (pendingCompanionRef.current) syncCompanion().catch(() => {});
-    }, SYNC_RETRY_MS);
-    const unsubscribe = NetInfo.addEventListener((net) => {
-      if (net.isConnected && net.isInternetReachable !== false && pendingCompanionRef.current) {
-        syncCompanion().catch(() => {});
+  }, []);
+
+  const appendLog = useCallback((line: string) => {
+    setLog((prev) => [...prev.slice(-49), line]);
+  }, []);
+
+  const registerCompanionUpload = useCallback((pending: PendingCompanion) => {
+    pendingCompanionRef.current = pending;
+    storage.set(PENDING_COMPANION_KEY, JSON.stringify(pending)).catch(() => {});
+  }, []);
+
+  const clearPendingCompanion = useCallback(() => {
+    pendingCompanionRef.current = null;
+    storage.set(PENDING_COMPANION_KEY, null).catch(() => {});
+  }, []);
+
+  // Cheap now that the image itself is already uploaded (this just forwards its Cloudinary URL) —
+  // so it's safe to retry a few times against a flaky connection instead of dropping the pairing.
+  const linkCompanionCapture = useCallback(
+    async (claimUrlValue: string, pending: PendingCompanion) => {
+      const claimId = extractClaimId(claimUrlValue);
+      if (!claimId) return;
+      const attempts = 3;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          const res = await fetch(`${CLAIM_SERVER_URL}/api/claim/${claimId}/companion/link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pending),
+          });
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.success) {
+            appendLog('Companion photo linked');
+            return;
+          }
+          appendLog(`Companion link rejected (${res.status})`);
+        } catch (err) {
+          appendLog(`Companion link failed: ${(err as Error).message}`);
+        }
+        if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
       }
-    });
-    return () => {
-      clearInterval(timer);
-      unsubscribe();
-    };
-  }, [syncCompanion]);
+    },
+    [appendLog]
+  );
 
   const handleStatus = useCallback(
     (status: PiStatusLine) => {
@@ -282,8 +182,9 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
           setClaimUrl(status.claimUrl);
           appendLog(`Uploaded: ${status.claimUrl}`);
           if (pendingCompanionRef.current) {
-            savePending({ ...pendingCompanionRef.current, claim_url: status.claimUrl });
-            syncCompanion().catch(() => {});
+            const pending = pendingCompanionRef.current;
+            clearPendingCompanion();
+            linkCompanionCapture(status.claimUrl, pending).catch(() => {});
           }
           break;
         case 'QUEUED_OFFLINE':
@@ -304,7 +205,7 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
           break;
       }
     },
-    [appendLog, savePending, syncCompanion, clearPendingCompanion]
+    [appendLog, linkCompanionCapture, clearPendingCompanion]
   );
 
   const connect = useCallback(async () => {
@@ -382,9 +283,9 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
       shutterDisabled,
       connect,
       sendCapture,
-      registerCompanionPhoto,
+      registerCompanionUpload,
     }),
-    [connectionState, deviceName, stage, failedStage, claimUrl, log, shutterDisabled, connect, sendCapture, registerCompanionPhoto]
+    [connectionState, deviceName, stage, failedStage, claimUrl, log, shutterDisabled, connect, sendCapture, registerCompanionUpload]
   );
 
   return <PiTriggerContext.Provider value={value}>{children}</PiTriggerContext.Provider>;
