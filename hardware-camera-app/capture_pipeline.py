@@ -484,7 +484,9 @@ def upload_and_create_claim(filename, signature_info, camera_id, status_callback
             f'{BACKEND_URL}/api/images/upload',
             files=files,
             data=data,
-            timeout=60
+            # The backend uploads to Filecoin and mints before it replies, which has taken
+            # 80+ seconds in practice. 60s made us give up on uploads that were about to succeed.
+            timeout=180
         )
 
         if response.status_code == 200:
