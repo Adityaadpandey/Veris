@@ -3,12 +3,12 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/VerisERC1155.sol";
+import "../src/CandidERC1155.sol";
 import "../src/DeviceRegistry.sol";
 
 contract MintEditionDebugTest is Test {
     DeviceRegistry public deviceRegistry;
-    VerisERC1155 public veris;
+    CandidERC1155 public candid;
     
     address public deviceAddress;
     address public recipient = 0x1B8b939710c5b61EA4ab0bD4524Cbe92c06bdA71;
@@ -16,7 +16,7 @@ contract MintEditionDebugTest is Test {
     
     function setUp() public {
         deviceRegistry = new DeviceRegistry();
-        veris = new VerisERC1155(address(deviceRegistry), "https://ipfs.io/ipfs/");
+        candid = new CandidERC1155(address(deviceRegistry), "https://ipfs.io/ipfs/");
         
         deviceKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
         deviceAddress = vm.addr(deviceKey);
@@ -37,15 +37,15 @@ contract MintEditionDebugTest is Test {
         address owner = address(0x1234567890123456789012345678901234567890);
         
         vm.prank(deviceAddress);
-        uint256 originalTokenId = veris.mintOriginal(
+        uint256 originalTokenId = candid.mintOriginal(
             owner,
-            keccak256("veris-photo-metadata"),
+            keccak256("candid-photo-metadata"),
             0
         );
         
         console.log("Original Token ID:", originalTokenId);
         
-        VerisERC1155.TokenMetadata memory metadata = veris.getTokenMetadata(originalTokenId);
+        CandidERC1155.TokenMetadata memory metadata = candid.getTokenMetadata(originalTokenId);
         console.log("Token deviceAddress:", metadata.deviceAddress);
         console.log("Token isOriginal:", metadata.isOriginal);
         console.log("Token maxEditions:", metadata.maxEditions);
@@ -53,15 +53,15 @@ contract MintEditionDebugTest is Test {
         assertTrue(metadata.deviceAddress != address(0), "Token should exist");
         assertTrue(metadata.isOriginal, "Token should be original");
         
-        uint256 editionCount = veris.getEditionCount(originalTokenId);
+        uint256 editionCount = candid.getEditionCount(originalTokenId);
         console.log("Edition count before:", editionCount);
         
         vm.prank(deviceAddress);
-        uint256 editionTokenId = veris.mintEdition(recipient, originalTokenId);
+        uint256 editionTokenId = candid.mintEdition(recipient, originalTokenId);
         
         console.log("Edition Token ID:", editionTokenId);
         
-        uint256 balance = veris.balanceOf(recipient, editionTokenId);
+        uint256 balance = candid.balanceOf(recipient, editionTokenId);
         assertEq(balance, 1, "Recipient should have 1 edition");
         
         console.log("Edition minted successfully!");
@@ -70,9 +70,9 @@ contract MintEditionDebugTest is Test {
     function testMintEditionToMetaMaskAddress() public {
         address owner = address(0x1234567890123456789012345678901234567890);
         vm.prank(deviceAddress);
-        uint256 originalTokenId = veris.mintOriginal(
+        uint256 originalTokenId = candid.mintOriginal(
             owner,
-            keccak256("veris-photo-metadata"),
+            keccak256("candid-photo-metadata"),
             0
         );
         
@@ -81,18 +81,18 @@ contract MintEditionDebugTest is Test {
         console.log("Recipient code length:", recipient.code.length);
         
         vm.prank(deviceAddress);
-        uint256 editionTokenId = veris.mintEdition(recipient, originalTokenId);
+        uint256 editionTokenId = candid.mintEdition(recipient, originalTokenId);
         
         console.log("Edition Token ID:", editionTokenId);
         
-        uint256 balance = veris.balanceOf(recipient, editionTokenId);
+        uint256 balance = candid.balanceOf(recipient, editionTokenId);
         assertEq(balance, 1, "Recipient should have 1 edition");
         
         console.log("SUCCESS: Edition minted to MetaMask address!");
     }
     
     function testMintEditionWithToken5() public {
-        VerisERC1155.TokenMetadata memory metadata = veris.getTokenMetadata(5);
+        CandidERC1155.TokenMetadata memory metadata = candid.getTokenMetadata(5);
         console.log("Token 5 deviceAddress:", metadata.deviceAddress);
         console.log("Token 5 isOriginal:", metadata.isOriginal);
         
@@ -107,7 +107,7 @@ contract MintEditionDebugTest is Test {
         }
         
         vm.prank(deviceAddress);
-        try veris.mintEdition(recipient, 5) returns (uint256 editionTokenId) {
+        try candid.mintEdition(recipient, 5) returns (uint256 editionTokenId) {
             console.log("SUCCESS: Edition minted! Token ID:", editionTokenId);
         } catch Error(string memory reason) {
             console.log("ERROR:", reason);

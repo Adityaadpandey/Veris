@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/VerisERC1155.sol";
+import "../src/CandidERC1155.sol";
 import "../src/DeviceRegistry.sol";
 
 /**
@@ -14,23 +14,23 @@ import "../src/DeviceRegistry.sol";
  */
 contract GasReportTest is Test {
     DeviceRegistry public deviceRegistry;
-    VerisERC1155 public veris;
+    CandidERC1155 public candid;
 
     address public deviceAddress;
     address public owner = address(0x1234567890123456789012345678901234567890);
 
     // Metadata JSON lives on IPFS; the contract only ever sees its hash.
-    bytes32 constant REAL_METADATA_HASH = keccak256("veris-photo-metadata");
+    bytes32 constant REAL_METADATA_HASH = keccak256("candid-photo-metadata");
 
     function setUp() public {
         deviceRegistry = new DeviceRegistry();
-        veris = new VerisERC1155(address(deviceRegistry), "https://ipfs.io/ipfs/");
+        candid = new CandidERC1155(address(deviceRegistry), "https://ipfs.io/ipfs/");
 
         deviceAddress = vm.addr(uint256(keccak256("device")));
         deviceRegistry.registerDevice(
             deviceAddress,
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-            "veris-pi-0001",
+            "candid-pi-0001",
             "camera-456",
             "Raspberry Pi 4",
             "1.0.0"
@@ -44,7 +44,7 @@ contract GasReportTest is Test {
         deviceRegistry.registerDevice(
             fresh,
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-            "veris-pi-0002",
+            "candid-pi-0002",
             "camera-789",
             "Raspberry Pi 4",
             "1.0.0"
@@ -58,7 +58,7 @@ contract GasReportTest is Test {
     function test_GasMintOriginal() public {
         vm.prank(deviceAddress);
         uint256 gasBefore = gasleft();
-        veris.mintOriginal(owner, REAL_METADATA_HASH, 0);
+        candid.mintOriginal(owner, REAL_METADATA_HASH, 0);
         uint256 used = gasBefore - gasleft();
 
         console.log("MINT_ORIGINAL_GAS:", used);
@@ -67,10 +67,10 @@ contract GasReportTest is Test {
 
     function test_GasMintEdition() public {
         vm.prank(deviceAddress);
-        uint256 original = veris.mintOriginal(owner, REAL_METADATA_HASH, 0);
+        uint256 original = candid.mintOriginal(owner, REAL_METADATA_HASH, 0);
 
         uint256 gasBefore = gasleft();
-        veris.mintEdition(owner, original);
+        candid.mintEdition(owner, original);
         uint256 used = gasBefore - gasleft();
 
         console.log("MINT_EDITION_GAS:", used);
@@ -79,10 +79,10 @@ contract GasReportTest is Test {
 
     function test_GasBatchMintEditions10() public {
         vm.prank(deviceAddress);
-        uint256 original = veris.mintOriginal(owner, REAL_METADATA_HASH, 0);
+        uint256 original = candid.mintOriginal(owner, REAL_METADATA_HASH, 0);
 
         uint256 gasBefore = gasleft();
-        veris.batchMintEditions(owner, original, 10);
+        candid.batchMintEditions(owner, original, 10);
         uint256 used = gasBefore - gasleft();
 
         console.log("BATCH_MINT_10_GAS:", used);
@@ -94,10 +94,10 @@ contract GasReportTest is Test {
     // It should resolve to the original's metadata instead.
     function test_EditionUriPointsAtOriginal() public {
         vm.prank(deviceAddress);
-        uint256 original = veris.mintOriginal(owner, REAL_METADATA_HASH, 0);
-        uint256 edition = veris.mintEdition(owner, original);
+        uint256 original = candid.mintOriginal(owner, REAL_METADATA_HASH, 0);
+        uint256 edition = candid.mintEdition(owner, original);
 
-        assertEq(veris.uri(original), "https://ipfs.io/ipfs/1");
-        assertEq(veris.uri(edition), veris.uri(original), "edition must resolve to original");
+        assertEq(candid.uri(original), "https://ipfs.io/ipfs/1");
+        assertEq(candid.uri(edition), candid.uri(original), "edition must resolve to original");
     }
 }

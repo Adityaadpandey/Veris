@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/VerisERC1155.sol";
+import "../src/CandidERC1155.sol";
 import "../src/DeviceRegistry.sol";
 
 /**
@@ -24,8 +24,8 @@ contract DeploymentJsonTest is Test {
             vm.toString(chainId),
             ',"contracts":{"DeviceRegistry":{"address":"',
             vm.toString(vm.addr(uint256(keccak256("registry")))),
-            '"},"VerisERC1155":{"address":"',
-            vm.toString(vm.addr(uint256(keccak256("veris")))),
+            '"},"CandidERC1155":{"address":"',
+            vm.toString(vm.addr(uint256(keccak256("candid")))),
             '"}}}'
         );
         return json;
@@ -48,7 +48,7 @@ contract DeploymentJsonTest is Test {
 
         assertTrue(_contains(json, '"network":"'), "network key");
         assertTrue(_contains(json, '"DeviceRegistry":{"address":"'), "DeviceRegistry address");
-        assertTrue(_contains(json, '"VerisERC1155":{"address":"'), "VerisERC1155 address");
+        assertTrue(_contains(json, '"CandidERC1155":{"address":"'), "CandidERC1155 address");
     }
 
     function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
