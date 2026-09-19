@@ -437,6 +437,16 @@ app.post('/api/device/ensure-registered', async (req, res) => {
         registered = true;
         activated = true;
         console.log(`   ✅ Device ${deviceAddress} is registered and active`);
+
+        // Already on-chain, so nothing below caches it. Without this the local devices table stays
+        // empty after the database is reset and every new claim is stamped with device_id "unknown".
+        dbService.cacheDevice({
+          device_address: deviceAddress,
+          device_id: deviceId,
+          camera_id: cameraId,
+          public_key: publicKey,
+          is_registered: true
+        });
         
         // Get full device info for logging
         try {
