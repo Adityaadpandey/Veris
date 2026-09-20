@@ -1224,6 +1224,17 @@ class CameraApp(App):
 
         if frame is not None:
             try:
+                # Log the first frame once so a blank preview can be diagnosed from the log
+                if not getattr(self, '_logged_first_frame', False):
+                    self._logged_first_frame = True
+                    alpha = f", alpha {frame[..., 3].min()}-{frame[..., 3].max()}" if frame.ndim == 3 and frame.shape[2] == 4 else ""
+                    print(f"First preview frame: shape={frame.shape} dtype={frame.dtype}{alpha}")
+
+                # The 4th byte of XBGR8888 isn't guaranteed to be 255 on every Pi,
+                # and a 0 there makes the whole preview transparent. Drop it.
+                if frame.ndim == 3 and frame.shape[2] == 4:
+                    frame = frame[:, :, :3]
+
                 # Get frame dimensions
                 if len(frame.shape) == 3:
                     height, width, channels = frame.shape
