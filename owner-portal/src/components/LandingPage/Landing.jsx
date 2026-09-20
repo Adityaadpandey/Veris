@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Sprite, { Hill } from './Sprite'
 import useReveal from './useReveal'
+import WaitlistForm from './WaitlistForm'
 import { DOCS, OWNER_PORTAL, VERIFY_PHOTO } from './links'
 
 // Optional product photos (transparent PNG/WebP). Drop hotshoe.png, clipon.png and standalone.png
@@ -72,10 +73,25 @@ const Arrow = ({ b }) => (
 export default function Landing({ onStory }) {
   const root = useRef(null)
   useReveal(root)
-  const toDevices = (e) => { e.preventDefault(); document.getElementById('devices')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }) }
+  const scrollTo = (id) => (e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }) }
+  const toDevices = scrollTo('devices')
+  const toWaitlist = scrollTo('waitlist')
+  // After the hero scrolls away the waitlist button slides in at the bottom right (hidden again at the form itself).
+  const [dock, setDock] = useState(false)
+  useEffect(() => {
+    const hero = root.current?.querySelector('.hero'), form = document.getElementById('waitlist')
+    if (!hero || !('IntersectionObserver' in window)) return undefined
+    let pastHero = false, atForm = false
+    const update = () => setDock(pastHero && !atForm)
+    const o1 = new IntersectionObserver(([e]) => { pastHero = !e.isIntersecting && e.boundingClientRect.top < 0; update() })
+    const o2 = new IntersectionObserver(([e]) => { atForm = e.isIntersecting; update() })
+    o1.observe(hero); form && o2.observe(form)
+    return () => { o1.disconnect(); o2.disconnect() }
+  }, [])
 
   return (
     <div ref={root}>
+      <a className={`btn btn-primary dock${dock ? ' on' : ''}`} href="#waitlist" onClick={toWaitlist} tabIndex={dock ? 0 : -1} aria-hidden={!dock}>Join the waitlist</a>
       <header className="nav">
         <div className="wrap">
           <Link className="brand" to="/" aria-label="Veris home"><Sprite name="camera" u={1.7} />VERIS</Link>
@@ -83,7 +99,8 @@ export default function Landing({ onStory }) {
             <button type="button" className="nav-link" onClick={onStory}>How it works</button>
             <a className="nav-link" href="#devices" onClick={toDevices}>Use cases</a>
             <a className="nav-link" href={DOCS} target="_blank" rel="noopener noreferrer">Docs</a>
-            <Link className="btn btn-ghost" to={OWNER_PORTAL}>Owner portal →</Link>
+            <Link className="nav-link" to={OWNER_PORTAL}>Owner portal</Link>
+            <a className="btn btn-primary" href="#waitlist" onClick={toWaitlist}>Join the waitlist</a>
           </nav>
         </div>
       </header>
@@ -99,11 +116,24 @@ export default function Landing({ onStory }) {
           <Hill layer={2} />
         </div>
         <div className="hero-copy">
+          <span className="badge"><Sprite name="sparkle" u={1.5} />Early access waitlist is open</span>
           <h1>Proof, made at<br /><i>the</i> <em>shutter.</em></h1>
           <p>Veris clips onto the camera or phone you already own, and proves your photo is real the moment you take it.</p>
           <div className="hero-btns">
             <Link className="btn btn-primary" to={OWNER_PORTAL}>Owner portal →</Link>
             <Link className="btn btn-ghost" to={VERIFY_PHOTO}><Sprite name="scan" u={1.5} />Verify a photo</Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="what" aria-labelledby="what-h">
+        <div className="wrap">
+          <h2 id="what-h" className="rv">What is Veris?</h2>
+          <p className="what-lead rv">Veris is a small device that proves a photo is real. It signs the picture the instant you take it, so anyone can check it later and nobody can pass off an edit as the original.</p>
+          <div className="whatrow">
+            <div className="wcard rv"><Sprite name="meh" u={4} /><h3>The problem</h3><p>Photos are easy to fake and easy to edit. When a picture matters, such as news, an insurance claim or evidence, there is no good way to tell which ones are real.</p></div>
+            <div className="wcard rv" style={{ '--d': '.1s' }}><Sprite name="lock" u={4} /><h3>What Veris does</h3><p>A chip in the device signs your photo at the moment of capture and files a permanent public record. Nothing about how you shoot changes.</p></div>
+            <div className="wcard rv" style={{ '--d': '.2s' }}><Sprite name="check" u={4} /><h3>What you get</h3><p>A photo that carries its own proof. Anyone can drop it on the claim page and see that it matches the record, or that it does not.</p></div>
           </div>
         </div>
       </section>
@@ -133,13 +163,13 @@ export default function Landing({ onStory }) {
         </div>
       </section>
 
-      <section className="cta" aria-labelledby="cta-h">
+      <section className="cta" id="waitlist" aria-labelledby="cta-h">
         <div className="wrap">
-          <Sprite name="heart" />
-          <h2 id="cta-h" className="rv">A photo that carries its own proof.</h2>
-          <div className="hero-btns rv">
-            <Link className="btn btn-primary" to={OWNER_PORTAL}>Owner portal →</Link>
-            <Link className="btn btn-ghost" to={VERIFY_PHOTO}><Sprite name="scan" u={1.5} />Verify a photo</Link>
+          <div className="wlcard rv">
+            <Sprite name="heart" u={5} />
+            <h2 id="cta-h">Be first to carry proof.</h2>
+            <p>Veris is a prototype and early access is limited. Tell us where you'd use it and we'll email you once when your spot opens.</p>
+            <WaitlistForm variant="full" />
           </div>
         </div>
       </section>

@@ -3,7 +3,7 @@
 .vs {
   --bg: #0E0C0A; --bg-2: #171310; --paper: #FFF8EA; --mute: #B3A999; --soft: #D8CFBF;
   --line: rgba(255, 248, 234, .14); --accent: #FF6A1A; --accent-dim: rgba(255, 106, 26, .16);
-  --f-display: 'Pixelify Sans', 'Hanken Grotesk', system-ui, sans-serif;
+  --f-display: 'Pixeloid Sans', 'Hanken Grotesk', system-ui, sans-serif;
   --f-body: 'Hanken Grotesk', system-ui, sans-serif;
   --f-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   position: relative; background: var(--bg); color: var(--paper); font-family: var(--f-body); font-size: 17px; line-height: 1.55; color-scheme: dark;
