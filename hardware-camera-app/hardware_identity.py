@@ -30,6 +30,25 @@ except ImportError:
         print("Warning: keccak256 not available. Install with: pip3 install pysha3")
         print("   Address calculation will use SHA256 (won't match Ethereum addresses)")
 
+def _keccak256(data):
+    # hashlib.sha3_256 is NIST SHA3, not the keccak Ethereum uses, so it needs one of these libs
+    try:
+        import sha3
+        k = sha3.keccak_256()
+        k.update(data)
+        return k.digest()
+    except ImportError:
+        from Crypto.Hash import keccak
+        k = keccak.new(digest_bits=256)
+        k.update(data)
+        return k.digest()
+
+
+def ellipticcurve_point(curve, x, y, order):
+    from ecdsa.ellipticcurve import PointJacobi
+    return PointJacobi(curve, x, y, 1, order)
+
+
 SALT_PATH = os.getenv('SALT_PATH', '/boot/.device_salt')
 SALT_BACKUP_PATH = Path(os.getenv('SALT_BACKUP_PATH', str(Path.home() / ".veris" / ".device_salt_backup")))
 
@@ -214,6 +233,52 @@ class HardwareIdentity:
             'salt_path': SALT_PATH if os.path.exists(SALT_PATH) else str(SALT_BACKUP_PATH)
         }
     
+    def sign_message(self, message):
+        """
+        Ethereum personal_sign (EIP-191) over a text message. Returns the 65 byte r||s||v
+        signature as 0x-hex, which ethers.verifyMessage() on the backend can recover the
+        signer from. (sign_hash above is a plain 64 byte r||s, which can't be recovered.)
+        """
+        if not self.initialized:
+            raise RuntimeError("Hardware identity not initialized")
+
+        from ecdsa.util import sigencode_string_canonize, sigdecode_string
+        from ecdsa.ellipticcurve import INFINITY
+
+        msg = message.encode('utf-8')
+        digest = _keccak256(b"\x19Ethereum Signed Message:\n" + str(len(msg)).encode() + msg)
+
+        sig = self.private_key.sign_digest_deterministic(
+            digest, hashfunc=hashlib.sha256, sigencode=sigencode_string_canonize
+        )
+        r, s = sigdecode_string(sig, SECP256k1.order)
+
+        # v is whichever of the two possible recovery ids gives back our own public key
+        z = int.from_bytes(digest, 'big')
+        n = SECP256k1.order
+        curve = SECP256k1.curve
+        own_pub = self.public_key.pubkey.point
+        v = None
+        for rec_id in (0, 1):
+            y_sq = (pow(r, 3, curve.p()) + curve.a() * r + curve.b()) % curve.p()
+            y = pow(y_sq, (curve.p() + 1) // 4, curve.p())
+            if y % 2 != rec_id:
+                y = curve.p() - y
+            point_r = ellipticcurve_point(curve, r, y, n)
+            r_inv = pow(r, -1, n)
+            candidate = (s * point_r + (-z % n) * SECP256k1.generator) * r_inv
+            if candidate != INFINITY and candidate == own_pub:
+                v = 27 + rec_id
+                break
+        if v is None:
+            raise RuntimeError("Could not work out the signature recovery id")
+
+        return {
+            'signature': '0x' + sig.hex() + format(v, '02x'),
+            'address': self.address,
+            'algorithm': 'ECDSA_SECP256k1_EIP191',
+        }
+
     def verify_signature(self, data, signature):
         if not self.initialized:
             raise RuntimeError("Hardware identity not initialized")

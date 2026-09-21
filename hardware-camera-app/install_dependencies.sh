@@ -130,7 +130,7 @@ if [ "$use_venv" = "y" ] || [ "$use_venv" = "Y" ]; then
     echo ""
     echo "Installing additional libraries..."
     pip install smbus2 || echo "Warning: smbus2 install failed"
-    pip install ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
+    pip install ecdsa pycryptodome || echo "Warning: ecdsa install failed (required for hardware identity)"
     pip install piexif || echo "Warning: piexif install failed (captures will still work, just without a stamped EXIF timezone offset)"
 
     echo "Installing PyBluez (required for headless Bluetooth trigger mode)..."
@@ -157,7 +157,7 @@ else
     echo ""
     echo "Installing additional libraries..."
     pip3 install --user smbus2 || echo "Warning: smbus2 install failed"
-    pip3 install --user ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
+    pip3 install --user ecdsa pycryptodome || echo "Warning: ecdsa install failed (required for hardware identity)"
     pip3 install --user piexif || echo "Warning: piexif install failed (captures will still work, just without a stamped EXIF timezone offset)"
 
     echo "Installing PyBluez (required for headless Bluetooth trigger mode)..."
