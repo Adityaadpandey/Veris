@@ -15,6 +15,8 @@ const clipService = require('./clipService');
 const { computeOrientationHashes } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 
+const zerogRead = require('./zerogRead');
+
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 
 const IPFS_GATEWAYS = [
@@ -29,6 +31,7 @@ const IPFS_GATEWAYS = [
  * Returns { buffer, mimeType } or throws if all gateways fail.
  */
 async function fetchImageBuffer(cid) {
+  if (zerogRead.isZerogRef(cid)) return zerogRead.download(cid);
   let lastErr;
   for (const gateway of IPFS_GATEWAYS) {
     try {

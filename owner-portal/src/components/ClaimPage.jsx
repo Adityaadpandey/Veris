@@ -21,6 +21,7 @@ const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
 const cleanCid = (hash) => {
   if (!hash) return null
   if (hash.startsWith('ipfs://')) return hash.slice(7)
+  if (hash.startsWith('0g://')) return '0g' + hash.slice(5).replace(/^0x/, '')
   if (hash.startsWith('https://') || hash.startsWith('http://')) return null
   return hash
 }

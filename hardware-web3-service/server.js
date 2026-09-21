@@ -15,6 +15,8 @@ dotenv.config();
 import dbService from './dbService.js';
 import web3Service from './web3Service.js';
 import filecoinService from './filecoinService.js';
+import storageService from './storageService.js';
+import zerogStorageService from './zerogStorageService.js';
 import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
@@ -92,6 +94,7 @@ async function initializeServices() {
     } else {
       console.warn('⚠️ Device wallet not available, Filecoin service disabled');
     }
+    await zerogStorageService.initialize();
 
     const claimHealth = await claimClient.healthCheck();
     if (claimHealth.status === 'ok') {
@@ -267,6 +270,7 @@ app.get('/api/status', async (req, res) => {
         database: servicesInitialized,
         blockchain: web3Service.initialized,
         filecoin: filecoinService.initialized,
+        zerogStorage: zerogStorageService.initialized,
         claimServer: claimHealth.status === 'ok'
       },
       device: deviceInfo,
@@ -784,15 +788,15 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
     console.log(`   Camera ID: ${cameraId}`);
 
     try {
-      if (filecoinService.initialized) {
+      if (storageService.initialized) {
         console.log(`   🔄 Uploading to Filecoin...`);
-        filecoinCid = await filecoinService.uploadImage(filepath);
+        filecoinCid = await storageService.uploadImage(filepath);
         console.log(`   ✅ Image uploaded to Filecoin: ${filecoinCid}`);
 
         const deviceInfo = dbService.getDevice(deviceAddress);
         const deviceId = deviceInfo?.device_id || 'unknown';
 
-        const metadata = filecoinService.createMetadata({
+        const metadata = storageService.createMetadata({
           name: `Veris Photo #${image.id}`,
           description: 'Captured by Veris Camera',
           imageCid: filecoinCid,
@@ -805,7 +809,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
         });
 
         console.log(`   🔄 Uploading metadata to Filecoin...`);
-        metadataCid = await filecoinService.uploadMetadata(metadata);
+        metadataCid = await storageService.uploadMetadata(metadata);
         console.log(`   ✅ Metadata uploaded to Filecoin: ${metadataCid}`);
 
         dbService.updateImageStatus(image.id, 'uploaded', {
@@ -1191,13 +1195,13 @@ async function retryPendingUploads() {
     try {
       // Phase 1: saved → upload to Filecoin
       if (image._phase === 1) {
-        if (!filecoinService.initialized) throw new Error('Filecoin not initialized — set LIGHTHOUSE_API_KEY');
+        if (!storageService.initialized) throw new Error('No storage provider ready — set LIGHTHOUSE_API_KEY or ZEROG_PRIVATE_KEY');
         if (!fs.existsSync(image.filepath)) throw new Error('Local file not found');
 
-        const filecoinCid = await filecoinService.uploadImage(image.filepath);
+        const filecoinCid = await storageService.uploadImage(image.filepath);
         const deviceInfo = dbService.getDevice(image.device_address);
         const deviceId = deviceInfo?.device_id || 'unknown';
-        const metadata = filecoinService.createMetadata({
+        const metadata = storageService.createMetadata({
           name: `Veris Photo #${image.id}`,
           description: 'Captured by Veris Camera',
           imageCid: filecoinCid,
@@ -1208,7 +1212,7 @@ async function retryPendingUploads() {
           signature: image.signature,
           timestamp: image.created_at
         });
-        const metadataCid = await filecoinService.uploadMetadata(metadata);
+        const metadataCid = await storageService.uploadMetadata(metadata);
         dbService.updateImageStatus(image.id, 'uploaded', { filecoin_cid: filecoinCid, filecoin_metadata_cid: metadataCid });
         image.filecoin_cid = filecoinCid;
         image.filecoin_metadata_cid = metadataCid;

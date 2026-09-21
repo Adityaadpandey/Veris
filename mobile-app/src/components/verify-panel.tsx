@@ -17,6 +17,7 @@ import {
 function cleanCid(cid: string | null | undefined): string | null {
   if (!cid) return null;
   if (cid.startsWith('ipfs://')) return cid.slice(7);
+  if (cid.startsWith('0g://')) return '0g' + cid.slice(5).replace(/^0x/, '');
   if (cid.startsWith('http://') || cid.startsWith('https://')) return null;
   return cid;
 }

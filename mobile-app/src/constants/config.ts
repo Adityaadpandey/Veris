@@ -46,6 +46,8 @@ export const CLAIM_SERVER_URL = "https://api.veris.live";
  * Add a new subdomain here (once) after rotating the key, every screen picks it up.
  */
 export const IPFS_GATEWAYS = [
+  // our own server first: it is the only way to read photos stored on 0G
+  `${CLAIM_SERVER_URL}/api/image`,
   "https://equivalent-crayfish-qqblv.lighthouseweb3.xyz/ipfs",
   "https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs",
   "https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs",
