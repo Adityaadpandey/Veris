@@ -19,3 +19,13 @@ for i in range(20):  # both recovery ids show up across a few messages
                          cwd=backend, capture_output=True, text=True)
     assert out.stdout.strip().lower() == ident.address.lower(), (i, out.stdout, out.stderr)
 print("ok: 20 signatures recovered to the device address")
+
+# the backend rebuilds the signed text with packet.js, so both builders must agree exactly
+import capture_pipeline as cp
+args = dict(image_hash="ab12", companion_hash=None, verdict="real", timestamp=1700000000000, nonce="n0", device_address="0xAbC")
+py = cp.build_packet_message(**args)
+js = ("import {buildPacketMessage as b} from './packet.js';process.stdout.write(b({imageHash:'ab12',companionHash:null,"
+      "verdict:'real',timestamp:1700000000000,nonce:'n0',deviceAddress:'0xAbC'}))")
+out = subprocess.run(["node", "--input-type=module", "-e", js], cwd=backend, capture_output=True, text=True)
+assert out.stdout == py, (out.stdout, py)
+print("ok: python and js packet text match")

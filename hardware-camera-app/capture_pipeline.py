@@ -16,12 +16,15 @@ import os
 import time
 import json
 import hashlib
+import secrets
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import cv2
 import requests
+
+import liveness
 
 try:
     from picamera2 import Picamera2
@@ -378,14 +381,31 @@ def get_location():
     return None
 
 
-def sign_image(hardware_identity, image_path):
+def build_packet_message(image_hash, companion_hash, verdict, timestamp, nonce, device_address):
+    """The exact text the device signs. Must match buildPacketMessage() in
+    hardware-web3-service/packet.js - the backend rebuilds it to recover the signer."""
+    return "\n".join([
+        "veris-capture-v1",
+        f"image:{image_hash}",
+        f"companion:{companion_hash or '-'}",
+        f"verdict:{verdict or 'pending'}",
+        f"ts:{timestamp}",
+        f"nonce:{nonce}",
+        f"device:{device_address.lower()}",
+    ])
+
+
+def sign_image(hardware_identity, image_path, verdict='pending', companion_hash=None):
     """
-    Sign an image file with hardware identity.
+    Sign one packet for a captured image: image hash + companion hash + verdict + timestamp
+    + nonce + device address. A fresh nonce per call means a signed packet can't be replayed.
     Creates a signature file alongside the image.
 
     Args:
         hardware_identity: a HardwareIdentity instance (or None - returns None)
         image_path: Path to image file
+        verdict: 'real' | 'fake' | 'pending' (from liveness.check_liveness)
+        companion_hash: sha256 hex of the phone photo, if there is one
 
     Returns:
         dict: Signature information, or None on failure
@@ -397,13 +417,21 @@ def sign_image(hardware_identity, image_path):
         with open(image_path, 'rb') as f:
             image_data = f.read()
 
-        image_hash = hashlib.sha256(image_data).digest()
-        image_hash_hex = image_hash.hex()
+        image_hash_hex = hashlib.sha256(image_data).hexdigest()
+        timestamp = int(time.time() * 1000)
+        nonce = secrets.token_hex(16)
 
-        signature_info = hardware_identity.sign_hash(image_hash)
-        signature_info['image_hash'] = image_hash_hex
-        signature_info['image_path'] = str(image_path)
-        signature_info['timestamp'] = datetime.now().isoformat()
+        message = build_packet_message(image_hash_hex, companion_hash, verdict, timestamp, nonce,
+                                       hardware_identity.get_address())
+        signature_info = hardware_identity.sign_message(message)
+        signature_info.update({
+            'image_hash': image_hash_hex,
+            'companion_hash': companion_hash,
+            'verdict': verdict,
+            'timestamp': timestamp,
+            'nonce': nonce,
+            'image_path': str(image_path),
+        })
 
         sig_path = Path(image_path).with_suffix('.sig.json')
         with open(sig_path, 'w') as f:
@@ -417,18 +445,43 @@ def sign_image(hardware_identity, image_path):
         return None
 
 
+def check_and_sign(hardware_identity, image_path, status_callback=None, companion_path=None):
+    """
+    Run the liveness check, then sign the packet with its verdict.
+    The verdict is 'pending' when no AI engine could answer; upload_and_create_claim then
+    parks the capture instead of uploading it (see _enqueue_pending, stage 'liveness').
+    """
+    status_callback = status_callback or _noop_callback
+    status_callback('Checking scene...', 'info', 0)
+
+    live = liveness.check_liveness(image_path, companion_path)
+    companion_hash = None
+    if companion_path:
+        with open(companion_path, 'rb') as f:
+            companion_hash = hashlib.sha256(f.read()).hexdigest()
+
+    signature_info = sign_image(hardware_identity, image_path, verdict=live['status'],
+                                companion_hash=companion_hash)
+    if signature_info:
+        signature_info['liveness'] = live
+    return signature_info
+
+
 def _pending_path_for(filename):
     stem = Path(filename).stem
     return PENDING_DIR / f"{stem}.json"
 
 
-def _enqueue_pending(filename, signature_info, camera_id):
+def _enqueue_pending(filename, signature_info, camera_id, stage='upload'):
+    """stage is the step the capture stopped at, so a retry resumes there:
+    'liveness' = no AI engine answered yet, 'upload' = checked and signed, backend not reached."""
     pending_path = _pending_path_for(filename)
     with open(pending_path, 'w') as f:
         json.dump({
             'filename': str(filename),
             'signature_info': signature_info,
             'camera_id': camera_id,
+            'stage': stage,
         }, f, indent=2)
     print(f"Queued for retry: {pending_path}")
 
@@ -458,6 +511,12 @@ def upload_and_create_claim(filename, signature_info, camera_id, status_callback
     """
     status_callback = status_callback or _noop_callback
 
+    if signature_info.get('verdict') == 'pending':
+        print("No AI check could run - holding the capture as pending")
+        status_callback('Pending -- Will Verify Later', 'warning', 4)
+        _enqueue_pending(filename, signature_info, camera_id, stage='liveness')
+        return {'status': 'pending'}
+
     if not _backend_reachable():
         print("Backend offline - saving to queue")
         status_callback('Offline - Saved Locally', 'warning', 4)
@@ -481,6 +540,10 @@ def upload_and_create_claim(filename, signature_info, camera_id, status_callback
             'signature': signature_info['signature'],
             'cameraId': camera_id,
             'deviceAddress': device_address,
+            'companionHash': signature_info.get('companion_hash') or '',
+            'verdict': signature_info['verdict'],
+            'timestamp': str(signature_info['timestamp']),
+            'nonce': signature_info['nonce'],
             'latitude': str(location['lat']) if location else '',
             'longitude': str(location['lon']) if location else '',
             'locationName': location['name'] if location else ''
@@ -531,14 +594,15 @@ def upload_and_create_claim(filename, signature_info, camera_id, status_callback
         return {'status': 'queued'}
 
 
-def retry_pending_uploads(status_callback=None):
+def retry_pending_uploads(status_callback=None, hardware_identity=None):
     """
-    Scan the on-disk retry queue and retry each entry. Removes a queue file
-    on successful upload; leaves it in place (or lets upload_and_create_claim
-    rewrite it) if still offline.
+    Scan the on-disk retry queue and retry each entry from the step it stopped at.
+    Removes a queue file on successful upload; leaves it in place if still offline or
+    still without a verdict.
 
-    Returns the list of outcome dicts (same shape as upload_and_create_claim)
-    for entries that were retried.
+    Entries waiting on the liveness check need hardware_identity, because a new verdict
+    means a new signed packet. Returns the list of outcome dicts (same shape as
+    upload_and_create_claim) for entries that were retried.
     """
     status_callback = status_callback or _noop_callback
 
@@ -556,9 +620,17 @@ def retry_pending_uploads(status_callback=None):
             pending_path.unlink(missing_ok=True)
             continue
 
+        signature_info = entry['signature_info']
+        if entry.get('stage') == 'liveness' or signature_info.get('verdict') == 'pending':
+            if not hardware_identity:
+                continue
+            signature_info = check_and_sign(hardware_identity, entry['filename'], status_callback)
+            if not signature_info:
+                continue
+
         result = upload_and_create_claim(
             entry['filename'],
-            entry['signature_info'],
+            signature_info,
             entry['camera_id'],
             status_callback=status_callback,
         )

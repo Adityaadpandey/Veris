@@ -104,7 +104,8 @@ from capture_pipeline import (
     CAPTURE_DIR,
     BACKEND_URL,
     CAMERA_ROTATION,
-    sign_image,
+    check_and_sign,
+    retry_pending_uploads,
     upload_and_create_claim,
 )
 
@@ -786,6 +787,7 @@ class CameraApp(App):
         # Schedule UI updates with enhanced effects
         Clock.schedule_interval(self.update_datetime, 1.0)
         Clock.schedule_interval(self.update_battery, 5.0)
+        Clock.schedule_interval(self._retry_pending, 30.0)
 
         return self.root_layout
 
@@ -827,6 +829,22 @@ class CameraApp(App):
         self.control_card.opacity = 0
         slide_anim = Animation(y=self.control_card.y + 80, opacity=1, duration=0.9, t='out_back')
         slide_anim.start(self.control_card)
+
+    def _pipeline_status(self, message, level='info', duration=3):
+        Clock.schedule_once(lambda dt: self.show_status(message, level, duration), 0)
+
+    def _retry_pending(self, dt):
+        # pending captures (offline or no AI verdict yet) get another go every 30 s, off the UI thread
+        if getattr(self, '_retrying', False):
+            return
+        self._retrying = True
+
+        def run():
+            try:
+                retry_pending_uploads(status_callback=self._pipeline_status, hardware_identity=self.hardware_identity)
+            finally:
+                self._retrying = False
+        threading.Thread(target=run, daemon=True).start()
 
     def show_status(self, message, status_type='info', duration=3):
         """Enhanced status display with smooth animations and color coding."""
@@ -1383,7 +1401,7 @@ class CameraApp(App):
             signature_info = None
             if self.hardware_identity:
                 try:
-                    signature_info = sign_image(self.hardware_identity, filename)
+                    signature_info = check_and_sign(self.hardware_identity, filename, status_callback=self._pipeline_status)
                     if signature_info:
                         print(f"Image signed: {signature_info['address']}")
                         Clock.schedule_once(
