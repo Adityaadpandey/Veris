@@ -55,6 +55,7 @@
   .act h2 { font-size: clamp(30px, 3.8vw, 54px); }
   .act p { color: var(--soft); font-size: clamp(15.5px, 1.25vw, 18px); max-width: 52ch; }
   .act .note { font: 400 12px/1.5 var(--f-mono); color: var(--mute); max-width: 46ch; }
+  .act-shot { width: 150px; border: 2px solid var(--line); box-shadow: 6px 6px 0 var(--accent); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { font: 500 12px/1 var(--f-mono); min-height: 40px; padding: 0 13px; border: 2px solid var(--line); color: var(--soft); display: inline-flex; align-items: center; gap: 8px; background: rgba(14, 12, 10, .6); cursor: default; }
   button.chip { cursor: pointer; }
@@ -207,7 +208,7 @@
     .act h2 { font-size: clamp(24px, 7.2vw, 34px); }
     .act p { font-size: 14.5px; line-height: 1.45; }
     .stats { gap: 8px; } .stat b { font-size: 20px; } .stat span { font-size: 9.5px; }
-    .cue, .act .note, .hero-devs { display: none; }
+    .cue, .act .note, .hero-devs, .act-shot { display: none; }
     .chapters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .chapters::-webkit-scrollbar { display: none; }
     .chapters .chip { flex: none; }
