@@ -146,6 +146,14 @@ function imageDataUrl(imageBuffer, mimeType) {
   return `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
 }
 
+const LIVENESS_PROMPT =
+  "You check photos from a tamper-evident camera. The first image is the device photo" +
+  " and the optional second image is a phone photo taken at the same moment next to it." +
+  " Decide: live = true only if the first image looks like a real scene photographed directly" +
+  " (false for a photo of a screen, a printed photo, or an AI-generated image)." +
+  " consistent = true only if both images show the same real scene (omit or false without a second image)." +
+  ' Reply with JSON only: {"live": boolean, "consistent": boolean, "confidence": number 0 to 1, "reasons": [short strings]}.';
+
 class OpenAIService {
   constructor() {
     // Sequential queue: each task waits for the previous to settle.
@@ -220,6 +228,34 @@ class OpenAIService {
     const likelyAiGenerated = Boolean(parsed.likely_ai_generated);
     const aiAssessment = (parsed.ai_assessment || "").trim();
     return { description, caption, tags, likelyAiGenerated, aiAssessment };
+  }
+
+  /**
+   * Is this a real scene photographed live, or a screen / print / generated image? With a second
+   * (companion) photo it also says whether both show the same scene. Same JSON shape the device
+   * gets from the 0G check, so the camera treats both engines alike.
+   * @returns { live, consistent (null without a companion), confidence 0..1, reasons: string[] }
+   */
+  async assessLiveness(deviceBuffer, companionBuffer = null, mimeType = "image/jpeg") {
+    if (!this.isAvailable()) throw new Error("OPENAI_API_KEY is not configured");
+    const content = [{ type: "text", text: LIVENESS_PROMPT }];
+    for (const buf of [deviceBuffer, companionBuffer]) {
+      if (buf) content.push({ type: "image_url", image_url: { url: imageDataUrl(buf, mimeType) } });
+    }
+    const data = await postJson(`${OPENAI_API_BASE}/chat/completions`, {
+      model: VISION_MODEL,
+      messages: [{ role: "user", content }],
+      response_format: { type: "json_object" },
+    });
+    const raw = data?.choices?.[0]?.message?.content;
+    if (!raw) throw new Error("OpenAI vision returned no content");
+    const parsed = JSON.parse(raw);
+    return {
+      live: Boolean(parsed.live),
+      consistent: companionBuffer ? Boolean(parsed.consistent) : null,
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
+      reasons: Array.isArray(parsed.reasons) ? parsed.reasons.map(String).slice(0, 5) : [],
+    };
   }
 
   /**

@@ -1664,6 +1664,21 @@ app.get('/api/waitlist', async (req, res) => {
   }
 });
 
+// GPT fallback for the camera's liveness check (used when the 0G check is off or fails).
+// Camera sends multipart: image (required), companion (optional).
+app.post('/api/liveness', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'companion', maxCount: 1 }]), async (req, res) => {
+  const secret = process.env.DEVICE_API_SECRET;
+  if (secret && req.get('x-device-secret') !== secret) return res.status(401).json({ error: 'Unauthorized' });
+  const image = req.files?.image?.[0];
+  if (!image) return res.status(400).json({ error: 'image is required' });
+  try {
+    const result = await openaiService.assessLiveness(image.buffer, req.files?.companion?.[0]?.buffer || null);
+    res.json({ engine: 'gpt', model: openaiService.config.visionModel, ...result });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'Veris Claim Server', openai: openaiService.isAvailable() });
 });
