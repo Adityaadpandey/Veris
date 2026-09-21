@@ -36,7 +36,9 @@ try:
     export_file = Path(os.getenv('DEVICE_KEY_EXPORT_PATH', str(Path(__file__).parent / '.device_key_export')))
     with open(export_file, 'w') as f:
         json.dump(export_data, f, indent=2)
-    
+    # the file holds the raw private key, so only the owner should be able to read it
+    os.chmod(export_file, 0o600)
+
     print(f"✅ Hardware key exported to: {export_file}")
     print(f"   Address: {export_data['address']}")
     print(f"   Camera ID: {export_data['cameraId']}")
