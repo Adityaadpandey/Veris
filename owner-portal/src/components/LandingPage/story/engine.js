@@ -144,7 +144,7 @@ export function initStory(root, { reduce = false, onNav } = {}) {
   }
   const activeChapter = (p) => {
     const y = window.scrollY + window.innerHeight * 0.4
-    for (const id of ['technical', 'viability', 'feasibility', 'benefits']) if (y >= topOf(secs[id])) return id
+    for (const id of ['viability', 'technical', 'feasibility', 'benefits']) if (y >= topOf(secs[id])) return id
     if (p >= 0.73) return 'impact'
     if (p >= 0.52) return 'solution'
     if (p >= 0.32) return 'problem'
