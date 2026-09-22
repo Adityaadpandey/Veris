@@ -11,6 +11,7 @@ const { enrichClaim, fetchImageBuffer, backfillForensics } = require('./enrichSe
 const { sha256Hex, computeHashes, bestCombinedHashDistance, transformForOrientation } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
+const arkivService = require('./arkivService');
 const { isZerogRef } = require('./zerogRead');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
@@ -1677,6 +1678,92 @@ app.post('/api/liveness', upload.fields([{ name: 'image', maxCount: 1 }, { name:
     res.json({ engine: 'gpt', model: openaiService.config.visionModel, ...result });
   } catch (err) {
     res.status(502).json({ error: err.message });
+  }
+});
+
+// --- Provenance: what the camera service reports after the capture (verdict, storage refs, mints) ---
+// Stored in Postgres first, then mirrored to Arkiv. An Arkiv failure only leaves the row unsynced for the retry sweep.
+
+async function recordFor(claim_id, prov) {
+  const claim = await dbService.getClaim(claim_id);
+  return {
+    claimId: claim_id,
+    imageHash: claim?.image_hash || prov.data.imageHash || '',
+    deviceId: claim?.device_id || null,
+    owner: claim?.recipient_address || prov.data.owner || null,
+    minted: Boolean(claim?.token_id != null || (prov.data.chains || []).some((c) => c.tokenId)),
+    ...prov.data,
+  };
+}
+
+async function syncToArkiv(claim_id) {
+  if (!arkivService.enabled()) return;
+  try {
+    const prov = await dbService.getProvenance(claim_id);
+    if (!prov) return;
+    const written = await arkivService.writeClaimRecord(claim_id, await recordFor(claim_id, prov), { key: prov.arkiv_key, status: prov.arkiv_status });
+    await dbService.markArkivSynced(claim_id, written.key, written.status);
+  } catch (err) {
+    console.warn(`⚠️  Arkiv write for ${claim_id} failed, will retry: ${err.message}`);
+  }
+}
+
+setInterval(async () => {
+  if (!arkivService.enabled()) return;
+  try {
+    for (const row of await dbService.getUnsyncedProvenance()) await syncToArkiv(row.claim_id);
+  } catch (err) {
+    console.warn('⚠️  Arkiv retry sweep failed:', err.message);
+  }
+}, 60000);
+
+function requireDeviceSecret(req, res, next) {
+  const secret = process.env.DEVICE_API_SECRET;
+  if (secret && req.get('x-device-secret') !== secret) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  next();
+}
+
+app.post('/api/claim/:claim_id/provenance', requireDeviceSecret, async (req, res) => {
+  const { claim_id } = req.params;
+  if (!(await dbService.getClaim(claim_id))) return res.status(404).json({ success: false, error: 'Claim not found' });
+  await dbService.upsertProvenance(claim_id, req.body || {});
+  res.json({ success: true });
+  syncToArkiv(claim_id);
+});
+
+app.get('/api/provenance/:claim_id', async (req, res) => {
+  const { claim_id } = req.params;
+  try {
+    if (arkivService.enabled()) {
+      const record = await arkivService.getClaimRecord(claim_id).catch(() => null);
+      if (record) return res.json({ success: true, source: 'arkiv', provenance: record });
+    }
+    const prov = await dbService.getProvenance(claim_id);
+    if (!prov) return res.status(404).json({ success: false, error: 'No provenance recorded for this claim' });
+    res.json({ success: true, source: 'postgres', provenance: await recordFor(claim_id, prov) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Verify-page lookup by image hash or device id. Arkiv first, the normal Postgres lookup if it has nothing.
+app.get('/api/arkiv/search', async (req, res) => {
+  const { imageHash, deviceId } = req.query;
+  if (!imageHash && !deviceId) return res.status(400).json({ success: false, error: 'imageHash or deviceId is required' });
+  try {
+    if (arkivService.enabled()) {
+      const results = await arkivService.search({ imageHash, deviceId }).catch(() => []);
+      if (results.length) return res.json({ success: true, source: 'arkiv', results });
+    }
+    const claims = imageHash
+      ? [await dbService.getClaimByImageHash(imageHash)].filter(Boolean)
+      : await dbService.getClaimsByDeviceId(deviceId);
+    res.json({
+      success: true, source: 'postgres',
+      results: claims.map((c) => ({ claimId: c.claim_id, imageHash: c.image_hash, deviceId: c.device_id, status: c.status, tokenId: c.token_id, txHash: c.tx_hash })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

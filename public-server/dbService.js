@@ -54,6 +54,18 @@ class ClaimDBService {
       )
     `);
 
+    // What the camera service reports about a claim after the fact: AI verdict, storage refs, mints per chain.
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS claim_provenance (
+        claim_id TEXT PRIMARY KEY,
+        data JSONB NOT NULL DEFAULT '{}',
+        arkiv_key TEXT,
+        arkiv_status TEXT,
+        arkiv_synced BOOLEAN DEFAULT false,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     const columnsToAdd = [
       { name: 'device_id', type: 'TEXT' },
       { name: 'camera_id', type: 'TEXT' },
@@ -482,6 +494,35 @@ class ClaimDBService {
   }
 
   // ── Verification (deterministic tamper check) ──────────────────────────────
+
+  /** Merge new fields into a claim's provenance record; marks it as needing an Arkiv write. */
+  async upsertProvenance(claim_id, partial) {
+    const { rows } = await this.pool.query(`
+      INSERT INTO claim_provenance (claim_id, data, arkiv_synced) VALUES ($1, $2::jsonb, false)
+      ON CONFLICT (claim_id) DO UPDATE
+        SET data = claim_provenance.data || $2::jsonb, arkiv_synced = false, updated_at = CURRENT_TIMESTAMP
+      RETURNING *`, [claim_id, JSON.stringify(partial)]);
+    return rows[0];
+  }
+
+  async getProvenance(claim_id) {
+    const { rows } = await this.pool.query('SELECT * FROM claim_provenance WHERE claim_id = $1', [claim_id]);
+    return rows[0] || null;
+  }
+
+  async getUnsyncedProvenance(limit = 20) {
+    const { rows } = await this.pool.query('SELECT * FROM claim_provenance WHERE arkiv_synced = false ORDER BY updated_at LIMIT $1', [limit]);
+    return rows;
+  }
+
+  async markArkivSynced(claim_id, key, status) {
+    await this.pool.query('UPDATE claim_provenance SET arkiv_key = $2, arkiv_status = $3, arkiv_synced = true WHERE claim_id = $1', [claim_id, key, status]);
+  }
+
+  async getClaimsByDeviceId(device_id, limit = 50) {
+    const { rows } = await this.pool.query('SELECT * FROM claims WHERE device_id = $1 ORDER BY created_at DESC LIMIT $2', [device_id, limit]);
+    return rows;
+  }
 
   /** Exact-match lookup: an on-chain image whose SHA-256 equals the upload's. */
   async getClaimByImageHash(image_hash) {
