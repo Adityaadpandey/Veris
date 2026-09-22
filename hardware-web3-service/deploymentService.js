@@ -37,6 +37,36 @@ class DeploymentService {
     return false;
   }
 
+  // Deployment for one chain: deployment-<chainId>.json if the deploy script made one,
+  // else the old single deployment.json when it happens to be for that chain.
+  forChain(chainId) {
+    this._chains = this._chains || {};
+    if (this._chains[chainId] !== undefined) return this._chains[chainId];
+    const dirs = [__dirname, path.join(__dirname, '../contracts')];
+    if (process.env.DEPLOYMENT_JSON_PATH) dirs.push(path.dirname(path.resolve(process.env.DEPLOYMENT_JSON_PATH)));
+    let found = null;
+    for (const dir of dirs) {
+      const file = path.join(dir, `deployment-${chainId}.json`);
+      try {
+        if (fs.existsSync(file)) { found = JSON.parse(fs.readFileSync(file, 'utf8')); break; }
+      } catch (e) {
+        console.warn(`⚠️  Could not load ${file}: ${e.message}`);
+      }
+    }
+    if (!found) {
+      const legacy = this.getDeployment();
+      if (legacy && Number(legacy.chainId) === Number(chainId)) found = legacy;
+    }
+    this._chains[chainId] = found && {
+      deployment: found,
+      deviceRegistryAddress: found.contracts?.DeviceRegistry?.address || null,
+      verisAddress: found.contracts?.CandidERC1155?.address || null,
+      deviceRegistryABI: found.contracts?.DeviceRegistry?.abi || null,
+      verisABI: found.contracts?.CandidERC1155?.abi || null,
+    };
+    return this._chains[chainId];
+  }
+
   getContractAddress(contractName) {
     if (!this.deployment) {
       if (!this.loadDeployment()) {

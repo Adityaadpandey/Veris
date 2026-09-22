@@ -2,8 +2,10 @@ import { ethers } from 'ethers';
 import hardwareKeyExtractor from './getHardwareKey.js';
 import deploymentService from './deploymentService.js';
 
-class Web3Service {
-  constructor() {
+export class Web3Service {
+  // `chain` is one entry of chains.js; without it this is the original single-chain service
+  constructor(chain = null) {
+    this.chain = chain;
     this.provider = null;
     this.deviceRegistry = null;
     this.veris = null;
@@ -15,9 +17,14 @@ class Web3Service {
     try {
       // Prefer the network the contracts were actually deployed to, so the same
       // build works on sepolia, base-sepolia or mainnet without code changes.
-      const deployment = deploymentService.getDeployment();
+      const chainDeployment = this.chain ? deploymentService.forChain(this.chain.chainId) : null;
+      if (this.chain && !chainDeployment) {
+        console.warn(`⚠️ No deployment found for ${this.chain.name} (deployment-${this.chain.chainId}.json). Skipping that chain.`);
+        return false;
+      }
+      const deployment = chainDeployment ? chainDeployment.deployment : deploymentService.getDeployment();
       const deployedChainId = deployment?.chainId;
-      const rpcUrl =
+      const rpcUrl = this.chain ? (process.env[this.chain.rpcEnv] || this.chain.defaultRpc) :
         process.env.RPC_URL ||
         (deployedChainId === 8453 && process.env.BASE_RPC_URL) ||
         (deployedChainId === 84532 && process.env.BASE_SEPOLIA_RPC_URL) ||
@@ -29,8 +36,8 @@ class Web3Service {
         console.log(`🌐 Using RPC for chain ${deployedChainId ?? 'unknown'}`);
       }
       
-      let deviceRegistryAddress = deploymentService.getDeviceRegistryAddress();
-      let verisAddress = deploymentService.getVerisAddress();
+      let deviceRegistryAddress = chainDeployment ? chainDeployment.deviceRegistryAddress : deploymentService.getDeviceRegistryAddress();
+      let verisAddress = chainDeployment ? chainDeployment.verisAddress : deploymentService.getVerisAddress();
       
       if (!deviceRegistryAddress) {
         deviceRegistryAddress = process.env.DEVICE_REGISTRY_ADDRESS;
@@ -110,8 +117,8 @@ class Web3Service {
         console.warn('   Some features (minting, registration) will be disabled.');
       }
 
-      let deviceRegistryABI = deploymentService.getDeviceRegistryABI();
-      let verisABI = deploymentService.getVerisABI();
+      let deviceRegistryABI = chainDeployment ? chainDeployment.deviceRegistryABI : deploymentService.getDeviceRegistryABI();
+      let verisABI = chainDeployment ? chainDeployment.verisABI : deploymentService.getVerisABI();
       
       if (!deviceRegistryABI) {
         console.log('⚠️  Using hardcoded DeviceRegistry ABI (not in deployment.json)');
@@ -189,7 +196,14 @@ class Web3Service {
         firmwareVersion
       } = deviceInfo;
 
-      const tx = await this.deviceRegistry.registerDevice(
+      // Registration is owner-only on new deployments. REGISTRAR_PRIVATE_KEY is the registry owner's key;
+      // without it we fall back to the device wallet, which only works on the old open registry.
+      const registrarKey = process.env.REGISTRAR_PRIVATE_KEY;
+      const registry = registrarKey
+        ? this.deviceRegistry.connect(new ethers.Wallet(registrarKey, this.provider))
+        : this.deviceRegistry;
+
+      const tx = await registry.registerDevice(
         deviceAddress,
         publicKey,
         deviceId,
@@ -298,11 +312,14 @@ class Web3Service {
         ipfsHash,
         imageHash,
         signature,
+        packetHash = null,
         maxEditions = 0
       } = photoData;
 
+      // packetHash is the keccak of the signed capture packet (hashes, verdict, nonce, timestamp),
+      // so the on-chain commitment covers the AI verdict too, not just the photo.
       const metadataHash = ethers.keccak256(
-        ethers.toUtf8Bytes(JSON.stringify({ ipfsHash, imageHash, signature }))
+        ethers.toUtf8Bytes(JSON.stringify(packetHash ? { ipfsHash, imageHash, signature, packetHash } : { ipfsHash, imageHash, signature }))
       );
 
       const deviceAddress = this.deviceWallet.address;
