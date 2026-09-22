@@ -5,7 +5,9 @@
  * truth: every write here is best-effort, and reads fall back to Postgres when Arkiv is off or fails.
  *
  * - A claim still waiting on its mint is written with a 24 hour life, so abandoned captures
- *   disappear on their own. Once minted, a new longer-lived entity is created (ARKIV_CLAIM_DAYS).
+ *   disappear on their own. Once minted, a new longer-lived entity is created (ARKIV_CLAIM_DAYS,
+ *   180 at most, which is about what Arkiv allows).
+ * - A license is an entity that expires exactly when its term ends.
  * - Entities are tagged with claimId / imageHash / deviceId so they can be searched.
  *
  * The SDK is ESM-only, so it's loaded lazily from this CommonJS file.
@@ -69,8 +71,10 @@ async function writeClaimRecord(claimId, record, previous = null) {
     await walletClient.patchEntity(Claims, previous.key, { set: f });
     return { key: previous.key, status: f.status };
   }
+  // Arkiv refuses a life longer than ~182 days, so a minted claim gets the maximum and Postgres
+  // stays the permanent record.
   const expiration = f.status === 'minted'
-    ? ExpirationTime.fromDays(Number(process.env.ARKIV_CLAIM_DAYS || 365))
+    ? ExpirationTime.fromDays(Math.min(Number(process.env.ARKIV_CLAIM_DAYS || 180), 180))
     : ExpirationTime.fromHours(24);
   const { entityKey } = await walletClient.createEntity(Claims, f, { expiration });
   return { key: entityKey, status: f.status };
@@ -93,4 +97,17 @@ async function search({ imageHash, deviceId }) {
   return query(eq(imageHash ? 'imageHash' : 'deviceId', imageHash || deviceId));
 }
 
-module.exports = { enabled, writeClaimRecord, getClaimRecord, search, _fields: fields };
+let Licenses;
+async function writeLicense(l) {
+  const { walletClient, ExpirationTime } = await load();
+  const { bytes, defineSchema, str } = await import('@arkiv-network/sdk/schema');
+  Licenses = Licenses || defineSchema('veris-license', {
+    tokenId: str().indexed(), licensee: str().indexed(), chain: str(), txHash: str(), record: bytes(),
+  });
+  const { entityKey } = await walletClient.createEntity(Licenses, {
+    tokenId: String(l.tokenId), licensee: l.licensee.toLowerCase(), chain: l.chain, txHash: l.txHash, record: toBytes(l),
+  }, { expiration: ExpirationTime.atDate(new Date(l.expiresAt * 1000)) });
+  return entityKey;
+}
+
+module.exports = { enabled, writeClaimRecord, writeLicense, getClaimRecord, search, _fields: fields };

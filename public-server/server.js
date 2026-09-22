@@ -1767,6 +1767,33 @@ app.get('/api/arkiv/search', async (req, res) => {
   }
 });
 
+// An editor bought a license on Arc: confirm it from the chain, then record it in Arkiv so it
+// disappears when the term ends. The contract is the source of truth, this is just a readable mirror.
+app.post('/api/license/record', async (req, res) => {
+  const { txHash } = req.body || {};
+  const contract = process.env.LICENSE_CONTRACT_ADDRESS;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(txHash || '')) return res.status(400).json({ success: false, error: 'txHash is required' });
+  if (!contract) return res.status(503).json({ success: false, error: 'LICENSE_CONTRACT_ADDRESS is not set' });
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.ARC_RPC_URL || 'https://rpc.testnet.arc.network');
+    const receipt = await provider.getTransactionReceipt(txHash);
+    const iface = new ethers.Interface(['event Licensed(uint256 indexed tokenId, address indexed licensee, address indexed photographer, uint64 expiresAt)']);
+    const log = receipt?.logs.map((l) => { try { return l.address.toLowerCase() === contract.toLowerCase() ? iface.parseLog(l) : null; } catch { return null; } }).find(Boolean);
+    if (!log) return res.status(404).json({ success: false, error: 'No license event in that transaction' });
+
+    const license = {
+      tokenId: log.args.tokenId.toString(), licensee: log.args.licensee, photographer: log.args.photographer,
+      expiresAt: Number(log.args.expiresAt), chain: 'arc', txHash,
+    };
+    let arkivKey = null;
+    if (arkivService.enabled()) arkivKey = await arkivService.writeLicense(license).catch((e) => { console.warn('⚠️  Arkiv license write failed:', e.message); return null; });
+    res.json({ success: true, license, arkivKey });
+  } catch (err) {
+    res.status(502).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'Veris Claim Server', openai: openaiService.isAvailable() });
 });
