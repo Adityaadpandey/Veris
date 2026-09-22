@@ -168,6 +168,35 @@ function ProofItem({ label, value, full, link }) {
   )
 }
 
+/* ── Capture verdict: which engine checked the scene, and where the evidence lives. ──
+   The 0G decision rows (request id, TEE, decision log) only show when 0G actually answered;
+   a verdict from the GPT fallback shows just the verdict and the engine. */
+const ENGINE_LABEL = { '0g': '0G Compute', gpt: 'GPT vision' }
+function ProvenanceBlock({ prov }) {
+  if (!prov) return null
+  const from0g = prov.engine === '0g'
+  const storage = prov.storage || {}
+  return (
+    <div className="grid grid-cols-2 gap-2 pb-2">
+      <ProofItem label="Verdict" value={(prov.verdict || 'pending').toUpperCase()} />
+      <ProofItem label="Checked by" value={ENGINE_LABEL[prov.engine] || 'Not checked yet'} />
+      {from0g && <ProofItem label="0G request id" value={short(prov.requestId, 8)} full={prov.requestId} />}
+      {from0g && <ProofItem label="TEE verified" value={prov.teeVerified ? 'Yes' : 'Not requested'} />}
+      {from0g && storage.decisionLog?.ref && (
+        <ProofItem label="Decision log" value={short(storage.decisionLog.ref, 8)} full={storage.decisionLog.ref}
+          link={/^https?:/.test(storage.decisionLog.link || '') ? storage.decisionLog.link : null} />
+      )}
+      {storage.image?.ref && (
+        <ProofItem label={storage.image.ref.startsWith('0g') ? 'Photo on 0G' : 'Photo on IPFS'} value={short(storage.image.ref, 8)} full={storage.image.ref}
+          link={/^https?:/.test(storage.image.link || '') ? storage.image.link : null} />
+      )}
+      {(prov.chains || []).map((c) => (
+        <ProofItem key={c.chain} label={`Mint on ${c.chain}`} value={`#${c.tokenId} · tx`} link={c.explorerUrl} />
+      ))}
+    </div>
+  )
+}
+
 /* ── AI description ── */
 function AiDescription({ description, tags, pending }) {
   const [expanded, setExpanded] = useState(false)
@@ -385,6 +414,7 @@ export default function ClaimPage() {
   const [accordionOpen, setAccordionOpen] = useState(false)
   const [claimServerOffline, setClaimServerOffline] = useState(false)
   const [similar, setSimilar] = useState([])
+  const [prov, setProv] = useState(null)
   const [sharing, setSharing] = useState(false)
 
   const walletAddress = address || wallets[0]?.address
@@ -475,6 +505,15 @@ export default function ClaimPage() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [claimId, claim?.ai_status])
+
+  // verdict, engine and per-chain mints; the server reads Arkiv first and falls back to Postgres
+  useEffect(() => {
+    let cancelled = false
+    axios.get(`${CLAIM_API}/api/provenance/${claimId}`, { timeout: 8000 })
+      .then(res => { if (!cancelled && res.data?.success) setProv(res.data.provenance) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [claimId, claim?.token_id])
 
   const submit = async () => {
     const recipient = useManual ? manualAddress.trim() : walletAddress
@@ -781,7 +820,12 @@ export default function ClaimPage() {
           </button>
 
           {accordionOpen && (
-            <div className="grid grid-cols-2 gap-2 pt-1.5 pb-2">
+            <div className="pt-1.5">
+              <ProvenanceBlock prov={prov} />
+            </div>
+          )}
+          {accordionOpen && (
+            <div className="grid grid-cols-2 gap-2 pb-2">
               <ProofItem label="Device Address" value={short(deviceAddress, 8)} full={deviceAddress} link={deviceAddress ? `https://sepolia.etherscan.io/address/${deviceAddress}` : null} />
               <ProofItem label="IPFS CID" value={short(cid, 8)} full={cid} link={ipfsUrl} />
               {claim?.token_id && (
