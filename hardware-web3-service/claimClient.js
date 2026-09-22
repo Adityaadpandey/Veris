@@ -66,6 +66,11 @@ class ClaimClient {
     }
   }
 
+  async postProvenance(claim_id, data) {
+    const headers = process.env.DEVICE_API_SECRET ? { 'x-device-secret': process.env.DEVICE_API_SECRET } : {};
+    await withNetworkRetry('postProvenance', () => this.client.post(`/api/claim/${claim_id}/provenance`, data, { headers }));
+  }
+
   async checkClaim(claim_id) {
     try {
       const response = await withNetworkRetry('checkClaim', () => this.client.get('/check-claim', {
