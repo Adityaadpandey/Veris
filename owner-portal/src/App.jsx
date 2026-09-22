@@ -3,6 +3,7 @@ import { WagmiProvider } from "wagmi";
 import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sepolia } from "wagmi/chains";
+import { arcTestnet } from "@/lib/arc";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ClaimPage from "./components/ClaimPage";
@@ -15,8 +16,8 @@ const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
 const queryClient = new QueryClient();
 
 const wagmiConfig = createConfig({
-  chains: [sepolia],
-  transports: { [sepolia.id]: http() },
+  chains: [sepolia, arcTestnet],
+  transports: { [sepolia.id]: http(), [arcTestnet.id]: http() },
 });
 
 export default function App() {
