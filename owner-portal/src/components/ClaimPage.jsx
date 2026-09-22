@@ -4,6 +4,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
+import { Palette, Brutal, Pill, SectionHead, short } from '@/components/brutal'
 import {
   Check,
   Copy,
@@ -11,7 +12,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  WifiOff,
 } from 'lucide-react'
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
@@ -51,18 +51,6 @@ const LENS_MINT_ABI = [
   },
 ]
 
-// Veris Hotshoe "brutal glass" palette — mirrors mobile-app/src/constants/theme.ts exactly,
-// so this page reads as the same product as the phone app rather than the portal's own dark theme.
-const Palette = {
-  cream: '#EDE7DA',
-  paper: '#DED8C9',
-  ink: '#100E0C',
-  orange: '#E7581C',
-  green: '#1E7A4C',
-  bone: '#F5F1E7',
-  onyx: '#0B0A09',
-}
-
 const cleanCid = (hash) => {
   if (!hash) return null
   if (hash.startsWith('ipfs://')) return hash.slice(7)
@@ -93,35 +81,6 @@ const ipfsOnError = (cid) => (e) => {
   } else {
     e.target.style.display = 'none'
   }
-}
-
-/* ── Brutal block: solid content layer over a flat, unblurred offset duplicate of itself.
-   Mirrors mobile-app/src/components/brutal-block.tsx — the neobrutalist "sticker" edge. ── */
-function Brutal({ bg = Palette.cream, border = Palette.ink, offset = 3, radius = 16, borderWidth = 2.5, className = '', contentClassName = '', style, children }) {
-  return (
-    <div className={`relative ${className}`} style={style}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: border, borderRadius: radius, transform: `translate(${offset}px, ${offset}px)` }} />
-      <div className={`relative overflow-hidden ${contentClassName}`} style={{ background: bg, border: `${borderWidth}px solid ${border}`, borderRadius: radius }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-/* ── Pill button: the chunky offset-shadow CTA shared across the mobile app. ── */
-function Pill({ label, onPress, disabled, bg, color, border = Palette.ink, arrow, fullWidth, className = '' }) {
-  return (
-    <button
-      onClick={onPress}
-      disabled={disabled}
-      className={`${fullWidth ? 'w-full' : ''} text-left disabled:opacity-55 transition-transform active:translate-x-[2px] active:translate-y-[2px] ${className}`}
-    >
-      <Brutal bg={bg} border={border} offset={4} radius={16} contentClassName="flex items-center justify-center gap-2.5 px-4 py-4">
-        <span className="font-brutal-mono font-semibold text-[11px] tracking-[0.16em] uppercase" style={{ color }}>{label}</span>
-        {arrow && <span className="text-sm" style={{ color }}>→</span>}
-      </Brutal>
-    </button>
-  )
 }
 
 /* ── Provenance score ──
@@ -286,6 +245,101 @@ function AiDescription({ description, tags, pending }) {
   )
 }
 
+const CHANGE_TYPE_COPY = {
+  recompression: 'Near-identical framing and detail — a strong pairing.',
+  crop: 'Framed a little differently — expected from two separate cameras.',
+  global_adjustment: 'Overall look differs slightly — likely different exposure/processing between cameras.',
+  localized_edit: 'One part of the frame differs more than the rest.',
+}
+
+function scoreColor(score) {
+  if (score == null) return 'rgba(16,14,12,.4)'
+  if (score >= 0.85) return Palette.green
+  if (score >= 0.6) return Palette.orange
+  return 'rgba(16,14,12,.4)'
+}
+
+function AiFlagChip({ label, hint }) {
+  if (!hint || hint.likely_ai_generated == null) return null
+  const flagged = hint.likely_ai_generated
+  return (
+    <div className="flex items-center gap-1.5 rounded-full px-2 py-1" style={{ border: `1px solid ${flagged ? Palette.orange : 'rgba(16,14,12,.2)'}` }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: flagged ? Palette.orange : Palette.green }} />
+      <span className="font-brutal-mono text-[8.5px]" style={{ color: flagged ? Palette.orange : 'rgba(16,14,12,.55)' }}>
+        {label} {flagged ? 'FLAGGED' : 'CLEAR'}
+      </span>
+    </div>
+  )
+}
+
+/* ── Companion capture — the phone's own photo alongside the real, minted device capture.
+   Mirrors mobile-app's CompanionCaptureCard (size="featured") exactly. ── */
+function CompanionCaptureCard({ companion, deviceAiHint }) {
+  if (!companion) return null
+  const isPending = !companion.consistency || !companion.forensic
+
+  if (isPending) {
+    return (
+      <Brutal offset={4} radius={16} contentClassName="p-4 text-center">
+        <Loader2 size={18} className="animate-spin mx-auto" style={{ color: Palette.ink }} strokeWidth={1.5} />
+        <p className="font-brutal-body font-semibold text-[12.5px] mt-2" style={{ color: Palette.ink }}>Pairing companion photo…</p>
+        <p className="font-brutal-mono text-[9px] mt-1" style={{ color: 'rgba(16,14,12,.5)' }}>Comparing against the device capture</p>
+      </Brutal>
+    )
+  }
+
+  const { consistency, forensic } = companion
+  const explanation = CHANGE_TYPE_COPY[forensic.change_type] || 'Compared against the device capture.'
+  const color = scoreColor(consistency.score)
+
+  return (
+    <Brutal offset={4} radius={16} contentClassName="p-3.5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+          <span className="font-brutal-mono font-semibold text-[10px] tracking-[0.14em]" style={{ color: Palette.ink }}>
+            {Math.round(consistency.score * 100)}% CONSISTENT
+          </span>
+        </div>
+        <div className="rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
+          <span className="font-brutal-mono text-[8.5px]" style={{ color: 'rgba(16,14,12,.55)' }}>
+            PAIRED · {short(companion.mock_chain_ref, 6)} · OFF-CHAIN
+          </span>
+        </div>
+      </div>
+
+      <div className="aspect-[4/3] rounded-xl overflow-hidden" style={{ background: Palette.ink }}>
+        <img src={companion.mobile_image_url} alt="Companion phone capture" className="w-full h-full object-cover" />
+      </div>
+
+      <p className="font-brutal-body text-[12.5px] leading-relaxed" style={{ color: 'rgba(16,14,12,.7)' }}>
+        {explanation}
+        {companion.timestamp_delta_seconds != null ? ` Captured ${companion.timestamp_delta_seconds.toFixed(1)}s apart.` : ''}
+      </p>
+
+      <div className="flex gap-px rounded-lg overflow-hidden" style={{ background: 'rgba(16,14,12,.14)' }}>
+        {[
+          ['VISUAL', consistency.visual],
+          ['CONTENT', consistency.content],
+          ['SSIM', forensic.ssim],
+        ].map(([label, value]) => (
+          <div key={label} className="flex-1 p-2.5" style={{ background: Palette.cream }}>
+            <p className="font-brutal-mono text-[8.5px]" style={{ color: 'rgba(16,14,12,.45)' }}>{label}</p>
+            <p className="font-brutal-body font-semibold text-[12.5px] mt-0.5" style={{ color: Palette.ink }}>{value != null ? `${Math.round(value * 100)}%` : '—'}</p>
+          </div>
+        ))}
+      </div>
+
+      {(deviceAiHint?.likely_ai_generated != null || companion.mobile_ai_hint?.likely_ai_generated != null) && (
+        <div className="flex gap-2">
+          <AiFlagChip label="DEVICE" hint={deviceAiHint} />
+          <AiFlagChip label="PHONE" hint={companion.mobile_ai_hint} />
+        </div>
+      )}
+    </Brutal>
+  )
+}
+
 /* ── Similar verified photos ── */
 function SimilarPhotos({ results }) {
   if (!results || results.length === 0) return null
@@ -313,15 +367,6 @@ function SimilarPhotos({ results }) {
           )
         })}
       </div>
-    </div>
-  )
-}
-
-function SectionHead({ label }) {
-  return (
-    <div className="flex items-baseline gap-2 mt-6 mb-3">
-      <span className="w-[5px] h-[5px] rounded-full" style={{ background: Palette.ink }} />
-      <span className="font-brutal-mono font-semibold text-[11px] tracking-[0.2em]" style={{ color: Palette.ink }}>{label}</span>
     </div>
   )
 }
@@ -360,12 +405,6 @@ function fmt(dateStr) {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} · ${hh}:${mm}`
-}
-
-function short(str, len = 8) {
-  if (!str) return '—'
-  if (str.length <= len * 2 + 3) return str
-  return `${str.slice(0, len)}…${str.slice(-len)}`
 }
 
 export default function ClaimPage() {
@@ -561,13 +600,6 @@ export default function ClaimPage() {
           </div>
         </div>
 
-        {claimServerOffline && (
-          <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 mb-3 w-fit" style={{ background: 'rgba(231,88,28,.08)', border: `1px solid ${Palette.orange}33` }}>
-            <WifiOff size={10} style={{ color: Palette.orange }} />
-            <span className="font-brutal-mono text-[10px] font-semibold" style={{ color: Palette.orange }}>Server offline · minting on-chain</span>
-          </div>
-        )}
-
         {/* ── Hero ── */}
         <Brutal offset={5} radius={22} borderWidth={2.5}>
           <div className="relative">
@@ -601,20 +633,10 @@ export default function ClaimPage() {
         {claim?.companion_capture?.mobile_image_url && (
           <>
             <SectionHead label="COMPANION CAPTURE" />
-            <Brutal offset={3} radius={16} contentClassName="flex items-center gap-2.5 px-3 py-2.5">
-              <img
-                src={claim.companion_capture.mobile_image_url}
-                alt="Companion phone capture"
-                className="w-10 h-10 rounded-lg object-cover shrink-0"
-                style={{ border: '1px solid rgba(16,14,12,.1)' }}
-              />
-              <span className="font-brutal-body font-semibold text-[12px]" style={{ color: Palette.ink }}>
-                Paired ✓{' '}
-                {claim.companion_capture.consistency
-                  ? `${Math.round(claim.companion_capture.consistency.score * 100)}% match`
-                  : 'processing…'}
-              </span>
-            </Brutal>
+            <CompanionCaptureCard
+              companion={claim.companion_capture}
+              deviceAiHint={{ likely_ai_generated: claim.likely_ai_generated ?? null, note: claim.ai_assessment }}
+            />
           </>
         )}
 
