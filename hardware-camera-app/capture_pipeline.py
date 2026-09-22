@@ -542,6 +542,7 @@ def upload_and_create_claim(filename, signature_info, camera_id, status_callback
             'deviceAddress': device_address,
             'companionHash': signature_info.get('companion_hash') or '',
             'verdict': signature_info['verdict'],
+            'liveness': json.dumps(signature_info.get('liveness') or {}),
             'timestamp': str(signature_info['timestamp']),
             'nonce': signature_info['nonce'],
             'latitude': str(location['lat']) if location else '',

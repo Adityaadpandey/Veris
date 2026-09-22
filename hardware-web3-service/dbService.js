@@ -111,6 +111,8 @@ class DBService {
     safeAlter(`ALTER TABLE images ADD COLUMN verdict TEXT`);
     safeAlter(`ALTER TABLE images ADD COLUMN packet_ts INTEGER`);
     safeAlter(`ALTER TABLE images ADD COLUMN packet_nonce TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN decision_log TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN decision_log_ref TEXT`);
 
     // one row per accepted capture packet, so the same signed packet can't be replayed
     this.db.exec(`
@@ -197,6 +199,18 @@ class DBService {
       return result;
     });
     return this.getImageById(insert().lastInsertRowid);
+  }
+
+  setDecisionLog(id, log) {
+    this.db.prepare('UPDATE images SET decision_log = ? WHERE id = ?').run(JSON.stringify(log), id);
+  }
+
+  setDecisionLogRef(id, ref) {
+    this.db.prepare('UPDATE images SET decision_log_ref = ? WHERE id = ?').run(ref, id);
+  }
+
+  getImagesNeedingDecisionLog() {
+    return this.db.prepare('SELECT * FROM images WHERE decision_log IS NOT NULL AND decision_log_ref IS NULL LIMIT 20').all();
   }
 
   hasNonce(nonce) {
