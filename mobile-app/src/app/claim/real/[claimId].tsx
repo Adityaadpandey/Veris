@@ -787,11 +787,39 @@ function ProofAccordion({
   claimId: string;
 }) {
   const [open, setOpen] = useState(false);
+  // verdict, engine and per-chain mints (server reads Arkiv first, then Postgres)
+  const [prov, setProv] = useState<any>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${CLAIM_SERVER_URL}/api/provenance/${claimId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.success) setProv(d.provenance);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [claimId, claim.token_id]);
   // Opens through the first gateway; if that one lacks the file the browser shows it, and the
   // in-app image already walked the fallbacks, so this is the best single link to share.
   const cid = cleanCid(claim.cid);
   const ipfsUrl = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null;
+  const from0g = prov?.engine === "0g";
   const rows: [string, string][] = [
+    ...(prov
+      ? ([
+          ["Verdict", String(prov.verdict || "pending").toUpperCase()],
+          ["Checked by", from0g ? "0G Compute" : prov.engine === "gpt" ? "GPT vision" : "Not checked yet"],
+          // the 0G decision details are hidden when the GPT fallback gave the verdict
+          ...(from0g
+            ? ([
+                ["0G request id", short(prov.requestId, 8)],
+                ["TEE verified", prov.teeVerified ? "Yes" : "Not requested"],
+              ] as [string, string][])
+            : []),
+        ] as [string, string][])
+      : []),
     ["Claim ID", short(claimId, 8)],
     ["Device Address", short(claim.device_address, 8)],
     ["IPFS CID", short(cleanCid(claim.cid), 8)],
@@ -845,6 +873,23 @@ function ProofAccordion({
           </Text>
         </Pressable>
       )}
+      {open &&
+        (prov?.chains || []).map((c: any) =>
+          c.explorerUrl ? (
+            <Pressable
+              key={c.chain}
+              onPress={() => Linking.openURL(c.explorerUrl)}
+              style={styles.accordionCell}
+            >
+              <Text style={mono(8.5, { spacing: 0.14, color: "rgba(16,14,12,.45)" })}>
+                {`MINT ON ${String(c.chain).toUpperCase()}`}
+              </Text>
+              <Text style={[mono(10.5, { color: Palette.orange }), { marginTop: 3 }]}>
+                {`#${c.tokenId} · view transaction`}
+              </Text>
+            </Pressable>
+          ) : null,
+        )}
       {open && (
         <View style={styles.accordionGrid}>
           {rows.map(([k, v]) => (
