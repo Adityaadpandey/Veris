@@ -21,7 +21,21 @@ contract DeviceRegistry {
     mapping(address => DeviceInfo) public devices;
     mapping(string => address) public deviceIdToAddress;
     address[] public registeredDevices;
+
+    // Only the owner (the deployer) decides which keys count as cameras. Without this anyone
+    // could register their own key and mint "device-verified" photos.
+    address public owner;
     
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function transferOwnership(address _newOwner) external {
+        require(msg.sender == owner, "Only owner");
+        require(_newOwner != address(0), "Invalid owner");
+        owner = _newOwner;
+    }
+
     event DeviceRegistered(
         address indexed deviceAddress,
         string deviceId,
@@ -47,6 +61,7 @@ contract DeviceRegistry {
         string memory _model,
         string memory _firmwareVersion
     ) external {
+        require(msg.sender == owner, "Only owner can register devices");
         require(_deviceAddress != address(0), "Invalid device address");
         require(bytes(_publicKey).length > 0, "Public key required");
         require(bytes(_deviceId).length > 0, "Device ID required");

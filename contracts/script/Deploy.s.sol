@@ -7,8 +7,8 @@ import {CandidERC1155} from "../src/CandidERC1155.sol";
 
 contract DeployScript is Script {
     function run() external {
-        // Free testnets only (Base Sepolia, Sepolia): never deploy to a mainnet by accident.
-        require(block.chainid == 84532 || block.chainid == 11155111, "Testnet only");
+        // Free testnets only (Base Sepolia, Sepolia, Arc testnet): never deploy to a mainnet by accident.
+        require(block.chainid == 84532 || block.chainid == 11155111 || block.chainid == 5042002, "Testnet only");
 
         // Load deployer private key from environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -54,8 +54,10 @@ contract DeployScript is Script {
             vm.toString(address(candid)),
             '"}}}'
         );
-        vm.writeFile("deployment.json", deploymentJson);
-        console.log("\ndeployment.json written.");
+        // one file per chain, so deploying to Arc never overwrites the Sepolia addresses
+        string memory file = string.concat("deployment-", vm.toString(chainId), ".json");
+        vm.writeFile(file, deploymentJson);
+        console.log("\n%s written.", file);
     }
 }
 
