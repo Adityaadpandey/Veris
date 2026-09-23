@@ -1330,10 +1330,17 @@ class CameraApp(App):
                 'publicKey': hw_info['public_key_hex']
             }
 
+            # The key is derived from the camera's id. Without it (camera busy or not found) this would
+            # be a different key from the registered one, and would overwrite the good export file.
+            if not export_data['cameraId']:
+                print("⚠️ Camera id unknown (camera not initialized): keeping the existing .device_key_export")
+                return
+
             # Write to file
             export_file = Path(__file__).parent / '.device_key_export'
             with open(export_file, 'w') as f:
                 json.dump(export_data, f, indent=2)
+            os.chmod(export_file, 0o600)
 
             print(f"✅ Device key exported to: {export_file}")
             print(f"   Address: {export_data['address']}")
