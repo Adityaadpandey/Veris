@@ -766,6 +766,19 @@ class CameraApp(App):
 
         if HARDWARE_IDENTITY_AVAILABLE:
             try:
+                if not camera_id:
+                    # Camera is busy or missing right now. The key depends on the camera id, and a
+                    # guess gives a different address (0x9e5a... instead of 0x4a55...) that the
+                    # registry rejects. Reuse the id saved by the last good start, else stay unsigned.
+                    try:
+                        saved = json.loads((Path(__file__).parent / '.device_key_export').read_text())
+                        camera_id = saved.get('cameraId')
+                    except Exception:
+                        camera_id = None
+                    if camera_id:
+                        print(f"⚠️ Camera not ready, using saved camera id {camera_id}")
+                    else:
+                        raise RuntimeError("camera id unknown and no saved key export, not signing with a guessed key")
                 self.hardware_identity = get_hardware_identity(camera_id=camera_id)
 
                 # Automatically export key for backend to use
