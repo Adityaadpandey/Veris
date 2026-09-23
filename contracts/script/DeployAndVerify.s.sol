@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {DeviceRegistry} from "../src/DeviceRegistry.sol";
-import {CandidERC1155} from "../src/CandidERC1155.sol";
+import {VerisERC1155} from "../src/VerisERC1155.sol";
 
 contract DeployAndVerifyScript is Script {
     function run() external {
@@ -30,19 +30,19 @@ contract DeployAndVerifyScript is Script {
         address deviceRegistryAddress = address(deviceRegistry);
         console.log("DeviceRegistry deployed at:", deviceRegistryAddress);
 
-        console.log("Deploying CandidERC1155...");
-        CandidERC1155 candid = new CandidERC1155(
+        console.log("Deploying VerisERC1155...");
+        VerisERC1155 veris = new VerisERC1155(
             deviceRegistryAddress,
             baseURI
         );
-        address candidAddress = address(candid);
-        console.log("CandidERC1155 deployed at:", candidAddress);
+        address verisAddress = address(veris);
+        console.log("VerisERC1155 deployed at:", verisAddress);
 
         vm.stopBroadcast();
 
         console.log("\n=== Deployment Summary ===");
         console.log("DeviceRegistry:", deviceRegistryAddress);
-        console.log("CandidERC1155:", candidAddress);
+        console.log("VerisERC1155:", verisAddress);
         console.log("Base URI:", baseURI);
     }
 }
