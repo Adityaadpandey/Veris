@@ -734,7 +734,10 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
         // can't tell right now; 503 makes the camera keep it queued and try again
         return reject(503, `Could not check device registry: ${e.message}`);
       }
-      if (!active) return reject(403, 'Device is not registered and active');
+      if (!active) {
+        console.warn(`🚫 Upload rejected (device not active on the registry): ${deviceAddress}`);
+        return reject(403, 'Device is not registered and active');
+      }
     }
 
     // The camera retries an upload it thought timed out, even when the first try went through
