@@ -21,11 +21,17 @@ class ZerogStorageService {
       console.warn('⚠️  ZEROG_PRIVATE_KEY not set. 0G Storage disabled.');
       return false;
     }
-    this.rpcUrl = process.env.ZEROG_EVM_RPC || 'https://evmrpc-testnet.0g.ai';
-    this.indexer = new Indexer(process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai');
-    this.signer = new ethers.Wallet(key, new ethers.JsonRpcProvider(this.rpcUrl));
+    // a typo in an optional service's key must not stop the backend from starting
+    try {
+      this.rpcUrl = process.env.ZEROG_EVM_RPC || 'https://evmrpc-testnet.0g.ai';
+      this.indexer = new Indexer(process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai');
+      this.signer = new ethers.Wallet(key.trim(), new ethers.JsonRpcProvider(this.rpcUrl));
+    } catch (e) {
+      console.warn(`⚠️  0G Storage disabled, ZEROG_PRIVATE_KEY is not a valid key (${e.shortMessage || e.message}). Expected 0x + 64 hex characters.`);
+      return false;
+    }
     this.initialized = true;
-    console.log('✅ 0G Storage initialized');
+    console.log(`✅ 0G Storage initialized (wallet ${this.signer.address})`);
     return true;
   }
 

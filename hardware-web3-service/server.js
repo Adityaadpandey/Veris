@@ -89,15 +89,15 @@ async function initializeServices() {
 
     await web3Service.initialize();
 
-    if (web3Service.deviceWallet) {
-      await filecoinService.initialize(web3Service.deviceWallet);
-      if (filecoinService.initialized) {
-        console.log('✅ Filecoin service initialized');
-      } else {
-        console.warn('⚠️ Filecoin service not available');
-      }
+    // Lighthouse only needs its API key; the device wallet is just kept for display
+    await filecoinService.initialize(web3Service.deviceWallet || null);
+    if (filecoinService.initialized) {
+      console.log('✅ Filecoin service initialized');
     } else {
-      console.warn('⚠️ Device wallet not available, Filecoin service disabled');
+      console.warn('⚠️ Filecoin service not available');
+    }
+    if (!web3Service.deviceWallet) {
+      console.warn('⚠️ Device wallet not available: minting is off until the camera key file is found');
     }
     await zerogStorageService.initialize();
     await initChains();
