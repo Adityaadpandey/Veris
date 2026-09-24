@@ -90,18 +90,24 @@ class HeadlessCameraApp:
         # Drain any backlog from a previous offline period, then keep
         # retrying on a timer in case the phone reconnects with tethering
         # on without a new CAPTURE happening.
-        retry_pending_uploads(status_callback=self._status, hardware_identity=self.hardware_identity)
+        self._retry_and_report()
         self._start_retry_timer()
 
         print("Headless camera app ready, waiting for phone connections")
         while True:
             time.sleep(3600)
 
+    def _retry_and_report(self):
+        # a photo that finished on a retry still has to reach the phone, which is waiting on UPLOADED
+        for outcome in retry_pending_uploads(status_callback=self._status, hardware_identity=self.hardware_identity):
+            if outcome.get('status') == 'uploaded':
+                self.server.send_status(f"UPLOADED:{outcome['claim_url']}")
+
     def _start_retry_timer(self):
         def loop():
             while True:
                 time.sleep(RETRY_INTERVAL)
-                retry_pending_uploads(status_callback=self._status, hardware_identity=self.hardware_identity)
+                self._retry_and_report()
         threading.Thread(target=loop, daemon=True).start()
 
     def _status(self, message, level='info', duration=3):
