@@ -191,6 +191,10 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
           setStage('queued');
           appendLog('Offline - saved, will upload automatically');
           break;
+        case 'QUEUED_PENDING':
+          setStage('queued');
+          appendLog('Waiting for the AI check - saved, will finish automatically');
+          break;
         case 'FAILED':
           // The pipeline is dead for this capture — there will never be a claim to link the
           // already-uploaded companion photo to, so drop it rather than let it wrongly attach

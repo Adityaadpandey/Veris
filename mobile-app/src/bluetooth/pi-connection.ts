@@ -10,6 +10,7 @@ export type PiStatusLine =
   | { kind: 'UPLOADING' }
   | { kind: 'UPLOADED'; claimUrl: string }
   | { kind: 'QUEUED_OFFLINE' }
+  | { kind: 'QUEUED_PENDING' }
   | { kind: 'FAILED'; stage: string }
   | { kind: 'RAW'; text: string };
 
@@ -22,6 +23,8 @@ export function parseStatusLine(line: string): PiStatusLine {
   if (trimmed === 'TETHERING') return { kind: 'TETHERING' };
   if (trimmed === 'UPLOADING') return { kind: 'UPLOADING' };
   if (trimmed === 'QUEUED:offline') return { kind: 'QUEUED_OFFLINE' };
+  // no AI verdict yet (check timed out or was unavailable), the Pi keeps the photo and retries
+  if (trimmed === 'QUEUED:pending') return { kind: 'QUEUED_PENDING' };
 
   if (trimmed.startsWith('UPLOADED:')) {
     return { kind: 'UPLOADED', claimUrl: trimmed.slice('UPLOADED:'.length) };
