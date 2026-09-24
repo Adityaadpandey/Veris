@@ -28,8 +28,9 @@ import {
 } from "lucide-react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-// ngrok free shows an HTML warning page (no CORS headers) unless this header is sent.
-axios.defaults.headers.common["ngrok-skip-browser-warning"] = "1";
+// ngrok free serves an HTML warning page (no CORS headers) unless this header is sent.
+// Scoped to the device service only, other hosts (claim server) don't allow it.
+const NGROK_HEADERS = { "ngrok-skip-browser-warning": "1" };
 const CLAIM_SERVER_URL =
   import.meta.env.VITE_CLAIM_SERVER_URL || "http://localhost:5001";
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
@@ -697,7 +698,7 @@ export default function OwnerDashboard() {
     try {
       const res = await axios.get(`${BACKEND_URL}/api/images/list`, {
         timeout: 6000,
-        headers: { "ngrok-skip-browser-warning": "1" },
+        headers: NGROK_HEADERS,
       });
       if (res.data.success) {
         const imgs = res.data.images || [];
@@ -724,6 +725,7 @@ export default function OwnerDashboard() {
   const fetchDeviceStatus = useCallback(async () => {
     try {
       const res = await axios.get(`${BACKEND_URL}/api/device/status`, {
+        headers: NGROK_HEADERS,
         timeout: 6000,
       });
       setDeviceStatus(res.data);
@@ -791,7 +793,7 @@ export default function OwnerDashboard() {
     setRetrying(true);
     setRetryResult(null);
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/retry-pending`);
+      const res = await axios.post(`${BACKEND_URL}/api/retry-pending`, null, { headers: NGROK_HEADERS });
       setRetryResult(res.data);
       await fetchImages();
     } catch (e) {
@@ -802,7 +804,7 @@ export default function OwnerDashboard() {
 
   const retrySingle = async () => {
     try {
-      await axios.post(`${BACKEND_URL}/api/retry-pending`);
+      await axios.post(`${BACKEND_URL}/api/retry-pending`, null, { headers: NGROK_HEADERS });
       await fetchImages();
     } catch (_) {}
   };
