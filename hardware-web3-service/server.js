@@ -811,6 +811,11 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       packet_nonce: nonce || null
     });
 
+    // Tell the background retry sweep to keep its hands off while this request is still working on the
+    // photo. It saw the fresh 'saved' row, uploaded and minted it a second time (two claims, two tokens).
+    retryingImages.add(image.id);
+    res.once('close', () => retryingImages.delete(image.id));
+
     console.log(`📸 Image uploaded: ${image.id} - ${filename}`);
 
     // The camera's liveness answer isn't part of the signature (only the verdict is), so keep it as evidence
