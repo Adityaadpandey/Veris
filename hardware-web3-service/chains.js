@@ -19,6 +19,7 @@ export const explorerTxUrl = (chainName, txHash) =>
 const secondaries = new Map(); // chain name -> Web3Service
 let primaryName = 'sepolia';
 export const primaryChainName = () => primaryName;
+export const secondaryServices = () => [...secondaries];
 
 export async function initChains() {
   const wanted = (process.env.CHAINS || 'sepolia').split(',').map((c) => c.trim()).filter(Boolean);
