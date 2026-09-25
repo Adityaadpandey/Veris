@@ -131,6 +131,23 @@ let claimPollingInterval = null;
 const processingEditionRequests = new Set();
 const retryingImages = new Set();
 
+// The id the owner gave the device when registering it. The local cache only knows devices this Pi
+// registered itself, so a device added straight on the registry fell back to 'unknown' and could not
+// be found by device id. Ask the chain once, then keep the answer.
+async function deviceIdFor(address) {
+  const cached = dbService.getDevice(address);
+  if (cached?.device_id) return cached.device_id;
+  try {
+    const onChain = await web3Service.getDeviceInfo(address);
+    if (onChain?.deviceId) {
+      dbService.cacheDevice({ device_address: address, device_id: onChain.deviceId, camera_id: null, public_key: onChain.publicKey, is_registered: onChain.isActive });
+      return onChain.deviceId;
+    }
+  } catch { /* fall through */ }
+  return 'unknown';
+}
+
+
 function startClaimPolling() {
   if (claimPollingInterval) return;
 
@@ -840,8 +857,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
         filecoinCid = await storageService.uploadImage(filepath);
         console.log(`   ✅ Image uploaded to Filecoin: ${filecoinCid}`);
 
-        const deviceInfo = dbService.getDevice(deviceAddress);
-        const deviceId = deviceInfo?.device_id || 'unknown';
+        const deviceId = await deviceIdFor(deviceAddress);
 
         const metadata = storageService.createMetadata({
           name: `Veris Photo #${image.id}`,
@@ -867,8 +883,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
         console.log(`   🔄 Creating claim with claim server...`);
         claimId = uuidv4();
         try {
-          const deviceInfo = dbService.getDevice(deviceAddress);
-          const deviceId = deviceInfo?.device_id || 'unknown';
+          const deviceId = await deviceIdFor(deviceAddress);
 
           const claimResult = await claimClient.createClaim(
             claimId,
@@ -1242,8 +1257,7 @@ async function retryPendingUploads() {
         if (!fs.existsSync(image.filepath)) throw new Error('Local file not found');
 
         const filecoinCid = await storageService.uploadImage(image.filepath);
-        const deviceInfo = dbService.getDevice(image.device_address);
-        const deviceId = deviceInfo?.device_id || 'unknown';
+        const deviceId = await deviceIdFor(image.device_address);
         const metadata = storageService.createMetadata({
           name: `Veris Photo #${image.id}`,
           description: 'Captured by Veris Camera',
@@ -1267,8 +1281,7 @@ async function retryPendingUploads() {
       // Phase 3: uploaded + no claimId → create claim
       if (image._phase === 3) {
         const claimId = (await import('uuid')).v4();
-        const deviceInfo = dbService.getDevice(image.device_address);
-        const deviceId = deviceInfo?.device_id || 'unknown';
+        const deviceId = await deviceIdFor(image.device_address);
         const claimResult = await claimClient.createClaim(
           claimId,
           image.filecoin_cid,
