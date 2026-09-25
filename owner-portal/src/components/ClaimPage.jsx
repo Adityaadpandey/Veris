@@ -6,6 +6,7 @@ import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Palette, Brutal, Pill, SectionHead, short } from '@/components/brutal'
 import LicenseButton from './LicenseButton'
+import LicensesSection from './LicensesSection'
 import { VERIS_ADDRESS, VERIS_ABI, hasTokenData } from '@/lib/contracts'
 import {
   Check,
@@ -416,6 +417,7 @@ export default function ClaimPage() {
   const [claimServerOffline, setClaimServerOffline] = useState(false)
   const [similar, setSimilar] = useState([])
   const [prov, setProv] = useState(null)
+  const [licenseTick, setLicenseTick] = useState(0)
   const [sharing, setSharing] = useState(false)
 
   const walletAddress = address || wallets[0]?.address
@@ -807,6 +809,9 @@ export default function ClaimPage() {
         {/* ── Similar verified photos ── */}
         <SimilarPhotos results={similar} />
 
+        {/* ── Licenses (read from Arc) ── */}
+        <LicensesSection tokenId={prov?.chains?.find(c => c.chain === 'arc')?.tokenId} refreshKey={licenseTick} />
+
         {/* ── Proof accordion ── */}
         <div className="mt-5">
           <button
@@ -827,6 +832,7 @@ export default function ClaimPage() {
                 tokenId={prov?.chains?.find(c => c.chain === 'arc')?.tokenId}
                 photographer={prov?.owner || claim?.recipient_address}
                 claimApi={CLAIM_API}
+                onLicensed={() => setLicenseTick(t => t + 1)}
               />
             </div>
           )}

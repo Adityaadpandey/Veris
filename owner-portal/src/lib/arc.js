@@ -24,3 +24,8 @@ export const ERC20_ABI = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
 ])
+
+// The Arc RPC refuses getLogs over a few thousand blocks, so license history comes from the explorer's
+// indexer instead (Blockscout, CORS open). Licensed(tokenId, licensee, photographer, expiresAt) topic0:
+export const ARC_EXPLORER_API = 'https://explorer.testnet.arc.io/api/v2'
+export const LICENSED_TOPIC = '0xd8ee36bb5da61408128932307b401bec0aa8c4f3edf6152129ecef5790c6e529'
