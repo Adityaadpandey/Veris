@@ -33,7 +33,8 @@ const PORT = process.env.PORT || 5000;
 
 // Enable CORS for all routes
 // Only the portal and app may call this from a browser. Pi apps and curl send no Origin header, so they are unaffected.
-const allowedOrigins = (process.env.CORS_ORIGINS || 'https://veris.live,https://www.veris.live,http://localhost:3000,http://localhost:5173').split(',').map((o) => o.trim());
+// CORS_ORIGINS adds to the portal origins rather than replacing them, so a stale .env on the Pi can't lock out www.veris.live.
+const allowedOrigins = ['https://veris.live', 'https://www.veris.live', 'http://localhost:3000', 'http://localhost:5173', ...(process.env.CORS_ORIGINS || '').split(',')].map((o) => o.trim()).filter(Boolean);
 // Any-port localhost and ngrok origins are also fine, so Expo web (:8081) and tunnelled portals work in dev.
 const devOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$|^https:\/\/[a-z0-9-]+\.ngrok(-free)?\.(app|dev)$/;
 app.use(cors({ origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin) || devOrigin.test(origin)) }));
