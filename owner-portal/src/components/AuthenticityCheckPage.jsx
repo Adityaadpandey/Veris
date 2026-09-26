@@ -237,7 +237,7 @@ export default function AuthenticityCheckPage() {
 
       <footer className="va-foot">
         <Link to="/dashboard">Back to dashboard</Link>
-        <span>Veris is a prototype and runs on the Ethereum Sepolia testnet.</span>
+        <span>Veris is a prototype and runs on the Ethereum Sepolia and Arc testnets.</span>
       </footer>
     </div>
   );

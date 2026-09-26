@@ -329,7 +329,7 @@ export default function SearchPage() {
 
       <footer className="va-foot">
         <Link to="/">Back to home</Link>
-        <span>Veris is a prototype and runs on the Ethereum Sepolia testnet.</span>
+        <span>Veris is a prototype and runs on the Ethereum Sepolia and Arc testnets.</span>
       </footer>
     </div>
   )
