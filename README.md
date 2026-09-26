@@ -1192,6 +1192,12 @@ const r = await client.select({ $key: true, status: true }).from(Claims).where(e
 
 Underneath that is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
 
+**Result on the live server (2026-11-06):** 14 `minted` and 0 `pending` claim entities, for example
+`0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
+
+**The feature that reads it:** the verify page calls `GET https://api.veris.live/api/arkiv/search?imageHash=<hash>`.
+For `940d4b01…86f3` it returns `"source":"arkiv"` with two minted claims (Arc tokens 12 and 13).
+
 Details for judges: [schema](arkiv/schema.md) · [how we use Arkiv](arkiv/how-you-use-arkiv.md) ·
 [why Arkiv](arkiv/why-arkiv.md) · [reach](arkiv/reach.md) · [friction](arkiv/friction.md)
 
