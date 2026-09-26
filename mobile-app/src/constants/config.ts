@@ -80,3 +80,9 @@ export const ARC_EXPLORER_API = "https://explorer.testnet.arc.io/api/v2";
 export const LICENSE_CONTRACT_ADDRESS = "0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9";
 /** topic0 of Licensed(uint256 indexed tokenId, address indexed licensee, address indexed photographer, uint64 expiresAt) */
 export const LICENSED_TOPIC = "0xd8ee36bb5da61408128932307b401bec0aa8c4f3edf6152129ecef5790c6e529";
+
+/** Chains a photo can live on. Which one comes from the claim's provenance record (chains[].chain), so the proof panel names the right network. */
+export const CHAINS: Record<string, { name: string; veris: string }> = {
+  sepolia: { name: "Sepolia Testnet", veris: VERIS_CONTRACT_ADDRESS },
+  arc: { name: "Arc Testnet", veris: "0xB7909d4bba142AfF48aF7509B070e64eC1c6AdAc" },
+};
