@@ -1158,3 +1158,42 @@ Built with:
 [⬆ Back to Top](#-Veris---decentralized-camera-system-for-web3)
 
 </div>
+
+---
+
+## Arkiv (ETHGlobal Mumbai, Continuity track)
+
+**Prize:** Build on Arkiv (existing projects).
+
+**What existed before the event:** the camera, hardware signing, Filecoin/Lighthouse storage,
+the Postgres claim server, the ERC-1155 contracts, the owner portal and mobile app.
+
+**What we added at the event:**
+- `public-server/arkivService.js`: each claim's provenance record is mirrored to Arkiv.
+  Pending captures expire after 24 hours; minted ones get the longest life Arkiv allows.
+- A `veris-license` entity per USDC license bought on Arc, expiring exactly when the term ends.
+- `GET /api/arkiv/search`: the portal's verify page looks a photo up by image hash or device id
+  on Arkiv first and falls back to Postgres.
+
+**Writer wallet (Arkiv testnet, chain id 7794095):** `0xC15aF2A372D01B5223819bB328400DB8b14d1894`
+
+**A query you can run** (filter syntax as sent by the SDK; replace the key with yours from
+https://hub.arkiv.network/access-keys):
+
+```js
+import { createPublicClient } from '@arkiv-network/sdk'
+import { rabdi } from '@arkiv-network/sdk/chains'
+import { eq } from '@arkiv-network/sdk/query'
+import { http } from 'viem'
+// Claims is the `veris-claim` schema from arkiv/schema.md
+const client = createPublicClient({ chain: rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY }), transport: http() })
+const r = await client.select({ $key: true, status: true }).from(Claims).where(eq('status', 'minted')).limit(5).fetch()
+```
+
+Underneath that is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
+
+Details for judges: [schema](arkiv/schema.md) · [how we use Arkiv](arkiv/how-you-use-arkiv.md) ·
+[why Arkiv](arkiv/why-arkiv.md) · [reach](arkiv/reach.md) · [friction](arkiv/friction.md)
+
+**How AI was used:** Claude Code helped write the Arkiv service, the license contract and the
+docs under `arkiv/`, and every change was reviewed and tested by the team.
