@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "./LandingPage/landing.css";
 import "./authenticity.css";
-import Sprite from "./LandingPage/Sprite";
-import { OWNER_PORTAL } from "./LandingPage/links";
+import Sprite from "./LandingPage/Sprite"
+import SiteNav from "./SiteNav";
 
 const VERIFY_API_URL = import.meta.env.VITE_VERIFY_API_URL || "http://localhost:8000";
 
@@ -173,12 +173,7 @@ export default function AuthenticityCheckPage() {
 
   return (
     <div className="vl va">
-      <header className="va-nav">
-        <div className="wrap">
-          <Link className="brand" to="/" aria-label="Veris home"><Sprite name="camera" u={1.7} />VERIS</Link>
-          <Link className="btn btn-ghost" to={OWNER_PORTAL}>Owner portal →</Link>
-        </div>
-      </header>
+      <SiteNav />
 
       <main className="wrap va-main">
         <div className="va-head">
@@ -236,7 +231,7 @@ export default function AuthenticityCheckPage() {
       </main>
 
       <footer className="va-foot">
-        <Link to="/dashboard">Back to dashboard</Link>
+        <Link to="/">Back to home</Link>
         <span>Veris is a prototype and runs on the Ethereum Sepolia and Arc testnets.</span>
       </footer>
     </div>

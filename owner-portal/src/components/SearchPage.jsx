@@ -5,7 +5,7 @@ import './LandingPage/landing.css'
 import './authenticity.css'
 import './search.css'
 import Sprite from './LandingPage/Sprite'
-import { OWNER_PORTAL } from './LandingPage/links'
+import SiteNav from './SiteNav'
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
   || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
@@ -321,12 +321,7 @@ export default function SearchPage() {
 
   return (
     <div className="vl va">
-      <header className="va-nav">
-        <div className="wrap">
-          <Link className="brand" to="/" aria-label="Veris home"><Sprite name="camera" u={1.7} />VERIS</Link>
-          <Link className="btn btn-ghost" to={OWNER_PORTAL}>Owner portal →</Link>
-        </div>
-      </header>
+      <SiteNav />
 
       <main className="wrap va-main">
         <div className="va-head">
