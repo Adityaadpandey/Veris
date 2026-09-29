@@ -18,7 +18,6 @@
 
 - Not in the code today: Solana, vlayer, RISC Zero, Synapse SDK calls. They are not claimed here.
 - Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
-- Plan and rules: [docs/HACKATHON_PLAN.md](docs/HACKATHON_PLAN.md).
 
 ### Arkiv (ETHGlobal Mumbai, Continuity track)
 
