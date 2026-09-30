@@ -9,6 +9,12 @@ import { PRIVY_APP_ID, shortAddr } from "./dashboard/helpers";
 import "./authenticity.css";
 import "./dashboard.css";
 
+// Shown to brand new owners so they can see what a sealed photo will look like.
+const SAMPLES = [
+  { id: "sample-1", status: "minted", createdAt: null, deviceId: "your-camera", ai_score: 2 },
+  { id: "sample-2", status: "uploaded", createdAt: null, deviceId: "your-camera", claimId: "sample", ai_score: null },
+];
+
 const Shell = ({ children, right }) => (
   <div className="vl va vd">
     <header className="va-nav">
@@ -111,7 +117,7 @@ export default function OwnerDashboard() {
 
             {data.backendOffline && (
               <p className="notice wait" role="status">
-                The camera is offline, so these come from the chain and may be missing details like the picture.
+                The camera is offline, so these come from your wallet's claims instead. Some details may be missing until it is back.
               </p>
             )}
             {data.retryResult && (
@@ -131,11 +137,21 @@ export default function OwnerDashboard() {
 
             {data.loading && !activeImages.length ? (
               <p className="boot">Loading your photos…</p>
+            ) : !activeImages.length && !data.backendOffline ? (
+              <>
+                <div className="empty-state">
+                  <h2>Your first photo goes here</h2>
+                  <p>Take a photo with your Veris camera. Here is how two of them will look.</p>
+                </div>
+                <div className="grid">
+                  {SAMPLES.map((img) => <PhotoCard key={img.id} img={img} sample />)}
+                </div>
+              </>
             ) : shown.length === 0 ? (
               <div className="empty-state">
                 <Sprite name="camera" u={6} />
                 <h2>{activeImages.length ? "Nothing in this filter" : "No photos yet"}</h2>
-                <p>{activeImages.length ? "Pick another filter above." : "Take a photo with your Veris camera and it will show up here."}</p>
+                <p>{activeImages.length ? "Pick another filter above." : "Nothing minted to this wallet yet."}</p>
               </div>
             ) : (
               <div className="grid">
