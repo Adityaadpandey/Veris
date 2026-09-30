@@ -26,9 +26,8 @@ A short log of what we chose, what went wrong, and what we changed. Every entry 
 
 ## Docs that went stale
 
-- `CLAUDE.md` still talks about Solana, vlayer and RISC Zero. None of that is in the code.
+- `CLAUDE.md` still talks about vlayer and RISC Zero. None of that is in the code on `main`. Solana lives on the `solana-migration` branch.
 - `SYSTEM_ARCHITECTURE.md` shows `ai-embedding-service` in the flow. Nothing calls it, because `public-server` runs its own CLIP.
-- `npm run submit-proof` in `contracts` is broken because `scripts/submitProof.ts` was deleted.
 - `@filoz/synapse-sdk` is a dependency of the web3 service but is never imported.
 
 ## Still open

@@ -21,7 +21,7 @@ The Raspberry Pi camera that takes a photo, signs it with a hardware-derived key
 - Added at the event: the liveness check (0G plus GPT fallback). The signing and upload parts were there before.
 - The result (engine, request id, `tee_verified`) is kept in the signed packet's `liveness` field.
 - > TODO: 0G Storage is not used by this service.
-- > TODO: Arkiv, Arc, Filecoin/Lighthouse/Synapse, Solana, vlayer, RISC Zero and Privy are not in this service's code. They live in the sibling services.
+- Arkiv, Arc, Filecoin/Lighthouse/Synapse, Solana, vlayer, RISC Zero and Privy are not in this service's code. They live in the sibling services.
 
 ## Where it fits
 
