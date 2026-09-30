@@ -2,7 +2,8 @@
 
 Solidity contracts that register cameras, mint photo NFTs and sell USDC licenses.
 
-> On-chain code is **Solidity + Foundry** (Sepolia and Arc testnet).
+> On-chain code on `main` is **Solidity + Foundry** (Sepolia and Arc testnet).
+> The Solana Anchor program is not on `main`. It lives in `solana-program/` on the `solana-migration` branch.
 
 ## What it does
 
@@ -59,7 +60,6 @@ contracts/
   test/                    # 6 Foundry test files, 20 tests
   deployment-<chainId>.json  # addresses used by the backend and portal
   foundry.toml             # solc 0.8.24, via_ir, cancun
-  package.json             # legacy submit-proof script (see Troubleshooting)
 ```
 
 ## Tech stack
@@ -164,7 +164,7 @@ forge script script/Deploy.s.sol --rpc-url sepolia --broadcast
 ```
 
 - Deploy writes `deployment-<chainId>.json`. The backend reads it on start.
-- `VerisLicense` has no deploy script here. TODO: add one or document how Arc was deployed.
+- `VerisLicense` has no deploy script here. Its Arc address is recorded in `deployment-5042002.json`.
 
 ## Testing
 
@@ -186,11 +186,10 @@ Before the event: DeviceRegistry, VerisERC1155 (Sepolia). Added at the event: Ar
 | Filecoin / Lighthouse | Not in contracts; metadata hash points at IPFS | `hardware-web3-service/filecoinService.js` | `STORAGE_PROVIDER` |
 | 0G | Not in contracts; storage and vision live in services | `hardware-web3-service/zerogStorageService.js` | `STORAGE_PROVIDER=0g` |
 | Privy | Not in contracts; wallet login in the portal | `hardware-web3-service/privyService.js` | > TODO: confirm env flag |
-| vlayer / RISC Zero | > TODO: old verifier scripts were deleted; no verifier contract in `src/` | none | none |
+| vlayer / RISC Zero | Not used. The old verifier scripts were deleted and `src/` has no verifier contract | none | none |
 
 ## Troubleshooting
 
-- `npm run submit-proof` fails: `scripts/submitProof.ts` was deleted, the script is legacy.
 - Deploy says "Testnet only": use chain 11155111, 5042002 or 84532.
 - `registerDevice` reverts "Only owner": use the deployer key as `PRIVATE_KEY`.
 - Forge cannot find OpenZeppelin: `lib/` is gitignored, run `forge install` to restore it.
