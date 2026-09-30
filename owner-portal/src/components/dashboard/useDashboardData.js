@@ -1,16 +1,26 @@
-import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import { useAccount } from "wagmi";
 import { useWallets } from "@privy-io/react-auth";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { VERIS_ADDRESS, VERIS_ABI, hasTokenData } from "@/lib/contracts";
-import { CHAINS } from "@/lib/chains";
 import { BACKEND_URL, NGROK_HEADERS, CLAIM_SERVER_URL, isFresh } from "./helpers";
 
-const CLAIM_MAP_KEY = "veris_token_claim_map";
+// A claim-server row, reshaped like the camera service's image so PhotoCard can show either.
+const fromClaim = (c) => ({
+  id: c.claim_id,
+  status: c.token_id ? "minted" : "uploaded",
+  filecoinCid: c.cid,
+  createdAt: c.created_at,
+  claimId: c.claim_id,
+  tokenId: c.token_id,
+  txHash: c.tx_hash,
+  deviceId: c.device_id,
+  imageHash: c.image_hash,
+  ai_score: null,
+});
 
 /**
- * Everything the dashboard needs: photos from the camera service, falling back to on-chain
- * tokens when the camera is offline, plus device status and the retry actions.
+ * Everything the dashboard needs: photos from the camera service, falling back to the wallet's claims
+ * on the claim server when the camera is offline, plus device status and the retry actions.
  */
 export default function useDashboardData(authenticated) {
   const { wallets } = useWallets();
@@ -22,55 +32,8 @@ export default function useDashboardData(authenticated) {
   const [deviceStatus, setDeviceStatus] = useState(null);
   const [retryResult, setRetryResult] = useState(null);
   const [backendOffline, setBackendOffline] = useState(false);
-  const [resolvedClaimMap, setResolvedClaimMap] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(CLAIM_MAP_KEY) || "{}");
-    } catch {
-      return {};
-    }
-  });
-
-  // On-chain fallback: read totalTokens then batch-fetch metadata
-  const { data: totalTokens } = useReadContract({
-    address: VERIS_ADDRESS,
-    abi: VERIS_ABI,
-    functionName: "totalTokens",
-    query: { enabled: backendOffline },
-  });
-
-  const tokenIds = totalTokens
-    ? Array.from({ length: Number(totalTokens) }, (_, i) => i + 1)
-    : [];
-
-  const { data: onChainMeta, isLoading: onChainLoading } = useReadContracts({
-    contracts: tokenIds.map((id) => ({
-      address: VERIS_ADDRESS,
-      abi: VERIS_ABI,
-      functionName: "getTokenMetadata",
-      args: [BigInt(id)],
-    })),
-    query: { enabled: backendOffline && tokenIds.length > 0 },
-  });
-
-  const onChainImages =
-    backendOffline && onChainMeta
-      ? onChainMeta
-          .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
-          .filter(({ result }) => hasTokenData(result) && result.isOriginal)
-          .map(({ result: m, id }) => ({
-            id,
-            status: "minted",
-            filecoinCid: null, // CID is no longer on-chain; only the backend knows it
-            createdAt: new Date(Number(m.timestamp) * 1000).toISOString(),
-            claimId: resolvedClaimMap[id] || null,
-            tokenId: id,
-            txHash: null,
-            ai_score: null,
-            deviceId: null,
-            imageHash: null,
-            nftUrl: CHAINS.sepolia.nft({ veris: VERIS_ADDRESS }, id),
-          }))
-      : [];
+  const [walletImages, setWalletImages] = useState([]);
+  const walletAddress = address || wallets[0]?.address;
 
   const fetchImages = useCallback(async () => {
     setLoading(true);
@@ -83,17 +46,6 @@ export default function useDashboardData(authenticated) {
         const imgs = res.data.images || [];
         setImages(imgs);
         setBackendOffline(false);
-        // Persist tokenId → claimId so on-chain fallback can still link to claim pages
-        try {
-          setResolvedClaimMap((prev) => {
-            const next = { ...prev };
-            imgs.forEach((img) => {
-              if (img.tokenId && img.claimId) next[img.tokenId] = img.claimId;
-            });
-            localStorage.setItem(CLAIM_MAP_KEY, JSON.stringify(next));
-            return next;
-          });
-        } catch {}
       }
     } catch (_) {
       setBackendOffline(true);
@@ -120,39 +72,14 @@ export default function useDashboardData(authenticated) {
     }
   }, [authenticated, fetchImages, fetchDeviceStatus]);
 
-  // When offline and on-chain images are loaded, fetch any missing claimIds from the public server
+  // Camera offline: the claim server still knows every photo minted to this wallet.
   useEffect(() => {
-    if (!backendOffline || !onChainImages.length) return;
-    const missing = onChainImages.filter(
-      (img) => img.tokenId && !resolvedClaimMap[img.tokenId],
-    );
-    if (!missing.length) return;
-    Promise.allSettled(
-      missing.map((img) =>
-        axios
-          .get(`${CLAIM_SERVER_URL}/claim/by-token/${img.tokenId}`, { timeout: 5000 })
-          .then((r) =>
-            r.data.success ? { tokenId: img.tokenId, claimId: r.data.claim_id } : null,
-          )
-          .catch(() => null),
-      ),
-    ).then((results) => {
-      const additions = {};
-      results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value)
-          additions[r.value.tokenId] = r.value.claimId;
-      });
-      if (!Object.keys(additions).length) return;
-      setResolvedClaimMap((prev) => {
-        const next = { ...prev, ...additions };
-        try {
-          localStorage.setItem(CLAIM_MAP_KEY, JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendOffline, onChainMeta]);
+    if (!backendOffline || !walletAddress) return;
+    axios
+      .get(`${CLAIM_SERVER_URL}/claims/by-wallet/${walletAddress}`, { timeout: 8000 })
+      .then((r) => setWalletImages((r.data.claims || []).map(fromClaim)))
+      .catch(() => {});
+  }, [backendOffline, walletAddress]);
 
   // Auto-refresh every 8 s while any image is still being processed
   useEffect(() => {
@@ -178,10 +105,10 @@ export default function useDashboardData(authenticated) {
     setRetrying(false);
   };
 
-  const activeImages = (backendOffline ? onChainImages : images).filter(isFresh);
+  const activeImages = (backendOffline ? walletImages : images).filter(isFresh);
 
   return {
-    walletAddress: address || wallets[0]?.address,
+    walletAddress,
     activeImages,
     stats: {
       total: activeImages.length,
@@ -190,7 +117,7 @@ export default function useDashboardData(authenticated) {
       failed: activeImages.filter((i) => i.status === "saved").length,
     },
     retryableCount: images.filter((i) => i.status !== "minted" && isFresh(i)).length,
-    loading: loading || (backendOffline && onChainLoading),
+    loading,
     backendOffline,
     deviceStatus,
     retrying,
