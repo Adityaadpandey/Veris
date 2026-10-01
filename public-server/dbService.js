@@ -202,7 +202,7 @@ class ClaimDBService {
     return this.getClaim(claim_id);
   }
 
-  async updateClaimStatus(claim_id, status, token_id = null, tx_hash = null) {
+  async updateClaimStatus(claim_id, status, token_id = null, tx_hash = null, recipient_address = null) {
     const updateFields = ['status = $1'];
     const values = [status];
 
@@ -214,6 +214,12 @@ class ClaimDBService {
     if (tx_hash !== null) {
       values.push(tx_hash);
       updateFields.push(`tx_hash = $${values.length}`);
+    }
+
+    // The camera mints to the owner's wallet itself; this is how /claims/by-wallet finds those photos.
+    if (recipient_address) {
+      values.push(recipient_address);
+      updateFields.push(`recipient_address = $${values.length}`);
     }
 
     values.push(claim_id);
