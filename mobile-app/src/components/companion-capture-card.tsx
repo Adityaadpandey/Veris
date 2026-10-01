@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 
 import { BrutalBlock } from '@/components/brutal-block';
-import { GlassPanel } from '@/components/glass-panel';
 import { Border, Palette, Radius } from '@/constants/theme';
 import { body, mono } from '@/constants/typography';
 
@@ -28,12 +27,6 @@ const CHANGE_TYPE_COPY: Record<string, string> = {
   global_adjustment: 'Overall look differs slightly — likely different exposure/processing between cameras.',
   localized_edit: 'One part of the frame differs more than the rest.',
 };
-
-function short(str: string | null | undefined, len = 6): string {
-  if (!str) return '—';
-  if (str.length <= len * 2 + 3) return str;
-  return `${str.slice(0, len)}…${str.slice(-len)}`;
-}
 
 function pct(value: number | null | undefined): string {
   if (value == null) return '—';
@@ -110,11 +103,6 @@ export function CompanionCaptureCard({
             {pct(consistency!.score)} CONSISTENT
           </Text>
         </View>
-        <GlassPanel variant="onLight" intensity={55} radius={Radius.xs} borderWidth={Border.hairline} contentStyle={styles.pairedChip}>
-          <Text style={mono(8.5, { spacing: 0.1, color: 'rgba(16,14,12,.55)' })}>
-            PAIRED · {short(companion.mock_chain_ref)} · OFF-CHAIN
-          </Text>
-        </GlassPanel>
       </View>
 
       {featured ? (
@@ -181,7 +169,6 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
-  pairedChip: { paddingHorizontal: 9, paddingVertical: 6 },
   thumbRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   thumbWrap: { width: 56, height: 56, borderRadius: Radius.xs, overflow: 'hidden', backgroundColor: Palette.ink },
   thumbMeta: { flex: 1 },
