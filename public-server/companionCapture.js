@@ -144,96 +144,23 @@ async function textureWeightedContentScore(bufferA, bufferB) {
   return anyTexture ? 0 : null;
 }
 
-// --- Structure score (the "two very different cameras" signal) ---------------------------------
+// --- Calibration --------------------------------------------------------------------------------
 //
-// Block SSIM assumes the two frames line up pixel-for-pixel with the same exposure and sharpness. A
-// phone and a cheap Pi sensor never do: different lens (so a zoom/shift), different white balance and
-// gamma, noisier and softer on the Pi. So here we compare *edge layout* instead of pixel values:
-//   1. shrink to a small canvas and band-pass it (blur minus a wider blur), which throws away overall
-//      brightness, colour cast and fine sensor noise but keeps where the edges are,
-//   2. divide by local contrast so a dim, flat Pi frame is on the same footing as a punchy phone one,
-//   3. slide/zoom one frame over the other and keep the best normalised correlation, so "the phone
-//      saw a bit more to the left, zoomed in 15%" still lines up.
-// Example: a Pi frame that's darker, bluer, grainier and 20% wider than the phone shot still scores
-// ~0.5+ here, while a photo of a different scene stays around 0.1-0.2.
-const STRUCT_SIZE = 96;
-const STRUCT_WIN = 64;
-const STRUCT_SCALES = [0.7, 0.8, 0.9, 1, 1.12, 1.25, 1.4];
-const STRUCT_SHIFT = 16;
-const STRUCT_SHIFT_STEP = 4;
+// Raw similarities don't start at 0 for unrelated photos: two random images agree on about half of
+// their hash bits (so "1 - distance" bottoms out near 0.5), and CLIP cosine between unrelated photos
+// sits around 0.45. Meanwhile two *different cameras* on the same scene never reach the near-1 you get
+// from comparing a file to itself. Measured with a phone-vs-degraded-Pi simulation (wider FOV, soft,
+// dark, blue cast, noisy): same scene landed at 0.66-0.77 hash / 0.70-0.87 CLIP, different scenes at
+// 0.51-0.63 hash / 0.42-0.74 CLIP. So stretch [floor..ceiling] to [0..1] — a real pair then reads
+// ~75-100% and an unrelated one ~0-50%, instead of everything piling up in the 40-70% middle.
+// Example: a hash similarity of 0.67 (a real Pi+phone pair) -> (0.67-0.5)/(0.72-0.5) = 0.77.
+const HASH_FLOOR = 0.5;
+const HASH_CEILING = 0.72;
+const CLIP_FLOOR = 0.45;
+const CLIP_CEILING = 0.85;
 
-async function structureMap(buffer) {
-  const small = await sharp(buffer).grayscale().resize(STRUCT_SIZE, STRUCT_SIZE, { fit: 'fill' }).raw().toBuffer();
-  const blurred = async (sigma) =>
-    sharp(small, { raw: { width: STRUCT_SIZE, height: STRUCT_SIZE, channels: 1 } }).blur(sigma).raw().toBuffer();
-  const [fine, coarse] = await Promise.all([blurred(1.2), blurred(4)]);
-  const n = STRUCT_SIZE * STRUCT_SIZE;
-  const band = new Float32Array(n);
-  for (let i = 0; i < n; i++) band[i] = fine[i] - coarse[i];
-  // local contrast = smoothed |band|; the +floor stops flat regions blowing sensor noise up to full scale
-  const absBand = Buffer.alloc(n);
-  for (let i = 0; i < n; i++) absBand[i] = Math.min(255, Math.abs(band[i]) * 8);
-  const energy = await sharp(absBand, { raw: { width: STRUCT_SIZE, height: STRUCT_SIZE, channels: 1 } })
-    .blur(5).raw().toBuffer();
-  const out = new Float32Array(n);
-  for (let i = 0; i < n; i++) out[i] = band[i] / (energy[i] / 8 + 1.5);
-  return out;
-}
-
-function sampleBilinear(map, x, y) {
-  const x0 = Math.floor(x), y0 = Math.floor(y);
-  const fx = x - x0, fy = y - y0;
-  const at = (xx, yy) => map[yy * STRUCT_SIZE + xx];
-  return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) +
-         (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
-}
-
-function zeroMeanUnit(values) {
-  let mean = 0;
-  for (const v of values) mean += v;
-  mean /= values.length;
-  let norm = 0;
-  for (let i = 0; i < values.length; i++) { values[i] -= mean; norm += values[i] * values[i]; }
-  norm = Math.sqrt(norm);
-  if (norm < 1e-6) return false; // nothing to correlate against
-  for (let i = 0; i < values.length; i++) values[i] /= norm;
-  return true;
-}
-
-/** Best normalised correlation (0..1) of the two frames' edge layout over a small zoom+shift search. */
-async function structureScore(bufferA, bufferB) {
-  const [a, b] = await Promise.all([structureMap(bufferA), structureMap(bufferB)]);
-  const mid = STRUCT_SIZE / 2;
-  const half = STRUCT_WIN / 2;
-  const ref = new Float32Array(STRUCT_WIN * STRUCT_WIN);
-  for (let y = 0; y < STRUCT_WIN; y++) for (let x = 0; x < STRUCT_WIN; x++) {
-    ref[y * STRUCT_WIN + x] = a[(mid - half + y) * STRUCT_SIZE + (mid - half + x)];
-  }
-  if (!zeroMeanUnit(ref)) return null;
-
-  const cand = new Float32Array(ref.length);
-  let best = 0;
-  for (const s of STRUCT_SCALES) {
-    for (let ty = -STRUCT_SHIFT; ty <= STRUCT_SHIFT; ty += STRUCT_SHIFT_STEP) {
-      for (let tx = -STRUCT_SHIFT; tx <= STRUCT_SHIFT; tx += STRUCT_SHIFT_STEP) {
-        let inside = true;
-        for (let y = 0; y < STRUCT_WIN && inside; y++) {
-          const sy = mid + ty + (y - half) * s;
-          if (sy < 0 || sy > STRUCT_SIZE - 2) { inside = false; break; }
-          for (let x = 0; x < STRUCT_WIN; x++) {
-            const sx = mid + tx + (x - half) * s;
-            if (sx < 0 || sx > STRUCT_SIZE - 2) { inside = false; break; }
-            cand[y * STRUCT_WIN + x] = sampleBilinear(b, sx, sy);
-          }
-        }
-        if (!inside || !zeroMeanUnit(cand)) continue;
-        let dot = 0;
-        for (let i = 0; i < ref.length; i++) dot += ref[i] * cand[i];
-        if (dot > best) best = dot;
-      }
-    }
-  }
-  return best;
+function stretch(value, floor, ceiling) {
+  return Math.max(0, Math.min(1, (value - floor) / (ceiling - floor)));
 }
 
 /**
@@ -401,7 +328,7 @@ async function compareDeviceAndMobile(deviceBufferRaw, mobileBufferRaw) {
   const forensic = await computeForensicDiff(deviceBuffer, alignedMobile);
 
   const alignment = await bestFramingAlignment(deviceBuffer, deviceHashes, alignedMobile, hashCmp);
-  const visual = alignment.distance === null ? 0 : round(1 - alignment.distance);
+  const visual = alignment.distance === null ? 0 : round(stretch(1 - alignment.distance, HASH_FLOOR, HASH_CEILING));
 
   // Texture-weighted, not pixelDiff's plain block average (see the comment on
   // textureWeightedContentScore) — a shared blank background between two genuinely different scenes
@@ -420,7 +347,7 @@ async function compareDeviceAndMobile(deviceBufferRaw, mobileBufferRaw) {
         clipService.embedImage(deviceBuffer, 'image/jpeg'),
         clipService.embedImage(alignedMobile, 'image/jpeg')
       ]);
-      content = round(Math.max(content, Math.max(0, clipService.cosineSimilarity(fullDevice, fullMobile))));
+      content = round(Math.max(content, stretch(clipService.cosineSimilarity(fullDevice, fullMobile), CLIP_FLOOR, CLIP_CEILING)));
       usedClip = true;
     } catch (clipErr) {
       console.warn(`⚠️  CLIP companion comparison failed, falling back to SSIM: ${clipErr.message}`);
@@ -438,7 +365,7 @@ async function compareDeviceAndMobile(deviceBufferRaw, mobileBufferRaw) {
   // for being shot on two different sensors.
   const score = usedClip
     ? round(0.3 * visual + 0.7 * content)
-    : round(0.65 * visual + 0.35 * content);
+    : round(0.8 * visual + 0.2 * content);
 
   return {
     consistency: { score, visual, content },
@@ -599,4 +526,24 @@ async function processCompanionLink(claim, mobileImageUrl, mobilePublicId, captu
   }
 }
 
-module.exports = { mobileSearchHashes, fetchBufferFromUrl, compareDeviceAndMobile, uploadCompanionImage, processCompanionLink };
+/** Hashes the phone photo of every already-paired claim that predates mobile_image_hash. Returns { total, done, failed }. */
+async function backfillCompanionHashes(progress = {}) {
+  const { rows } = await dbService.pool.query(`
+    SELECT claim_id, companion_capture FROM claims
+    WHERE companion_capture->>'mobile_image_url' IS NOT NULL
+      AND companion_capture->>'mobile_image_hash' IS NULL`);
+  Object.assign(progress, { total: rows.length, done: 0, failed: 0 });
+  for (const { claim_id, companion_capture } of rows) {
+    try {
+      const hashes = await mobileSearchHashes(await fetchBufferFromUrl(companion_capture.mobile_image_url));
+      await dbService.patchCompanionCapture(claim_id, hashes);
+      progress.done++;
+    } catch (e) {
+      progress.failed++;
+      console.warn(`⚠️  Companion hash backfill failed for ${claim_id}:`, e.message);
+    }
+  }
+  return progress;
+}
+
+module.exports = { backfillCompanionHashes, mobileSearchHashes, fetchBufferFromUrl, compareDeviceAndMobile, uploadCompanionImage, processCompanionLink };

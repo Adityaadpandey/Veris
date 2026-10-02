@@ -16,7 +16,7 @@ const { isZerogRef } = require('./zerogRead');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
 const { parseSignup, createRateLimiter } = require('./waitlist');
-const { processCompanionLink, uploadCompanionImage, fetchBufferFromUrl } = require('./companionCapture');
+const { processCompanionLink, uploadCompanionImage, fetchBufferFromUrl, backfillCompanionHashes } = require('./companionCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -1315,6 +1315,23 @@ app.post('/api/enrich/backfill', async (req, res) => {
 app.get('/api/enrich/backfill', (req, res) => {
   if (!requireAdminToken(req, res)) return;
   res.json({ success: true, status: backfillStatus });
+});
+
+// Hash the phone photo of claims paired before search learned to match them.
+// POST starts it in the background, GET shows progress. Same admin token as the backfill above.
+let companionHashStatus = { running: false };
+app.post('/api/companion/backfill-hashes', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  if (companionHashStatus.running) return res.status(409).json({ success: false, status: companionHashStatus });
+  companionHashStatus = { running: true, startedAt: new Date().toISOString() };
+  backfillCompanionHashes(companionHashStatus)
+    .catch(err => { companionHashStatus.error = err.message; })
+    .finally(() => { companionHashStatus.running = false; companionHashStatus.finishedAt = new Date().toISOString(); });
+  res.json({ success: true, status: companionHashStatus });
+});
+app.get('/api/companion/backfill-hashes', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  res.json({ success: true, status: companionHashStatus });
 });
 
 // Re-run AI enrichment for a claim (recovers failed/missing enrichment).
