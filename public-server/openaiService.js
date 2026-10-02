@@ -76,6 +76,17 @@ const COMPARE_PROMPT =
   "shows an area where pixel differences were detected: describe what is different " +
   "in each pair (for example 'a person in the background was removed') and do not " +
   "dismiss them as compression. " +
+  "FORMAT: every entry in \"changes\" is ONE separate bullet stating a single definite " +
+  "fact in plain words, with where in the photo it is (e.g. 'A person standing at the far " +
+  "left edge was removed', 'The sky is darker and the colors are more saturated', 'The " +
+  "street sign on the right now reads \"STOP\" instead of \"YIELD\"'). Do not hedge " +
+  "('may', 'might', 'possibly', 'appears to'), do not describe what is unchanged, and " +
+  "do not give general remarks like 'lighting is consistent'. Name exactly what was " +
+  "added, removed, moved or altered, how many of them, and what they were. Brightness, " +
+  "contrast, saturation, tint or filter changes each get their own bullet saying what " +
+  "changed and in which direction. If any part looks AI-generated, AI-inpainted or " +
+  "digitally painted in, say exactly which part and what it now shows, and use " +
+  'change_type "ai_modified". "summary" is one short sentence naming the main edit. ' +
   "This is a best-effort visual assessment, not cryptographic proof.";
 
 const COMPARE_SCHEMA = {
