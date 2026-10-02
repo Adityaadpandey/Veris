@@ -16,6 +16,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Share2,
 } from 'lucide-react'
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
@@ -547,8 +548,21 @@ export default function ClaimPage() {
             </svg>
             <span className="font-brutal-display text-xs tracking-tight" style={{ color: Palette.ink }}>Veris</span>
           </div>
-          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
-            <span className="font-brutal-mono text-[11px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.55)' }}>CLAIM / {short(claimId, 6)}</span>
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
+              <span className="font-brutal-mono text-[11px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.55)' }}>CLAIM / {short(claimId, 6)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              aria-label="Share proof"
+              title="Share proof"
+              className="flex items-center justify-center rounded-lg w-9 h-9 disabled:opacity-50"
+              style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)', color: Palette.ink }}
+            >
+              {sharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}
+            </button>
           </div>
         </div>
 
@@ -581,20 +595,6 @@ export default function ClaimPage() {
           </div>
         </Brutal>
 
-        {/* ── Claim: the main thing people come here to do, so it sits right under the photo ── */}
-        <div className="mt-4">
-          <ClaimCta
-            claimId={claimId}
-            claimApi={CLAIM_API}
-            isOpen={isOpen}
-            isPending={isPending}
-            serverOffline={claimServerOffline}
-            chain={chain}
-            onChainTokenId={onChainTokenId}
-            auth={{ ready, authenticated, login, walletAddress }}
-          />
-        </div>
-
         {/* ── Companion capture ── */}
         {claim?.companion_capture?.mobile_image_url && (
           <>
@@ -606,15 +606,17 @@ export default function ClaimPage() {
           </>
         )}
 
-        {/* ── Share ── */}
-        <div className="mt-3.5">
-          <Pill
-            label={sharing ? 'OPENING…' : 'SHARE PROOF'}
-            onPress={handleShare}
-            disabled={sharing}
-            bg={Palette.cream}
-            color={Palette.ink}
-            fullWidth
+        {/* ── Claim: sits right after the companion photo ── */}
+        <div className="mt-4">
+          <ClaimCta
+            claimId={claimId}
+            claimApi={CLAIM_API}
+            isOpen={isOpen}
+            isPending={isPending}
+            serverOffline={claimServerOffline}
+            chain={chain}
+            onChainTokenId={onChainTokenId}
+            auth={{ ready, authenticated, login, walletAddress }}
           />
         </div>
 
