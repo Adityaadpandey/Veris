@@ -72,6 +72,7 @@ export default function PhotoCard({ img, featured, onRetry, sample }) {
           <Sprite name="camera" u={featured ? 5 : 3} />
         )}
         <span className={`tag ${tone}`}>{sample ? "Sample" : STATE_LABEL[state] || img.status}</span>
+        {img.demo && <span className="tag demo">Demo</span>}
         {minted && img.ai_score != null && <span className="tag score">AI {img.ai_score}</span>}
       </div>
 
