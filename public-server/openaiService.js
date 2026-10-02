@@ -54,20 +54,28 @@ const RESPONSE_SCHEMA = {
 };
 
 // Prompt + schema for comparing a flagged "altered copy" against its on-chain
-// original. IMAGE A = verified original, IMAGE B = the uploaded copy.
+// original. first image = verified original, second image = the uploaded copy.
 const COMPARE_PROMPT =
-  "You are shown two photographs of the SAME scene. IMAGE A is the verified, " +
-  "ORIGINAL on-chain photo. IMAGE B is a copy that was flagged as the same " +
-  "source image but is NOT byte-identical. Carefully compare B against A and " +
-  "report ONLY concrete, observable differences in B: added/removed/moved " +
+  "You are shown two photographs of the SAME scene. The first is the verified, " +
+  "ORIGINAL on-chain photo. The second is the ALTERED COPY, flagged as the same " +
+  "source image but NOT byte-identical. Carefully compare the altered copy against the original and " +
+  "report ONLY concrete, observable differences in the altered copy: added/removed/moved " +
   "objects, edited or cloned regions, changed text, altered colors/brightness, " +
   "cropping or resizing, and any signs of AI generation or splicing (warped " +
   "text, impossible edges, inconsistent lighting/shadows). List each concrete " +
-  'change as a short phrase in "changes". If A and B look visually identical ' +
+  'change as a short phrase in "changes". If the two look visually identical ' +
   "and the only difference is likely re-saving/compression, return an empty " +
   'changes array and set change_type to "reencoded". Choose change_type from: ' +
   '"reencoded", "cropped_or_resized", "color_or_exposure_edit", ' +
   '"content_edited", "ai_modified", "unknown". Write a one-line "summary". ' +
+  "Your text is shown to non-technical people: always call them \"the original\" and " +
+  "\"the altered copy\", and never write \"image A\", \"image B\", \"A\" or \"B\". " +
+  "Look closely for SMALL changes too: a tiny or distant person, a small object, " +
+  "a few pixels, a small blemish or logo that was added, removed or cloned out. " +
+  "If extra close-up crops are provided, each pair (original crop, then uploaded crop) " +
+  "shows an area where pixel differences were detected: describe what is different " +
+  "in each pair (for example 'a person in the background was removed') and do not " +
+  "dismiss them as compression. " +
   "This is a best-effort visual assessment, not cryptographic proof.";
 
 const COMPARE_SCHEMA = {
@@ -144,6 +152,13 @@ async function postJson(url, body) {
 
 function imageDataUrl(imageBuffer, mimeType) {
   return `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+}
+
+// Safety net: never show "Image A/B" to someone just verifying a photo.
+function friendlyLabels(text) {
+  return text
+    .replace(/\b(?:image|photo|picture)\s*A\b/gi, "the original")
+    .replace(/\b(?:image|photo|picture)\s*B\b/gi, "the altered copy");
 }
 
 const LIVENESS_PROMPT =
@@ -264,7 +279,7 @@ class OpenAIService {
    * sequential rate-limit queue.
    * @returns { summary, changes: string[], changeType }
    */
-  async compareImages(originalBuffer, suspectBuffer, mimeType = "image/jpeg") {
+  async compareImages(originalBuffer, suspectBuffer, mimeType = "image/jpeg", regionCrops = []) {
     return this._enqueue(async () => {
       if (!this.isAvailable())
         throw new Error("OPENAI_API_KEY is not configured");
@@ -276,16 +291,22 @@ class OpenAIService {
             role: "user",
             content: [
               { type: "text", text: COMPARE_PROMPT },
-              { type: "text", text: "IMAGE A (verified original):" },
+              { type: "text", text: "The ORIGINAL photo (verified on-chain):" },
               {
                 type: "image_url",
-                image_url: { url: imageDataUrl(originalBuffer, mimeType) },
+                image_url: { url: imageDataUrl(originalBuffer, mimeType), detail: "high" },
               },
-              { type: "text", text: "IMAGE B (uploaded copy to inspect):" },
+              { type: "text", text: "The ALTERED COPY (uploaded photo to inspect):" },
               {
                 type: "image_url",
-                image_url: { url: imageDataUrl(suspectBuffer, mimeType) },
+                image_url: { url: imageDataUrl(suspectBuffer, mimeType), detail: "high" },
               },
+              ...regionCrops.flatMap((r, i) => [
+                { type: "text", text: `Close-up ${i + 1} (${r.position} of the photo) - ORIGINAL:` },
+                { type: "image_url", image_url: { url: imageDataUrl(r.original, "image/jpeg") } },
+                { type: "text", text: `Close-up ${i + 1} - ALTERED COPY:` },
+                { type: "image_url", image_url: { url: imageDataUrl(r.upload, "image/jpeg") } },
+              ]),
             ],
           },
         ],
@@ -308,10 +329,10 @@ class OpenAIService {
         throw new Error("OpenAI comparison returned malformed JSON");
       }
       const changes = Array.isArray(parsed.changes)
-        ? parsed.changes.map((c) => String(c).trim()).filter(Boolean)
+        ? parsed.changes.map((c) => friendlyLabels(String(c).trim())).filter(Boolean)
         : [];
       return {
-        summary: (parsed.summary || "").trim(),
+        summary: friendlyLabels((parsed.summary || "").trim()),
         changes,
         changeType: (parsed.change_type || "unknown").trim(),
       };
