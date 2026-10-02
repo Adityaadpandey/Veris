@@ -202,14 +202,13 @@ function VerifyPanel({ onOpenClaim }) {
             <span className="empty">
               <Sprite name="scan" u={7} />
               <span className="empty-main">Drop a photo here</span>
-              <span className="empty-sub">or pick one below</span>
+              <span className="empty-sub">or click to choose one</span>
             </span>
           )}
         </div>
 
         {state.phase === 'idle' && (
           <div className="vp-btns">
-            <button type="button" className="btn btn-primary" onClick={() => inputRef.current.click()}>Choose a photo</button>
             <button type="button" className="btn btn-ghost" onClick={() => cameraInputRef.current.click()}><Sprite name="camera" u={1.5} />Use the camera</button>
           </div>
         )}
