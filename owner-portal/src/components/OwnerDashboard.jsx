@@ -117,7 +117,7 @@ export default function OwnerDashboard() {
 
             {data.backendOffline && (
               <p className="notice wait" role="status">
-                The camera is offline, so these come from your wallet's claims instead. Some details may be missing until it is back.
+                The camera is offline, so these come from your wallet's claims instead.
               </p>
             )}
             {data.retryResult && (
