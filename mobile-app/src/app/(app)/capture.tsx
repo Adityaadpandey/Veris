@@ -1,5 +1,4 @@
 import { CameraView, useCameraPermissions, type CameraType, type FlashMode } from 'expo-camera';
-import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +17,6 @@ import { CaptureToast } from '@/components/capture-toast';
 import { GlassPanel } from '@/components/glass-panel';
 import { PillButton } from '@/components/pill-button';
 import { RadialGlow } from '@/components/radial-glow';
-import { CLAIM_SERVER_URL } from '@/constants/config';
 import { Border, Palette, Radius } from '@/constants/theme';
 import { body, display, mono } from '@/constants/typography';
 import { useBrutalPress } from '@/hooks/use-brutal-press';
