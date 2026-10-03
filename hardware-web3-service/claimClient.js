@@ -52,7 +52,8 @@ class ClaimClient {
         claim_id, cid, metadata_cid, device_id, camera_id,
         image_hash, signature, device_address,
         latitude, longitude, location_name,
-        device_api_url: device_api_url || process.env.DEVICE_API_URL || null
+        device_api_url: device_api_url || process.env.DEVICE_API_URL || null,
+        recipient_address: process.env.OWNER_WALLET_ADDRESS || null
       }));
 
       if (response.data.success) {
