@@ -51,14 +51,16 @@
   .card.feat { grid-column: span 2; }
   .shot { position: relative; aspect-ratio: 4 / 3; display: grid; place-items: center; background: var(--grey); border-bottom: 3px solid var(--ink); overflow: hidden; }
   .card.feat .shot { aspect-ratio: 16 / 9; }
-  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* absolute, so a big photo can never stretch the card past its 4:3 / 16:9 box */
+  .shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   .shot .tag { position: absolute; top: 10px; left: 10px; }
   .shot .tag.demo { left: auto; right: 10px; background: #FFD84D; color: var(--ink); }
   .shot .tag.score { top: auto; left: auto; right: 10px; bottom: 10px; }
 
-  .body { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .body { flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
   .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .meta b { font: 700 20px/1 var(--f-pixel); }
+  .meta span { white-space: nowrap; }
   .meta span, .dev { font: 400 12px/1.3 var(--f-mono); color: #4A433B; }
   .dev { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .state { font: 400 13px/1.5 var(--f-mono); }
