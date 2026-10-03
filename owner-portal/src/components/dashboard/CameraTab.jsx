@@ -17,9 +17,6 @@ export default function CameraTab({ status, user, walletAddress, onRefresh }) {
       <div className="empty-state">
         <Sprite name="cloud" u={6} />
         <h2>Can't reach the camera</h2>
-        <p>
-          Nothing answered. Check that the Raspberry Pi and the ngrok tunnel are running.
-        </p>
         <button type="button" className="btn btn-primary" onClick={onRefresh}>Try again</button>
       </div>
     );
