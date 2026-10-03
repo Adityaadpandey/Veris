@@ -118,7 +118,7 @@ app.post('/create-claim', requireDeviceSecret, async (req, res) => {
     const {
       claim_id, cid, metadata_cid,
       device_id, camera_id, image_hash, signature, device_address,
-      latitude, longitude, location_name, device_api_url
+      latitude, longitude, location_name, device_api_url, recipient_address
     } = req.body;
 
     if (!claim_id || !cid) {
@@ -135,7 +135,8 @@ app.post('/create-claim', requireDeviceSecret, async (req, res) => {
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
       location_name || null,
-      device_api_url || null
+      device_api_url || null,
+      /^0x[0-9a-fA-F]{40}$/.test(recipient_address || '') ? recipient_address : null
     );
 
     if (!claim) {

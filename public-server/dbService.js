@@ -165,12 +165,12 @@ class ClaimDBService {
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status)`);
   }
 
-  async createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null, device_api_url = null) {
+  async createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null, device_api_url = null, recipient_address = null) {
     try {
       await this.pool.query(`
-        INSERT INTO claims (claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending')
-      `, [claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url]);
+        INSERT INTO claims (claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url, recipient_address, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'pending')
+      `, [claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, device_api_url, recipient_address]);
 
       return this.getClaim(claim_id);
     } catch (error) {
