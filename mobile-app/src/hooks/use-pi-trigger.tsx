@@ -173,6 +173,19 @@ export function PiTriggerProvider({ children }: { children: ReactNode }) {
 
   const uploadRef = useRef<Promise<PendingCompanion> | null>(null);
 
+  // After an app restart, a photo that never reached the server goes up right away — no need to
+  // wait for the next claim to show up.
+  useEffect(() => {
+    storage.get(PENDING_COMPANION_KEY).then((raw) => {
+      if (!raw || uploadRef.current) return;
+      try {
+        const pending: PendingCompanion = JSON.parse(raw);
+        if (!pending.mobile_image_url) uploadRef.current = uploadPending(pending);
+      } catch {}
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const registerCompanionPhoto = useCallback(
     (localUri: string, capturedAt: string) => {
       const pending: PendingCompanion = { local_uri: localUri, mobile_captured_at: capturedAt };
