@@ -1,11 +1,12 @@
 # Prizes index
 
-| Prize | File | What we built | Status | Main files |
-|---|---|---|---|---|
-| Arkiv | [arkiv.md](arkiv.md) | Provenance records mirrored to Arkiv, Postgres as fallback | Confirmed target: Arkiv Continuity track | `public-server/`, `arkiv/`, `owner-portal/src/lib/arkivDirect.js` |
-| 0G | [0g.md](0g.md) | Photo storage on 0G with Lighthouse fallback | TODO: confirm we are submitting for this | `hardware-web3-service/zerogStorageService.js`, `hardware-web3-service/storageService.js` |
-| Arc | [arc.md](arc.md) | USDC photo licensing contract on Arc | TODO: confirm we are submitting for this | `contracts/`, `owner-portal/src/App.jsx` |
-| Filecoin / Lighthouse | [filecoin-lighthouse.md](filecoin-lighthouse.md) | Photo and metadata upload to IPFS via Lighthouse SDK (no Synapse) | TODO: confirm we are submitting for this | `hardware-web3-service/filecoinService.js`, `hardware-web3-service/storageService.js` |
-| Privy | [privy.md](privy.md) | Login and embedded wallet in portal and mobile app | TODO: confirm we are submitting for this | `owner-portal/src/App.jsx`, `mobile-app/src/hooks/use-connection.tsx`, `hardware-web3-service/privyService.js` |
+Veris is submitted for three prizes. All three are Continuity track.
 
+| Prize | File | What we built | Main files |
+|---|---|---|---|
+| Arkiv, Build on Arkiv ($4,000) | [arkiv.md](arkiv.md) | Provenance and license records mirrored to Arkiv, Postgres as fallback | `public-server/arkivService.js`, `arkiv/`, `owner-portal/src/lib/arkivDirect.js` |
+| Arc Studio Continuity ($3,000) | [arc.md](arc.md) | 5 USDC photo licensing on Arc, mint on Arc | `contracts/src/VerisLicense.sol`, `owner-portal/src/components/LicenseButton.jsx` |
+| Ethereum Foundation, Best CROPS Upgrade ($1,500) | [crops.md](crops.md) | Photo verification that works without our server | `owner-portal/src/lib/arkivDirect.js`, root README CROPS section |
+
+- Pages for 0G, Filecoin / Lighthouse and Privy are older and not part of the submission.
 - Solana, vlayer and RISC Zero are not in the code and are not claimed.

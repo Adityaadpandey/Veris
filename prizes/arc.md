@@ -1,7 +1,8 @@
 # Arc (Circle)
 
-- Prize: USDC on Arc testnet.
-- Ask: > TODO: paste the official prize ask here
+- Prize: Arc Studio Continuity Track, Bring Your Project to Arc ($3,000). Continuity participants only.
+- Ask: take a project you already own and add a working Arc integration.
+- Bounty we submit for: USDC payment flows added to an existing commerce product (editors pay USDC to license a photo). The payment is settled by a contract that checks the photographer holds the token.
 - Back to the [root README](../README.md).
 
 ## What we built
@@ -11,6 +12,30 @@
 - The USDC goes straight to the photographer.
 - The portal has a license button and a license history list.
 - The server mirrors each license to Arkiv, expiring with the term.
+
+## Requirements checklist
+
+| Requirement | Status |
+|---|---|
+| Existing project, Arc part is new | Yes, see Before vs added |
+| Built in Arc Studio, shareable project URL, Studio shown in the demo | > TODO: paste the Arc Studio project URL and say what was done in Studio |
+| Working frontend and backend | Portal `LicenseButton` and `LicensesSection`, `public-server` record route, `hardware-web3-service` multi-chain mint |
+| Architecture diagram | Below |
+| Video demo and presentation | > TODO: video link |
+| GitHub repo | https://github.com/Adityaadpandey/Veris (MIT) |
+
+```mermaid
+flowchart LR
+  CAM[Pi camera] --> HW[hardware-web3-service]
+  HW -->|mint original| SEP[Sepolia VerisERC1155]
+  HW -->|mint original| ARCN[Arc VerisERC1155]
+  ED[Editor in portal] -->|approve + buyLicense, 5 USDC| LIC[Arc VerisLicense]
+  LIC -->|checks holder| ARCN
+  LIC -->|USDC straight to photographer| PH[Photographer wallet]
+  ED -->|tx hash| PS[public-server]
+  PS -->|checks Licensed event| LIC
+  PS -->|veris-license entity| ARK[Arkiv]
+```
 
 ## Before vs added
 
