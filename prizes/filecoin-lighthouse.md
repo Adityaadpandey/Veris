@@ -58,7 +58,7 @@ if (!cid) {
 
 - Synapse is NOT used: `@filoz/synapse-sdk` is in `hardware-web3-service/package.json:24` but never imported.
 - No Filecoin deal ID or proof of storage is read or shown; "Filecoin · Lighthouse" in the UI is only a label.
-- Landing copy says "Filecoin via Synapse SDK" (`owner-portal/src/components/LandingPage/story/story.html:1461`). > TODO: fix the copy.
-- > TODO: confirm `storageService.initialize` is called at startup (`server.js:96` initializes `filecoinService` directly).
+- Landing copy says "Filecoin via Synapse SDK" (`owner-portal/src/components/LandingPage/story/story.html:1461`). Fixed: it now says "IPFS via Lighthouse (Filecoin) or 0G".
+- `storageService.initialize` is never called; `server.js:96,105` initialize `filecoinService` and `zerogStorageService` directly, which is equivalent.
 - > 📸 TODO: server log showing the Lighthouse CID.
 - > 📸 TODO: claim page showing the photo from the gateway.
