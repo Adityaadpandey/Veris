@@ -249,8 +249,8 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 2. Claim server: `cd public-server && npm install && npm run dev` (needs `DATABASE_URL`).
 3. Backend: `cd hardware-web3-service && npm install && npm run dev`.
 4. Portal: `cd owner-portal && npm install && npm run dev`.
-6. Mobile (optional): `cd mobile-app && npm install && npm start`.
-7. Camera, on the Pi: `cd hardware-camera-app && python3 raspberry_pi_camera_app.py`.
+5. Mobile (optional): `cd mobile-app && npm install && npm start`.
+6. Camera, on the Pi: `cd hardware-camera-app && python3 raspberry_pi_camera_app.py`.
 
 - Full cloud and Pi setup: [deploy.md](deploy.md). It was written before the multi-chain work, so check addresses against the table above.
 - Architecture diagrams: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
