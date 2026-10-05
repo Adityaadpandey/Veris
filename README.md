@@ -6,15 +6,13 @@
 
 > 📸 TODO: demo video link.
 
-## Tracks and sponsors
+## Prize tracks
 
 | Sponsor / track | What we built | Verify it |
 |---|---|---|
 | [Arkiv](#arkiv-ethglobal-mumbai-continuity-track) (Continuity) | Provenance and license records, queryable by anyone | `curl` the verify endpoint below |
-| [0G](#0g) | Storage, and vision liveness check with TEE option | Image refs that start with `0g` |
-| [Arc](#arc) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
-| [Filecoin / Lighthouse](#filecoin--lighthouse) | Default photo storage and fallback for 0G | `STORAGE_PROVIDER` unset uses it |
-| [Privy](#privy) | Wallet login and session signers | Portal login |
+| [Arc Studio](#arc-arc-studio-continuity-track) (Continuity) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
+| [Ethereum Foundation, CROPS](#crops) (Continuity) | Photo verification that works without our server | Drop a photo on Search with `api.veris.live` blocked |
 
 - Not in the code on `main`: vlayer, RISC Zero, Synapse SDK calls. They are not claimed here. The Solana program is on the `solana-migration` branch, not on `main`.
 - Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
@@ -49,41 +47,21 @@ const r = await client.select({ $key: true, status: true }).from(Claims).where(e
 - Example entity: `0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
 - **How AI was used:** Claude Code helped write the Arkiv service, the license contract and the docs under `arkiv/`; the team reviewed and tested every change.
 
-### 0G
+### Arc (Arc Studio, Continuity track)
 
-- **Built:** photo storage on 0G Storage, stored as a ref like `0g<64 hex>`.
-- **Built:** the Pi liveness check calls the 0G Router for a vision verdict, with an optional TEE check (`ZEROG_VERIFY_TEE`).
-- **Files:** `hardware-web3-service/zerogStorageService.js`, `hardware-web3-service/storageService.js`, `public-server/zerogRead.js`, `hardware-camera-app/liveness.py`.
-- **Flags:** `STORAGE_PROVIDER=0g` makes 0G the primary store; `ZEROG_ENABLED=true` turns on the Router call. Fallback is Lighthouse and GPT vision.
-- **Verify:** a photo whose storage ref starts with `0g` is on 0G; the claim page links it to StorageScan when `ZEROG_STORAGESCAN_URL` is set.
-- **Service READMEs:** `hardware-web3-service/README.md`, `hardware-camera-app/README.md`.
-- > TODO: confirm 0G is on in the live deployment, and whether TEE verification is enabled.
-
-### Arc
-
-- **Built:** the same ERC-1155 mint on Arc testnet, next to Sepolia (`CHAINS=sepolia,arc`).
-- **Built:** `VerisLicense`: an editor pays 5 USDC to license a photo for 30 days.
+- **Prize:** Arc Studio Continuity Track, Bring Your Project to Arc. Bounty: USDC payment flows added to an existing commerce product.
+- **Existed before the event:** single-chain mint on Sepolia, `DeviceRegistry`, `VerisERC1155`, the claim page and dashboard.
+- **Added at the event:** the same ERC-1155 mint on Arc testnet, next to Sepolia (`CHAINS=sepolia,arc`).
+- **Added at the event:** `VerisLicense`: an editor pays 5 USDC to license a photo for 30 days, paid straight to the photographer.
 - **Files:** `contracts/src/VerisLicense.sol`, `hardware-web3-service/chains.js`, `owner-portal/src/lib/arc.js`, `owner-portal/src/components/LicenseButton.jsx`, `public-server/server.js` (`/api/license/record`).
 - **Flag and fallback:** `CHAINS` lists the extra chains; an Arc failure is queued for retry and never fails the Sepolia mint.
 - **Verify:** open the Arc contracts from the Deployed table on `https://testnet.arcscan.app`.
-- **Service READMEs:** `contracts/README.md`, `owner-portal/README.md`.
+- **Details, diagram and tx hashes:** [prizes/arc.md](prizes/arc.md).
+- > TODO: Arc Studio project URL.
 
-### Filecoin / Lighthouse
+### Ethereum Foundation: Best CROPS Upgrade (Continuity track)
 
-- **Built:** photo upload through the Lighthouse SDK (IPFS/Filecoin). It is the default store and the fallback for 0G.
-- **Files:** `hardware-web3-service/filecoinService.js`, `hardware-web3-service/storageService.js`.
-- **Flag:** `STORAGE_PROVIDER` unset means Lighthouse.
-- **Verify:** a storage ref without the `0g` prefix is an IPFS CID.
-- > TODO: `@filoz/synapse-sdk` is a dependency, but no code calls it; do not count it as a Synapse integration.
-- **Service README:** `hardware-web3-service/README.md`.
-
-### Privy
-
-- **Built:** wallet login in the portal, and session signers so the backend can mint for a user.
-- **Files:** `owner-portal/src/App.jsx`, `hardware-web3-service/privyService.js`.
-- **Verify:** log in to the portal with email or wallet.
-- **Service READMEs:** `owner-portal/README.md`, `hardware-web3-service/README.md`.
-- > TODO: confirm if Privy is a target sponsor for this event.
+- **New property:** verifying a photo does not need our server. See [CROPS](#crops) below and [prizes/crops.md](prizes/crops.md).
 
 ## The problem
 
