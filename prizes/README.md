@@ -8,5 +8,4 @@ Veris is submitted for three prizes. All three are Continuity track.
 | Arc Studio Continuity ($3,000) | [arc.md](arc.md) | 5 USDC photo licensing on Arc, mint on Arc | `contracts/src/VerisLicense.sol`, `owner-portal/src/components/LicenseButton.jsx` |
 | Ethereum Foundation, Best CROPS Upgrade ($1,500) | [crops.md](crops.md) | Photo verification that works without our server | `owner-portal/src/lib/arkivDirect.js`, root README CROPS section |
 
-- Pages for 0G, Filecoin / Lighthouse and Privy are older and not part of the submission.
 - Solana, vlayer and RISC Zero are not in the code and are not claimed.

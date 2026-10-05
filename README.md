@@ -309,7 +309,6 @@ photo still verifies. An altered copy with our server blocked fails with "The ch
 
 - Hotshoe module for DSLR and mirrorless cameras, and Clip for phones (see [mobile-app/README.md](mobile-app/README.md); simulated in the app today).
 - Wire the `ai-model` image verifier into the pipeline.
-- > TODO: ZK proof of authenticity, mentioned in older docs but absent from the code.
 
 ## License
 
