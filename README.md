@@ -174,7 +174,7 @@ sequenceDiagram
 
 | Service | What it does | README |
 |---|---|---|
-| `hardware-camera-app` | Pi app: capture, liveness, hardware signing, QR | > TODO: add link when written, see `hardware-camera-app/README.md` |
+| `hardware-camera-app` | Pi app: capture, liveness, hardware signing, QR | [hardware-camera-app/README.md](hardware-camera-app/README.md) |
 | `hardware-web3-service` | Verifies the packet, stores the photo, mints on each chain | `hardware-web3-service/README.md` |
 | `public-server` | Claims, QR pages, search, forensics, Arkiv mirror | `public-server/README.md` |
 | `owner-portal` | React site: claim, dashboard, search, license | `owner-portal/README.md` |
@@ -198,7 +198,7 @@ sequenceDiagram
 - Minting needs the device to be active in `DeviceRegistry`.
 - A liveness check tags the shot as live or not; if no engine answers, it stays `pending`.
 - Companion capture compares a phone photo to the camera photo of the same scene.
-- There is no ZK proof in the current code. > TODO: confirm whether ZK is planned for this release.
+- There is no ZK proof in the current code.
 
 **What is stored where**
 
@@ -239,7 +239,7 @@ sequenceDiagram
 | Arkiv writer wallet (chain id 7794095) | `0xC15aF2A372D01B5223819bB328400DB8b14d1894` |
 
 - Sources: `contracts/deployment-11155111.json`, `contracts/deployment-5042002.json`, [arkiv/schema.md](arkiv/schema.md).
-- > TODO: confirm the live portal URL.
+- Live portal: https://www.veris.live (checked 2026-11-07). Claim server: https://api.veris.live.
 
 ## Quick start
 

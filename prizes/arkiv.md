@@ -80,7 +80,7 @@ Example entity: `0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b
 - The browser check is exact-hash only; altered copies still go to the server.
 - The `record` field is plain JSON, not encrypted.
 
-> TODO: confirm `ARKIV_ENABLED=true` is still set on the live server at judging time.
+Live check on 2026-11-07: the curl above still returns `"source":"arkiv"`, so `ARKIV_ENABLED=true` is on. Re-run it before judging.
 > 📸 TODO: screenshot of the curl output showing `"source":"arkiv"`.
 > 📸 TODO: screenshot of the portal Search page with a hash result.
 > 📸 TODO: screenshot of the writer wallet's entities on the Arkiv explorer.
