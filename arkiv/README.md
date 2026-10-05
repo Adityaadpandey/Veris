@@ -20,10 +20,10 @@ Design notes for the Arkiv part of Veris. Back to the [main README](../README.md
 
 ## Schema at a glance
 
-| Entity | One per | Indexed fields | Lives for |
-|---|---|---|---|
-| `veris-claim` | captured photo | `claimId`, `imageHash`, `deviceId`, `owner`, `status` | `pending`: 24 hours. `minted`: longest Arkiv allows (capped at 180 days) |
-| `veris-license` | USDC license bought on Arc | `tokenId`, `licensee` | Exactly until the license ends |
+| Entity          | One per                    | Indexed fields                                        | Lives for                                                                |
+| --------------- | -------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `veris-claim`   | captured photo             | `claimId`, `imageHash`, `deviceId`, `owner`, `status` | `pending`: 24 hours. `minted`: longest Arkiv allows (capped at 180 days) |
+| `veris-license` | USDC license bought on Arc | `tokenId`, `licensee`                                 | Exactly until the license ends                                           |
 
 - Both also hold a `record` bytes field with the full JSON. It is not queried.
 - Full field tables: [schema.md](schema.md).
@@ -36,12 +36,10 @@ Design notes for the Arkiv part of Veris. Back to the [main README](../README.md
 
 ## Files in this folder
 
-| File | What it answers |
-|---|---|
-| [schema.md](schema.md) | Which entities and fields we write, and how long they live. |
+| File                                         | What it answers                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| [schema.md](schema.md)                       | Which entities and fields we write, and how long they live.                    |
 | [how-you-use-arkiv.md](how-you-use-arkiv.md) | Which queries the product runs and what each Arkiv feature changes for a user. |
-| [why-arkiv.md](why-arkiv.md) | What users would lose on Postgres alone, and what we kept off Arkiv. |
-| [reach.md](reach.md) | Who uses it, live entity counts, and the live verify endpoint. |
-| [friction.md](friction.md) | Problems we hit with the SDK and network. |
-
-> TODO: real usage numbers are still open in [reach.md](reach.md).
+| [why-arkiv.md](why-arkiv.md)                 | What users would lose on Postgres alone, and what we kept off Arkiv.           |
+| [reach.md](reach.md)                         | Who uses it, live entity counts, and the live verify endpoint.                 |
+| [friction.md](friction.md)                   | Problems we hit with the SDK and network.                                      |
