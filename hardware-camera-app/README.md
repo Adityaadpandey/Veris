@@ -14,8 +14,8 @@ The Raspberry Pi camera that takes a photo, signs it with a hardware-derived key
 
 ## Tracks & sponsors used
 
-| Sponsor | What we built | Files | Fallback or flag |
-|---------|---------------|-------|------------------|
+| Sponsor                  | What we built                                              | Files                                | Fallback or flag                                                                                               |
+| ------------------------ | ---------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | 0G (Router vision + TEE) | Liveness check asks a 0G vision model if the scene is real | `liveness.py`, `capture_pipeline.py` | `ZEROG_ENABLED`, `ZEROG_API_KEY`, `ZEROG_MODEL`, `ZEROG_VERIFY_TEE`; falls back to GPT via `PUBLIC_SERVER_URL` |
 
 - Added at the event: the liveness check (0G plus GPT fallback). The signing and upload parts were there before.
@@ -82,17 +82,17 @@ hardware-camera-app/
 
 ## Tech stack
 
-| Part | Tech |
-|------|------|
-| Language | Python 3 |
-| UI | Kivy (touchscreen) |
-| Camera | Picamera2 |
-| Crypto | `ecdsa` (secp256k1), keccak256 for the address |
-| HTTP | `requests` |
-| QR | `qrcode` |
-| Bluetooth | `pybluez2` (RFCOMM/SPP), `bt-pan` for tethering |
-| EXIF | `piexif` (timezone offset stamp) |
-| Run as service | systemd |
+| Part           | Tech                                            |
+| -------------- | ----------------------------------------------- |
+| Language       | Python 3                                        |
+| UI             | Kivy (touchscreen)                              |
+| Camera         | Picamera2                                       |
+| Crypto         | `ecdsa` (secp256k1), keccak256 for the address  |
+| HTTP           | `requests`                                      |
+| QR             | `qrcode`                                        |
+| Bluetooth      | `pybluez2` (RFCOMM/SPP), `bt-pan` for tethering |
+| EXIF           | `piexif` (timezone offset stamp)                |
+| Run as service | systemd                                         |
 
 ## Key code snippets
 
@@ -140,20 +140,20 @@ if signature_info.get('verdict') == 'pending':
 
 Calls this app makes:
 
-| Target | Call | Purpose |
-|--------|------|---------|
-| `BACKEND_URL` | `GET /health` | Check the backend is up |
-| `BACKEND_URL` | `POST /api/images/upload` | Send image, signature, hash, verdict, location |
-| `PUBLIC_SERVER_URL` | `POST /api/liveness` | GPT liveness fallback |
-| `ZEROG_BASE_URL` | `POST /chat/completions` | 0G vision liveness check |
-| ip-api.com | `GET /json` | Rough location for the capture |
+| Target              | Call                      | Purpose                                        |
+| ------------------- | ------------------------- | ---------------------------------------------- |
+| `BACKEND_URL`       | `GET /health`             | Check the backend is up                        |
+| `BACKEND_URL`       | `POST /api/images/upload` | Send image, signature, hash, verdict, location |
+| `PUBLIC_SERVER_URL` | `POST /api/liveness`      | GPT liveness fallback                          |
+| `ZEROG_BASE_URL`    | `POST /chat/completions`  | 0G vision liveness check                       |
+| ip-api.com          | `GET /json`               | Rough location for the capture                 |
 
 Bluetooth protocol (headless mode):
 
-| Direction | Message |
-|-----------|---------|
-| Phone to Pi | `CAPTURE` |
-| Pi to phone | `CAPTURING`, `CAPTURED`, `SIGNED`, `TETHERING`, `UPLOADING` |
+| Direction   | Message                                                                     |
+| ----------- | --------------------------------------------------------------------------- |
+| Phone to Pi | `CAPTURE`                                                                   |
+| Pi to phone | `CAPTURING`, `CAPTURED`, `SIGNED`, `TETHERING`, `UPLOADING`                 |
 | Pi to phone | `UPLOADED:<claim_url>`, `QUEUED:offline`, `QUEUED:pending`, `FAILED:<step>` |
 
 Other: the MJPEG preview from `stream_server.py` is at `http://<pi>:8081/stream`.
@@ -162,33 +162,33 @@ Other: the MJPEG preview from `stream_server.py` is at `http://<pi>:8081/stream`
 
 Copy `.env.example` to `.env` on each Pi. Never commit real values.
 
-| Name | Purpose | Example |
-|------|---------|---------|
-| `BACKEND_URL` | hardware-web3-service address | `http://localhost:5000` |
-| `CAPTURE_DIR` | Where photos are saved | `/home/pi/captures` |
-| `DEVICE_ID` | Short id, used in the Bluetooth name | `pi01` |
-| `BT_DEVICE_NAME` | Override Bluetooth name | `Veris-Cam-pi01` |
-| `PHONE_MAC` | Paired phone for PAN tethering | `AA:BB:CC:DD:EE:FF` |
-| `TETHER_TIMEOUT` | Seconds to wait for a DHCP lease | `10` |
-| `RETRY_INTERVAL` | Seconds between offline retries | `300` |
-| `CAMERA_ROTATION` | Frame rotation in degrees | `-90` |
-| `PREVIEW_SIZE` / `PHOTO_SIZE` / `VIDEO_SIZE` | Resolutions as `w,h` | `1920,1080` |
-| `PREVIEW_FRAMERATE` | Preview fps | `30` |
-| `VIDEO_BITRATE` | H264 bitrate | `10000000` |
-| `MIN_ZOOM` / `MAX_ZOOM` / `ZOOM_STEP` | Digital zoom limits | `1.0` / `4.0` / `0.5` |
-| `CAMERA_INDEX` | Which camera to open | `0` |
-| `SHOW_CURSOR` / `KIVY_FULLSCREEN` / `KIVY_LOG_LEVEL` | Kivy display settings | `true` / `auto` / `info` |
-| `CLAIM_POLL_INTERVAL` | Kivy claim polling, seconds | `5` |
-| `SALT_PATH` | Where the device salt lives | `/boot/.device_salt` |
-| `SALT_BACKUP_PATH` | Salt backup location | `/home/pi/.veris/.device_salt_backup` |
-| `DEVICE_KEY_EXPORT_PATH` | Where the key export is written | `/home/pi/Veris/hardware-camera-app/.device_key_export` |
-| `ZEROG_ENABLED` | Turn on 0G liveness | `false` |
-| `ZEROG_API_KEY` | 0G Router key | `<your-key>` |
-| `ZEROG_MODEL` | 0G vision model name | `<model-name>` |
-| `ZEROG_BASE_URL` | 0G Router URL | `https://router-api.0g.ai/v1` |
-| `ZEROG_VERIFY_TEE` | Ask 0G for TEE verification | `false` |
-| `PUBLIC_SERVER_URL` | Server for the GPT fallback | `https://api.veris.live` |
-| `DEVICE_API_SECRET` | Auth for `/api/liveness` | `<secret>` |
+| Name                                                 | Purpose                              | Example                                                 |
+| ---------------------------------------------------- | ------------------------------------ | ------------------------------------------------------- |
+| `BACKEND_URL`                                        | hardware-web3-service address        | `http://localhost:5000`                                 |
+| `CAPTURE_DIR`                                        | Where photos are saved               | `/home/pi/captures`                                     |
+| `DEVICE_ID`                                          | Short id, used in the Bluetooth name | `pi01`                                                  |
+| `BT_DEVICE_NAME`                                     | Override Bluetooth name              | `Veris-Cam-pi01`                                        |
+| `PHONE_MAC`                                          | Paired phone for PAN tethering       | `AA:BB:CC:DD:EE:FF`                                     |
+| `TETHER_TIMEOUT`                                     | Seconds to wait for a DHCP lease     | `10`                                                    |
+| `RETRY_INTERVAL`                                     | Seconds between offline retries      | `300`                                                   |
+| `CAMERA_ROTATION`                                    | Frame rotation in degrees            | `-90`                                                   |
+| `PREVIEW_SIZE` / `PHOTO_SIZE` / `VIDEO_SIZE`         | Resolutions as `w,h`                 | `1920,1080`                                             |
+| `PREVIEW_FRAMERATE`                                  | Preview fps                          | `30`                                                    |
+| `VIDEO_BITRATE`                                      | H264 bitrate                         | `10000000`                                              |
+| `MIN_ZOOM` / `MAX_ZOOM` / `ZOOM_STEP`                | Digital zoom limits                  | `1.0` / `4.0` / `0.5`                                   |
+| `CAMERA_INDEX`                                       | Which camera to open                 | `0`                                                     |
+| `SHOW_CURSOR` / `KIVY_FULLSCREEN` / `KIVY_LOG_LEVEL` | Kivy display settings                | `true` / `auto` / `info`                                |
+| `CLAIM_POLL_INTERVAL`                                | Kivy claim polling, seconds          | `5`                                                     |
+| `SALT_PATH`                                          | Where the device salt lives          | `/boot/.device_salt`                                    |
+| `SALT_BACKUP_PATH`                                   | Salt backup location                 | `/home/pi/.veris/.device_salt_backup`                   |
+| `DEVICE_KEY_EXPORT_PATH`                             | Where the key export is written      | `/home/pi/Veris/hardware-camera-app/.device_key_export` |
+| `ZEROG_ENABLED`                                      | Turn on 0G liveness                  | `false`                                                 |
+| `ZEROG_API_KEY`                                      | 0G Router key                        | `<your-key>`                                            |
+| `ZEROG_MODEL`                                        | 0G vision model name                 | `<model-name>`                                          |
+| `ZEROG_BASE_URL`                                     | 0G Router URL                        | `https://router-api.0g.ai/v1`                           |
+| `ZEROG_VERIFY_TEE`                                   | Ask 0G for TEE verification          | `false`                                                 |
+| `PUBLIC_SERVER_URL`                                  | Server for the GPT fallback          | `https://api.veris.live`                                |
+| `DEVICE_API_SECRET`                                  | Auth for `/api/liveness`             | `<secret>`                                              |
 
 ## Setup and run
 
@@ -243,17 +243,6 @@ python3 test_pipeline.py   # needs numpy and opencv
 - Captures stuck as pending: set `ZEROG_*` or make sure `PUBLIC_SERVER_URL` and `DEVICE_API_SECRET` are right.
 - Upload says offline: check `BACKEND_URL` and `GET /health`; queued items retry every `RETRY_INTERVAL` seconds.
 - No Bluetooth trigger: pair and trust the phone with `bluetoothctl`, and install `pybluez2`.
-
-## Screenshots
-
-<!-- TODO: screenshot of the Kivy camera preview (save to docs/img/camera-preview.png) -->
-> 📸 TODO: add screenshot of the Kivy camera preview
-
-<!-- TODO: screenshot of the claim QR overlay (save to docs/img/camera-qr.png) -->
-> 📸 TODO: add screenshot of the claim QR overlay
-
-<!-- TODO: photo of the Pi camera hardware setup (save to docs/img/camera-hardware.png) -->
-> 📸 TODO: add photo of the Pi camera hardware setup
 
 ## Related services
 
