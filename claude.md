@@ -11,12 +11,11 @@ Veris is a Web3 camera system that turns a Raspberry Pi shot into a hardware-sig
 | Directory | Purpose |
 |-----------|---------|
 | `hardware-camera-app/` | Python/Kivy GUI on Raspberry Pi for camera capture |
-| `hardware-web3-service/` | Node.js backend for storage upload, embeddings, multi-chain NFT minting |
-| `public-server/` | Node.js claim server (Postgres), QR codes, same-scene check, search, Arkiv mirror |
+| `hardware-web3-service/` | Node.js backend for storage upload and multi-chain NFT minting |
+| `public-server/` | Node.js claim server (Postgres), QR codes, same-scene check, CLIP embeddings and search, Arkiv mirror |
 | `owner-portal/` | React/Vite dashboard for users to claim/mint NFTs |
 | `contracts/` | Solidity (Foundry): DeviceRegistry, VerisERC1155, VerisLicense |
 | `mobile-app/` | Expo/React Native app: Bluetooth capture trigger, browse and verify photos |
-| `ai-embedding-service/` | FastAPI CLIP + pHash embeddings used by hardware-web3-service |
 | `ai-model/` | Standalone image-verification research code, not wired into the pipeline |
 | `arkiv/` | Design notes for the Arkiv mirror of provenance records |
 
@@ -70,7 +69,6 @@ Raspberry Pi Camera (hardware-camera-app)
     → Capture + sign sha256(image) with the device key
     → POST /api/images/upload to hardware-web3-service
         → Store image: 0G or Lighthouse (STORAGE_PROVIDER, falls back to the other)
-        → Embed with ai-embedding-service (CLIP + pHash) for search
         → Mint ERC-1155 original on every chain in CHAINS (Sepolia primary, Arc secondary)
         → Create claim in public-server, which mirrors the record to Arkiv
         → Return QR code to the camera
@@ -83,7 +81,7 @@ User scans QR → owner-portal (React) / mobile-app
     → Claim + edition requests go through public-server; hardware-web3-service mints them
     → Editors pay 5 USDC via VerisLicense on Arc to license a photo
 
-public-server also runs the "same scene" check (GPT vision), CLIP search and image forensics.
+public-server also runs the "same scene" check (GPT vision), in-process CLIP embeddings for search (`clipService.js`) and image forensics.
 Capture never waits on a third party: sign and queue always succeed locally.
 
 Smart Contracts (contracts/src):
