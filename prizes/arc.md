@@ -15,14 +15,13 @@
 
 ## Requirements checklist
 
-| Requirement | Status |
-|---|---|
-| Existing project, Arc part is new | Yes, see Before vs added |
-| Built in Arc Studio, shareable project URL, Studio shown in the demo | > TODO: paste the Arc Studio project URL and say what was done in Studio |
-| Working frontend and backend | Portal `LicenseButton` and `LicensesSection`, `public-server` record route, `hardware-web3-service` multi-chain mint |
-| Architecture diagram | Below |
-| Video demo and presentation | > TODO: video link |
-| GitHub repo | https://github.com/Adityaadpandey/Veris (MIT) |
+| Requirement                                                          | Status                                                                                                               |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Existing project, Arc part is new                                    | Yes, see Before vs added                                                                                             |
+| Built in Arc Studio, shareable project URL, Studio shown in the demo |                                                                                                                      |
+| Working frontend and backend                                         | Portal `LicenseButton` and `LicensesSection`, `public-server` record route, `hardware-web3-service` multi-chain mint |
+| Architecture diagram                                                 | Below                                                                                                                |
+| GitHub repo                                                          | https://github.com/Adityaadpandey/Veris (MIT)                                                                        |
 
 ```mermaid
 flowchart LR
@@ -40,10 +39,12 @@ flowchart LR
 ## Before vs added
 
 Before (last commits 2026-10-30):
+
 - Single-chain mint in `hardware-web3-service/web3Service.js`.
 - `DeviceRegistry` and `VerisERC1155` on Sepolia.
 
 Added (all 2026-11-06):
+
 - `d5cd1ac` license contract and Arkiv license record.
 - `68598b8`, `274c6e1`, `da4ebce` Arc deploy setup, deployment record, redeploy.
 - `9a22ed5`, `81532f9`, `ca593c0`, `1208337` multi-chain mint with retry.
@@ -52,16 +53,16 @@ Added (all 2026-11-06):
 
 ## Where in the code
 
-| What | File:lines | Note |
-|---|---|---|
-| License contract | `contracts/src/VerisLicense.sol:15-56` | 5 USDC, 30 days, paid to photographer |
-| License tests | `contracts/test/VerisLicense.t.sol:39-61` | 4 tests |
-| Arc deployment | `contracts/deployment-5042002.json:1` | Chain id 5042002 and addresses |
-| Multi-chain mint | `hardware-web3-service/chains.js:64-75` | Primary first, others in background |
-| Retry failed mints | `hardware-web3-service/chains.js:48-60` | Failed mint stays `pending` |
-| License button | `owner-portal/src/components/LicenseButton.jsx:8-50` | Approve USDC, call `buyLicense` |
-| Record route | `public-server/server.js:1770-1801` | Checks `Licensed` event, writes Arkiv |
-| Arkiv entity | `public-server/arkivService.js:102-112` | `veris-license`, expires at term end |
+| What               | File:lines                                           | Note                                  |
+| ------------------ | ---------------------------------------------------- | ------------------------------------- |
+| License contract   | `contracts/src/VerisLicense.sol:15-56`               | 5 USDC, 30 days, paid to photographer |
+| License tests      | `contracts/test/VerisLicense.t.sol:39-61`            | 4 tests                               |
+| Arc deployment     | `contracts/deployment-5042002.json:1`                | Chain id 5042002 and addresses        |
+| Multi-chain mint   | `hardware-web3-service/chains.js:64-75`              | Primary first, others in background   |
+| Retry failed mints | `hardware-web3-service/chains.js:48-60`              | Failed mint stays `pending`           |
+| License button     | `owner-portal/src/components/LicenseButton.jsx:8-50` | Approve USDC, call `buyLicense`       |
+| Record route       | `public-server/server.js:1770-1801`                  | Checks `Licensed` event, writes Arkiv |
+| Arkiv entity       | `public-server/arkivService.js:102-112`              | `veris-license`, expires at term end  |
 
 ## One snippet
 
@@ -92,6 +93,3 @@ function buyLicense(uint256 tokenId, address photographer) external returns (uin
 - Nothing blocks image download without a license; `isLicensed` is not called by any app.
 - Same explorer: `testnet.arcscan.app` 301-redirects to `explorer.testnet.arc.io`. The history list calls its `/api/v2` logs endpoint, the links use the arcscan name.
 - Real txs on Arc testnet (from the explorer logs API, 2026-11-07): `Licensed` event in `0x012434b543859cbd765d22a88bf4498a2f781601c9032809f4d39f4336bd9d5b`; `TransferSingle` on `VerisERC1155` in `0x98b193d9257c8cb755327eb5b54ba67110e5b42dd978bc7ab54642224555b9fe`.
-- > 📸 TODO: claim page with the "License this photo · 5 USDC" button.
-- > 📸 TODO: ArcScan page of a `buyLicense` transaction.
-- > 📸 TODO: Licenses section listing the new license.
