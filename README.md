@@ -2,7 +2,7 @@
 
 **A camera that signs every photo at the moment it is taken, so anyone can check it is real.**
 
-> 📸 demo video link:https://ethglobal.b0bd725bc77a3ea7cd3826627d01fcb6.r2.cloudflarestorage.com/projects/dr7ue/videos/Veris_Demo.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=9594f0cc2b6eca8d6fd42063391f5760%2F20261107%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261107T044232Z&X-Amz-Expires=3600&X-Amz-Signature=40471b0b626b2eb1a2fad76018ff87153f3c5a94022d5153eb1a3e6e875bebe6&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject
+> 📸 demo video link:https://youtu.be/rBOYLIW699s
 
 All submitted prizes are for ETHGlobal Mumbai, Continuity track. See [Prize tracks](#prize-tracks).
 
