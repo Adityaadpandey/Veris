@@ -1,0 +1,7 @@
+ignore = ["public-server/scripts/"]
+keep = [
+    "mobile-app/src/",
+    "owner-portal/src/",
+]
+
+[areas]
