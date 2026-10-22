@@ -1,49 +1,68 @@
-import { useEffect, useRef, useState } from 'react'
-import SkeletonCanvas from './SkeletonCanvas'
-import styles from './CameraSection.module.css'
+import { useState } from 'react'
+import Sprite from './Sprite'
+import { PHOTOS } from './config'
 
-const SPECS = [
-  { value: '12', unit: 'MP', label: 'Sensor' },
-  { value: '4', unit: 'K', label: 'Max Capture' },
-  { value: '~3', unit: 's', label: 'Mint Time' },
-  { value: '∞', unit: '', label: 'On-Chain Life' },
+const DEVICES = [
+  {
+    key: 'hotshoe', name: 'Hotshoe', icon: 'camera', art: 'dev-hotshoe', status: 'in design',
+    alt: 'The Veris Hotshoe unit mounted on a Sony alpha camera',
+    desc: "Slides into the hot shoe of any DSLR or mirrorless camera and fires off the shoe's centre X-sync pin. No cable, no menu.",
+  },
+  {
+    key: 'clip', name: 'Clip-on', icon: 'phone', art: 'dev-clip', status: 'in design',
+    alt: 'The Veris Clip-on unit on the back of a phone',
+    desc: "Clips onto almost any phone and grips like a case. Powered by the phone's USB-C port, paired over Bluetooth LE. Its sensor shoots beside the phone camera.",
+  },
+  {
+    key: 'standalone', name: 'Standalone', icon: 'chip', art: 'dev-standalone', status: 'operational',
+    alt: 'The yellow Veris Standalone unit',
+    desc: 'The reference unit. Runs the whole pipeline end to end today: capture, hardware signature, proof, record.',
+  },
 ]
 
-export default function CameraSection() {
-  const sectionRef = useRef()
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setVisible(true) },
-      { threshold: 0.2 }
-    )
-    if (sectionRef.current) observer.observe(sectionRef.current)
-    return () => observer.disconnect()
-  }, [])
+function DeviceCard({ device }) {
+  const [flipped, setFlipped] = useState(false)
+  const photo = PHOTOS[device.key]
+  const touch = typeof window !== 'undefined' && window.matchMedia('(hover:none)').matches
+  const flip = () => setFlipped((f) => !f)
 
   return (
-    <section id="camera-section" ref={sectionRef} className={`${styles.section} ${visible ? styles.visible : ''}`}>
-      <div className={styles.bgGlow} />
-
-      <div className={styles.badge}><span>●</span> The Hardware</div>
-      <h2 className={styles.heading}>THE VERIS <span className={styles.dim}>UNIT</span></h2>
-      <p className={styles.sub}>Built on Raspberry Pi 4B + HQ Camera Module. A node, not just a camera.</p>
-
-      <div className={styles.canvasWrap}>
-        <SkeletonCanvas />
-      </div>
-
-      <div className={`${styles.specsRow} glass`}>
-        {SPECS.map((s) => (
-          <div key={s.label} className={styles.specBox}>
-            <div className={styles.specNum}>
-              {s.value}
-              {s.unit && <span className={styles.specUnit}>{s.unit}</span>}
-            </div>
-            <div className={styles.specLabel}>{s.label}</div>
+    <div
+      className={`card${flipped ? ' flip' : ''}`}
+      tabIndex={0}
+      role="button"
+      aria-pressed={flipped}
+      aria-label={`${device.name}, ${device.status}. Flip for details.`}
+      onClick={touch ? flip : undefined}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip() } }}
+    >
+      <div className="card-in">
+        <div className="face front">
+          <span className={`tag${device.status === 'operational' ? ' op' : ''}`}>{device.status}</span>
+          <div className="art">
+            {photo
+              ? <img src={photo} alt={device.alt} />
+              : <Sprite name={device.art} ol="c" s={9} label={`Pixel illustration: ${device.alt}`} />}
           </div>
-        ))}
+          <span className="pill"><Sprite name={device.icon} s={2} />{device.name}</span>
+        </div>
+        <div className="face back on-o">
+          <Sprite name={device.icon} s={4} className="ic" style={{ alignSelf: 'flex-start' }} />
+          <h3>{device.name}</h3>
+          <p>{device.desc}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function CameraSection() {
+  return (
+    <section className="dev vdark" id="use" aria-labelledby="veris-devices">
+      <h2 id="veris-devices">Veris<em>devices</em></h2>
+      <p className="lead">hover, tap or press enter to flip a card</p>
+      <div className="cards">
+        {DEVICES.map((d) => <DeviceCard key={d.key} device={d} />)}
       </div>
     </section>
   )
