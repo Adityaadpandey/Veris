@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ClaimPage from "./components/ClaimPage";
 import LandingPage from "./components/LandingPage";
+import DocsPage from "./components/DocsPage";
 import SearchPage from "./components/SearchPage";
 import AuthenticityCheckPage from "./components/AuthenticityCheckPage";
 
@@ -40,6 +41,7 @@ export default function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/docs" element={<DocsPage />} />
               <Route path="/dashboard" element={<OwnerDashboard />} />
               <Route path="/claim/:claimId" element={<ClaimPage />} />
               <Route path="/search" element={<SearchPage />} />
