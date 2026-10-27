@@ -1,0 +1,17 @@
+# Python dependencies for the Veris hardware camera app.
+# System packages (picamera2, libcamera, numpy, PIL, opencv) come from apt —
+# see install_dependencies.sh.
+
+# Hardware identity (ed25519 signing + Solana base58 addresses)
+pynacl
+base58
+
+# UI
+kivy
+
+# Networking / QR
+requests
+qrcode
+
+# Battery monitoring (optional, I2C UPS)
+smbus2

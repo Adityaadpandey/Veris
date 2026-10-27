@@ -1210,22 +1210,22 @@ class CameraApp(App):
                             0
                         )
 
-                        # Device registration depends only on ETH balance (for gas fees)
+                        # Device registration depends only on SOL balance (for fees)
                         if has_enough_eth:
-                            # ETH balance sufficient - register device
+                            # SOL balance sufficient - register device
                             Clock.schedule_once(
                                 lambda dt: self._try_register_device(),
                                 1
                             )
                             self.balance_check_passed = True
-                            print(f"✅ ETH balance sufficient: {balance_eth} ETH - Device registration will proceed")
+                            print(f"✅ SOL balance sufficient: {balance_eth} SOL - Device registration will proceed")
                         else:
-                            # ETH balance too low - show funding QR
+                            # SOL balance too low - show funding QR
                             Clock.schedule_once(
-                                lambda dt: self._show_funding_qr(address, balance_eth, 'ETH'),
+                                lambda dt: self._show_funding_qr(address, balance_eth, 'SOL'),
                                 0.5
                             )
-                            print(f"⚠️ ETH balance too low: {balance_eth} ETH (need 0.01 ETH) - Device registration skipped")
+                            print(f"⚠️ SOL balance too low: {balance_eth} SOL (need 0.05 SOL) - Device registration skipped")
 
                         # Show USDFC funding QR if needed (but don't block registration)
                         if needs_usdfc_funding and usdfc_available:
@@ -1284,19 +1284,19 @@ class CameraApp(App):
         if self.hardware_identity:
             hw_info = self.hardware_identity.get_hardware_info()
             address = hw_info['address']
-            self._show_funding_qr(address, 0, 'ETH')
+            self._show_funding_qr(address, 0, 'SOL')
 
-    def _show_funding_qr(self, address, current_balance, token_type='ETH'):
+    def _show_funding_qr(self, address, current_balance, token_type='SOL'):
         """Show QR code for funding the wallet with enhanced presentation."""
         if not QRCODE_AVAILABLE:
-            if token_type == 'ETH':
-                self.show_status(f'Low Balance: {current_balance:.4f} ETH - Fund: {address}', 'warning', 10)
+            if token_type == 'SOL':
+                self.show_status(f'Low Balance: {current_balance:.4f} SOL - Fund: {address}', 'warning', 10)
             else:
                 self.show_status(f'Low Balance: {current_balance:.4f} {token_type} - Fund: {address}', 'warning', 10)
             return
 
         try:
-            # Use plain address - MetaMask can scan it directly
+            # Use plain address - Solana wallets (e.g. Phantom) can scan it directly
             funding_data = address
 
             # Generate QR code
@@ -1328,8 +1328,8 @@ class CameraApp(App):
 
             # Update title and status text with better formatting
             self.qr_title.text = 'Fund Your Wallet'
-            min_amount = '0.01 ETH' if token_type == 'ETH' else '0.1 USDFC'
-            self.qr_status.text = f'Low Balance: {current_balance:.4f} {token_type}\n\nWallet Address:\n{address[:22]}...\n{address[-20:]}\n\nScan with MetaMask\nSend {min_amount} or more'
+            min_amount = '0.05 SOL' if token_type == 'SOL' else '0.1 USDFC'
+            self.qr_status.text = f'Low Balance: {current_balance:.4f} {token_type}\n\nWallet Address:\n{address[:22]}...\n{address[-20:]}\n\nScan with a Solana wallet (Phantom)\nSend {min_amount} or more'
             self.qr_status.color = (1, 0.85, 0.3, 1)  # Warm yellow
 
             # Show overlay with smooth animation
@@ -1364,11 +1364,11 @@ class CameraApp(App):
                         has_enough_eth = eth_data.get('hasEnoughBalance', False)
 
                         # Update status
-                        self.qr_status.text = f'Current Balance: {balance_eth:.4f} ETH\n\nWaiting for 0.01+ ETH...'
+                        self.qr_status.text = f'Current Balance: {balance_eth:.4f} SOL\n\nWaiting for 0.05+ SOL...'
 
                         if has_enough_eth:
-                            # ETH balance is now sufficient - register device!
-                            print(f"✅ ETH balance sufficient: {balance_eth} ETH")
+                            # SOL balance is now sufficient - register device!
+                            print(f"✅ SOL balance sufficient: {balance_eth} SOL")
                             self.balance_check_passed = True
 
                             # Hide QR overlay
@@ -1383,7 +1383,7 @@ class CameraApp(App):
                                 0
                             )
 
-                            # Register device (only depends on ETH balance for gas fees)
+                            # Register device (only depends on SOL balance for fees)
                             if self.hardware_identity and self.camera.initialized:
                                 Clock.schedule_once(
                                     lambda dt: self._try_register_device(),
@@ -1565,11 +1565,10 @@ class CameraApp(App):
 
             # Get hardware info
             hw_info = self.hardware_identity.get_hardware_info()
-            private_key_hex = self.hardware_identity.private_key.to_string().hex()
 
-            # Export data
+            # Export data (seed_hex = 32-byte ed25519 seed; address = base58 pubkey)
             export_data = {
-                'privateKey': f'0x{private_key_hex}',
+                'seed_hex': self.hardware_identity.get_seed_hex(),
                 'address': hw_info['address'],
                 'cameraId': hw_info['camera_id'],
                 'publicKey': hw_info['public_key_hex']
