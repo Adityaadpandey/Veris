@@ -930,6 +930,67 @@ app.get('/api/images/:id', async (req, res) => {
   }
 });
 
+// Mint originals for images that were uploaded + have a claim but no token_id yet
+app.post('/api/mint-pending', async (req, res) => {
+  try {
+    const ownerWallet = process.env.OWNER_WALLET_ADDRESS;
+    if (!ownerWallet) {
+      return res.status(400).json({ success: false, error: 'OWNER_WALLET_ADDRESS not set in .env' });
+    }
+    if (!web3Service.initialized) {
+      return res.status(503).json({ success: false, error: 'Web3 service not initialized' });
+    }
+
+    // Find images that are uploaded (have filecoin_cid + claim_id) but no token_id
+    const uploaded = dbService.getImages('uploaded', 50).filter(img => img.claim_id && !img.token_id);
+    if (uploaded.length === 0) {
+      return res.json({ success: true, message: 'No images pending mint', processed: 0 });
+    }
+
+    const results = [];
+    for (const image of uploaded) {
+      const result = { id: image.id, claimId: image.claim_id, status: 'failed' };
+      try {
+        const mintResult = await web3Service.mintOriginal({
+          recipient: ownerWallet,
+          ipfsHash: image.filecoin_cid,
+          imageHash: image.image_hash,
+          signature: image.signature,
+          maxEditions: 0
+        });
+
+        dbService.updateImageStatus(image.id, 'minted', {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet
+        });
+
+        dbService.updateClaim(image.claim_id, {
+          token_id: mintResult.tokenId,
+          tx_hash: mintResult.txHash,
+          recipient_address: ownerWallet,
+          status: 'open'
+        });
+
+        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+
+        result.status = 'minted';
+        result.tokenId = mintResult.tokenId;
+        result.txHash = mintResult.txHash;
+        console.log(`✅ Minted token #${mintResult.tokenId} for image ${image.id}, claim ${image.claim_id}`);
+      } catch (err) {
+        result.error = err.message;
+        console.error(`❌ Mint failed for image ${image.id}: ${err.message}`);
+      }
+      results.push(result);
+    }
+
+    res.json({ success: true, processed: results.length, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/retry-pending', async (req, res) => {
   try {
     const savedImages = dbService.getImages('saved', 50);
