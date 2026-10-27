@@ -94,8 +94,8 @@ let servicesInitialized = false;
 async function initializeServices() {
   try {
     console.log('🔄 Initializing claim server services...');
-    
-    dbService.initialize();
+
+    await dbService.initialize();
     console.log('✅ Database initialized');
 
     servicesInitialized = true;
@@ -108,7 +108,7 @@ async function initializeServices() {
 
 initializeServices();
 
-app.post('/create-claim', (req, res) => {
+app.post('/create-claim', async (req, res) => {
   try {
     const {
       claim_id, cid, metadata_cid,
@@ -123,7 +123,7 @@ app.post('/create-claim', (req, res) => {
       });
     }
 
-    const claim = dbService.createClaim(
+    const claim = await dbService.createClaim(
       claim_id, null, cid,
       metadata_cid || null, device_id || null, camera_id || null,
       image_hash || null, signature || null, device_address || null,
@@ -172,11 +172,11 @@ app.options('/api/metadata/:claim_id', (req, res) => {
   res.sendStatus(200);
 });
 
-app.get('/api/metadata/:claim_id', (req, res) => {
+app.get('/api/metadata/:claim_id', async (req, res) => {
   try {
     const { claim_id } = req.params;
 
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
 
     if (!claim) {
       return res.status(404).json({
@@ -257,7 +257,7 @@ app.get('/api/metadata/:claim_id', (req, res) => {
 
 
 
-app.get('/check-claim', (req, res) => {
+app.get('/check-claim', async (req, res) => {
   try {
     const { claim_id } = req.query;
 
@@ -268,7 +268,7 @@ app.get('/check-claim', (req, res) => {
       });
     }
 
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
 
     if (!claim) {
       return res.status(404).json({
@@ -316,7 +316,7 @@ app.get('/check-claim', (req, res) => {
 app.get('/verify-claim/:claim_id', async (req, res) => {
   try {
     const { claim_id } = req.params;
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
 
     if (!claim) {
       return res.status(404).json({ success: false, error: 'Claim not found' });
@@ -355,10 +355,10 @@ app.get('/verify-claim/:claim_id', async (req, res) => {
   }
 });
 
-app.get('/claim/:claim_id', (req, res) => {
+app.get('/claim/:claim_id', async (req, res) => {
   const { claim_id } = req.params;
 
-  const claim = dbService.getClaim(claim_id);
+  const claim = await dbService.getClaim(claim_id);
 
   if (!claim) {
     return res.status(404).send(`
@@ -859,7 +859,7 @@ app.get('/claim/:claim_id', (req, res) => {
   `);
 });
 
-app.post('/claim/:claim_id/submit', (req, res) => {
+app.post('/claim/:claim_id/submit', async (req, res) => {
   try {
     const { claim_id } = req.params;
     const { wallet_address } = req.body;
@@ -878,7 +878,7 @@ app.post('/claim/:claim_id/submit', (req, res) => {
       });
     }
 
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
 
     if (!claim) {
       return res.status(404).json({
@@ -901,7 +901,7 @@ app.post('/claim/:claim_id/submit', (req, res) => {
       });
     }
 
-    const editionRequest = dbService.createEditionRequest(claim_id, wallet_address);
+    const editionRequest = await dbService.createEditionRequest(claim_id, wallet_address);
 
     if (!editionRequest) {
       return res.status(500).json({
@@ -929,7 +929,7 @@ app.post('/claim/:claim_id/submit', (req, res) => {
   }
 });
 
-app.post('/update-claim-status', (req, res) => {
+app.post('/update-claim-status', async (req, res) => {
   try {
     const { claim_id, status, token_id, tx_hash } = req.body;
 
@@ -940,7 +940,7 @@ app.post('/update-claim-status', (req, res) => {
       });
     }
 
-    const updated = dbService.updateClaimStatus(claim_id, status, token_id, tx_hash);
+    const updated = await dbService.updateClaimStatus(claim_id, status, token_id, tx_hash);
 
     if (!updated) {
       return res.status(404).json({
@@ -966,7 +966,7 @@ app.post('/update-claim-status', (req, res) => {
   }
 });
 
-app.post('/create-edition-request', (req, res) => {
+app.post('/create-edition-request', async (req, res) => {
   try {
     const { claim_id, wallet_address } = req.body;
 
@@ -984,7 +984,7 @@ app.post('/create-edition-request', (req, res) => {
       });
     }
 
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
 
     if (!claim) {
       return res.status(404).json({
@@ -1000,7 +1000,7 @@ app.post('/create-edition-request', (req, res) => {
       });
     }
 
-    const editionRequest = dbService.createEditionRequest(claim_id, wallet_address);
+    const editionRequest = await dbService.createEditionRequest(claim_id, wallet_address);
 
     res.json({
       success: true,
@@ -1017,10 +1017,10 @@ app.post('/create-edition-request', (req, res) => {
   }
 });
 
-app.get('/get-pending-edition-requests', (req, res) => {
+app.get('/get-pending-edition-requests', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    const requests = dbService.getPendingEditionRequests(limit);
+    const requests = await dbService.getPendingEditionRequests(limit);
 
     res.json({
       success: true,
@@ -1036,7 +1036,7 @@ app.get('/get-pending-edition-requests', (req, res) => {
   }
 });
 
-app.post('/update-edition-request', (req, res) => {
+app.post('/update-edition-request', async (req, res) => {
   try {
     const { request_id, status, tx_hash, token_id, error_message } = req.body;
 
@@ -1053,7 +1053,7 @@ app.post('/update-edition-request', (req, res) => {
     if (token_id) updates.token_id = token_id;
     if (error_message) updates.error_message = error_message;
 
-    const updated = dbService.updateEditionRequest(request_id, updates);
+    const updated = await dbService.updateEditionRequest(request_id, updates);
 
     if (!updated) {
       return res.status(404).json({
@@ -1075,7 +1075,7 @@ app.post('/update-edition-request', (req, res) => {
   }
 });
 
-app.post('/complete-claim', (req, res) => {
+app.post('/complete-claim', async (req, res) => {
   try {
     const { claim_id, tx_hash, token_id } = req.body;
 
@@ -1086,7 +1086,7 @@ app.post('/complete-claim', (req, res) => {
       });
     }
 
-    const claim = dbService.completeClaim(claim_id, tx_hash, token_id);
+    const claim = await dbService.completeClaim(claim_id, tx_hash, token_id);
 
     if (!claim) {
       return res.status(404).json({
@@ -1118,7 +1118,7 @@ app.post('/complete-claim', (req, res) => {
 app.post('/api/enrich/:claim_id', async (req, res) => {
   try {
     const { claim_id } = req.params;
-    const claim = dbService.getClaim(claim_id);
+    const claim = await dbService.getClaim(claim_id);
     if (!claim) {
       return res.status(404).json({ success: false, error: 'Claim not found' });
     }
@@ -1126,7 +1126,7 @@ app.post('/api/enrich/:claim_id', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
     }
     await enrichClaim(claim.claim_id, claim.cid);
-    const updated = dbService.getClaim(claim_id);
+    const updated = await dbService.getClaim(claim_id);
     res.json({
       success: updated.ai_status === 'done',
       claim_id,
@@ -1168,7 +1168,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
 
     let verdict = { type: 'no_match', message: 'This image does not match any verified photo on-chain.' };
 
-    const exact = dbService.getClaimByImageHash(uploadSha);
+    const exact = await dbService.getClaimByImageHash(uploadSha);
     if (exact) {
       verdict = {
         type: 'authentic_original',
@@ -1181,7 +1181,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
     } else if (uploadPhash) {
       // Closest perceptual match among claims that have a phash.
       let best = null;
-      for (const row of dbService.getClaimsWithPhash()) {
+      for (const row of await dbService.getClaimsWithPhash()) {
         const dist = hammingDistance(uploadPhash, row.phash);
         if (best === null || dist < best.dist) best = { row, dist };
       }
@@ -1233,7 +1233,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           }
         }
 
-        const rows = dbService.getAllEmbeddings();
+        const rows = await dbService.getAllEmbeddings();
         similar = rows.map(row => {
           let stored;
           try { stored = JSON.parse(row.embedding); } catch { stored = null; }
@@ -1286,12 +1286,12 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
 });
 
 // Similar verified photos for a given claim (used on the claim page).
-app.get('/api/similar/:claim_id', (req, res) => {
+app.get('/api/similar/:claim_id', async (req, res) => {
   try {
     const { claim_id } = req.params;
     const limit = Math.min(parseInt(req.query.limit || '4', 10) || 4, 12);
 
-    const self = dbService.getEmbedding(claim_id);
+    const self = await dbService.getEmbedding(claim_id);
     if (!self || !self.embedding) {
       return res.json({ success: true, results: [] });
     }
@@ -1302,7 +1302,7 @@ app.get('/api/similar/:claim_id', (req, res) => {
       return res.json({ success: true, results: [] });
     }
 
-    const allRows = dbService.getAllEmbeddings();
+    const allRows = await dbService.getAllEmbeddings();
     const selfRow = allRows.find(r => r.claim_id === claim_id);
     const selfPhash = selfRow ? selfRow.phash : null;
 
@@ -1392,7 +1392,7 @@ app.listen(PORT, async () => {
     console.log(`⚠️  WARNING: Frontend URL is localhost! Claim URLs will be incorrect.`);
     console.log(`   Set FRONTEND_URL=https://veris.onrender.com in environment variables.`);
   }
-  console.log(`📁 Database: ${process.env.DATABASE_PATH || './database/claims.db'}`);
+  console.log(`📁 Database: Postgres (${process.env.DATABASE_URL ? 'configured' : '⚠️  DATABASE_URL not set'})`);
   console.log(`🌐 Endpoints:`);
   console.log(`   - POST /create-claim`);
   console.log(`   - GET  /check-claim?claim_id=<id>`);

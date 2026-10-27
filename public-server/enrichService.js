@@ -54,25 +54,25 @@ async function fetchImageBuffer(cid) {
  */
 async function enrichClaim(claim_id, cid) {
   if (!geminiService.isAvailable()) {
-    dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: 'GEMINI_API_KEY not configured' });
+    await dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: 'GEMINI_API_KEY not configured' });
     console.warn(`⚠️  Skipping enrichment for ${claim_id}: Gemini not configured`);
     return 'failed';
   }
   try {
-    dbService.setClaimAI(claim_id, { ai_status: 'pending', ai_error: '' });
+    await dbService.setClaimAI(claim_id, { ai_status: 'pending', ai_error: '' });
     const { buffer, mimeType } = await fetchImageBuffer(cid);
 
     // Deterministic perceptual hash for the tamper check. Computed and stored
     // independently of Gemini so verification works even if description fails.
     try {
       const phash = await dHash(buffer);
-      dbService.setClaimAI(claim_id, { phash });
+      await dbService.setClaimAI(claim_id, { phash });
     } catch (hashErr) {
       console.warn(`⚠️  Could not compute perceptual hash for ${claim_id}: ${hashErr.message}`);
     }
 
     const result = await geminiService.processImage(buffer, mimeType);
-    dbService.setClaimAI(claim_id, {
+    await dbService.setClaimAI(claim_id, {
       description: result.description,
       tags: result.tags,
       likely_ai_generated: result.likelyAiGenerated,
@@ -80,11 +80,11 @@ async function enrichClaim(claim_id, cid) {
       ai_status: 'done',
       ai_error: ''
     });
-    dbService.upsertEmbedding(claim_id, cid, result.embedding, result.model, result.dim);
+    await dbService.upsertEmbedding(claim_id, cid, result.embedding, result.model, result.dim);
     console.log(`✨ Enriched claim ${claim_id} (${result.tags.length} tags, ${result.dim}-dim embedding)`);
     return 'done';
   } catch (error) {
-    dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: error.message });
+    await dbService.setClaimAI(claim_id, { ai_status: 'failed', ai_error: error.message });
     console.error(`❌ Enrichment failed for ${claim_id}:`, error.message);
     return 'failed';
   }
