@@ -11,14 +11,14 @@ const STEPS = [
   {
     num: '02',
     title: 'Mint',
-    body: 'The image is pinned to IPFS via Filecoin and minted as an NFT on Ethereum. Tamper-proof. Timestamped. Permanent.',
-    chip: 'IPFS + Sepolia',
+    body: 'The image is pinned to IPFS via Filecoin and minted as an NFT on Solana. Tamper-proof. Timestamped. Permanent.',
+    chip: 'IPFS + Solana',
   },
   {
     num: '03',
     title: 'Claim',
     body: 'A QR code appears on-device. Anyone photographed scans it and claims their edition. You — the owner — manage everything here.',
-    chip: 'Privy + Wallet',
+    chip: 'Solana Wallet',
   },
 ]
 

@@ -20,10 +20,10 @@ export default function HeroSection({ onEnterPortal }) {
       <div className={`${styles.hudText} ${styles.hudTL}`}>
         VRS / CAM-01<br />
         SIGNAL ACTIVE<br />
-        <span className={styles.blink}>█</span> AUTH: PRIVY
+        <span className={styles.blink}>█</span> AUTH: WALLET
       </div>
       <div className={`${styles.hudText} ${styles.hudTR}`}>
-        CHAIN: SEPOLIA<br />
+        CHAIN: SOLANA DEVNET<br />
         STATUS: ONLINE<br />
         NFT: READY
       </div>
