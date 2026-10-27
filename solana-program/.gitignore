@@ -1,0 +1,14 @@
+.anchor
+.DS_Store
+target
+**/*.rs.bk
+node_modules
+test-ledger
+.yarn
+
+# The repo-root .gitignore blanket-ignores these (legacy ETH-stack rules);
+# un-ignore them here since this Anchor workspace intentionally checks them in:
+# deployment.json (program id / cluster / rpc url, no secrets) and Cargo.lock
+# (pins the exact crate versions needed to build against the sbf toolchain).
+!deployment.json
+!Cargo.lock
