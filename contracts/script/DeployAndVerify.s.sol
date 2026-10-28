@@ -3,10 +3,13 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {DeviceRegistry} from "../src/DeviceRegistry.sol";
-import {VerisERC1155} from "../src/VerisERC1155.sol";
+import {CandidERC1155} from "../src/CandidERC1155.sol";
 
 contract DeployAndVerifyScript is Script {
     function run() external {
+        // Free testnets only (Base Sepolia, Sepolia): never deploy to a mainnet by accident.
+        require(block.chainid == 84532 || block.chainid == 11155111, "Testnet only");
+
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         
@@ -27,19 +30,19 @@ contract DeployAndVerifyScript is Script {
         address deviceRegistryAddress = address(deviceRegistry);
         console.log("DeviceRegistry deployed at:", deviceRegistryAddress);
 
-        console.log("Deploying VerisERC1155...");
-        VerisERC1155 veris = new VerisERC1155(
+        console.log("Deploying CandidERC1155...");
+        CandidERC1155 candid = new CandidERC1155(
             deviceRegistryAddress,
             baseURI
         );
-        address verisAddress = address(veris);
-        console.log("VerisERC1155 deployed at:", verisAddress);
+        address candidAddress = address(candid);
+        console.log("CandidERC1155 deployed at:", candidAddress);
 
         vm.stopBroadcast();
 
         console.log("\n=== Deployment Summary ===");
         console.log("DeviceRegistry:", deviceRegistryAddress);
-        console.log("VerisERC1155:", verisAddress);
+        console.log("CandidERC1155:", candidAddress);
         console.log("Base URI:", baseURI);
     }
 }
