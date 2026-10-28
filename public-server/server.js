@@ -7,11 +7,12 @@ require('dotenv').config();
 
 const dbService = require('./dbService');
 const openaiService = require('./openaiService');
-const { cosineSimilarity } = openaiService;
 const { enrichClaim, fetchImageBuffer, backfillForensics } = require('./enrichService');
-const { sha256Hex, computeHashes, bestCombinedHashDistance } = require('./imageHash');
+const { sha256Hex, computeHashes, bestCombinedHashDistance, transformForOrientation } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
+const { computeForensicDiff } = require('./pixelDiff');
+const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -53,60 +54,6 @@ const TAMPER_POSSIBLE_MAX = parseFloat(process.env.TAMPER_POSSIBLE_MAX || '0.24'
 // when hashing comes up empty. Threshold is intentionally high (default 0.9)
 // since a lower one risks false positives between genuinely different photos.
 const CLIP_MATCH_MIN_SCORE = parseFloat(process.env.CLIP_MATCH_MIN_SCORE || '0.9');
-
-// The "similar photos" list blends two independent signals:
-//   • visual  — deterministic multi-hash (dHash + pHash-DCT + aHash) closeness.
-//               Captures composition/framing, so a DIFFERENT ANGLE of the same
-//               scene scores LOW even when the content is alike. Using three
-//               hash families instead of one closes the gap where dHash alone
-//               misses color-grading/blur edits that pHash's frequency domain
-//               catches (and vice versa for pixel-level noise).
-//   • content — OpenAI text-embedding cosine. Captures subject matter, so two
-//               different desks both described as "cluttered desk with laptop"
-//               score HIGH even though the photos look nothing alike.
-// Ranking by content alone made unrelated-but-similar-subject photos rank at
-// ~87%. Weighting VISUAL heavily fixes that while keeping content as a signal.
-// Both sub-scores are returned to the client, so the headline number is never
-// a black box.
-const SEARCH_VISUAL_WEIGHT = Math.min(Math.max(
-  parseFloat(process.env.SEARCH_VISUAL_WEIGHT || '0.7'), 0), 1);
-const SEARCH_CONTENT_WEIGHT = 1 - SEARCH_VISUAL_WEIGHT;
-
-// Combine visual + content into a single 0..1 headline score. When a candidate
-// has no perceptual hash yet (e.g. not backfilled), fall back to content only.
-function blendedSimilarity(visual, content) {
-  const c = Math.max(0, Math.min(1, content)); // cosine can be slightly <0
-  if (visual === null || visual === undefined) {
-    return { score: c, visual: null, content: c };
-  }
-  const v = Math.max(0, Math.min(1, visual));
-  return {
-    score: SEARCH_VISUAL_WEIGHT * v + SEARCH_CONTENT_WEIGHT * c,
-    visual: v,
-    content: c
-  };
-}
-
-// Build the {orientation, dhash, phash, ahash}[] list a claim row was stored
-// with, for orientation-tolerant matching (see imageHash.computeOrientationHashes
-// / bestCombinedHashDistance). Rows already backfilled with orientation_hashes
-// use that; older rows that only have the single orientation-'0' columns still
-// compare fine, they just won't match a rotated/mirrored re-upload until the
-// backfill job (POST /api/enrich/backfill) reaches them.
-function rowOrientationHashes(row) {
-  if (row.orientation_hashes) {
-    try {
-      const parsed = JSON.parse(row.orientation_hashes);
-      if (Array.isArray(parsed) && parsed.length) return parsed;
-    } catch {
-      // fall through to the legacy single-orientation shape below
-    }
-  }
-  if (row.phash || row.phash_dct || row.ahash) {
-    return [{ orientation: '0', dhash: row.phash, phash: row.phash_dct, ahash: row.ahash }];
-  }
-  return [];
-}
 
 // In-memory upload handling for the semantic search endpoint (10MB cap).
 const upload = multer({
@@ -363,6 +310,52 @@ app.get('/check-claim', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// Every claim this wallet address has actually claimed on-chain — lets a phone that never
+// captured anything itself (a fresh install, a second device) still see the wallet's full
+// archive, instead of only whatever claim ids happen to be cached in this device's local storage.
+app.get('/claims/by-wallet/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      return res.status(400).json({ success: false, error: 'Invalid wallet address' });
+    }
+
+    const claims = await dbService.getClaimsByRecipient(address);
+
+    res.json({
+      success: true,
+      claims: claims.map((claim) => ({
+        claim_id: claim.claim_id,
+        status: claim.status,
+        recipient_address: claim.recipient_address || null,
+        token_id: claim.token_id || null,
+        tx_hash: claim.tx_hash || null,
+        cid: claim.cid,
+        metadata_cid: claim.metadata_cid || null,
+        device_id: claim.device_id || null,
+        camera_id: claim.camera_id || null,
+        device_address: claim.device_address || null,
+        image_hash: claim.image_hash || null,
+        signature: claim.signature || null,
+        latitude: claim.latitude || null,
+        longitude: claim.longitude || null,
+        location_name: claim.location_name || null,
+        description: claim.description || null,
+        tags: (() => { try { return claim.tags ? JSON.parse(claim.tags) : []; } catch { return []; } })(),
+        ai_status: claim.ai_status || null,
+        likely_ai_generated: claim.likely_ai_generated == null ? null : Boolean(claim.likely_ai_generated),
+        ai_assessment: claim.ai_assessment || null,
+        created_at: claim.created_at,
+        claimed_at: claim.claimed_at || null,
+        completed_at: claim.completed_at || null
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error listing claims by wallet:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -1299,16 +1292,13 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
     try { uploadHashes = await computeHashes(buffer); } catch (e) {
       console.warn('⚠️  Could not compute perceptual hashes for upload:', e.message);
     }
-    // computeHashes never actually rejects (each hash family catches its own
-    // sharp errors to null internally), so the try/catch above won't fire even
-    // when the format is undecodable — e.g. a HEIC photo straight off an
-    // iPhone, which this server's sharp build can't decode (no bundled HEVC
-    // decoder; AVIF works, HEIC doesn't). Detect that case explicitly so the
-    // response says "couldn't read this image" instead of silently returning
-    // "no match", which would otherwise look like a real negative result.
     const hashDecodeFailed = !uploadHashes.dhash && !uploadHashes.phash && !uploadHashes.ahash;
 
     let verdict = { type: 'no_match', message: 'This image does not match any verified photo on-chain.' };
+    // Fetched lazily the first time an altered-copy tier needs the original's
+    // bytes (the forensic diff below, and/or the OpenAI side-by-side
+    // comparison further down) and reused for both instead of fetching twice.
+    let cachedOriginalBuffer = null;
 
     const exact = await dbService.getClaimByImageHash(uploadSha);
     if (exact) {
@@ -1362,6 +1352,23 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           original_cid: best.row.cid || null,
           claim_url: `${FRONTEND_URL}/claim/${best.row.claim_id}`
         };
+
+        // ── Real pixel diff against the matched original — only for the two
+        // tiers where the hash vote says "probably edited, not just
+        // recompressed" (a pure re-encode's SSIM is always ~1.0 with no
+        // region, so skip the fetch+compute cost for that tier).
+        if ((tier === 'structural_edit' || tier === 'possible_match') && verdict.original_cid) {
+          try {
+            const { buffer: origBuffer } = await fetchImageBuffer(verdict.original_cid);
+            cachedOriginalBuffer = origBuffer;
+            const alignedOriginal = best.orientation && best.orientation !== '0'
+              ? await transformForOrientation(origBuffer, best.orientation)
+              : origBuffer;
+            verdict.forensic_diff = await computeForensicDiff(alignedOriginal, buffer);
+          } catch (diffErr) {
+            console.warn('⚠️  Could not compute forensic diff:', diffErr.message);
+          }
+        }
       }
     }
 
@@ -1372,14 +1379,23 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       console.warn('⚠️  Could not extract EXIF signal for upload:', e.message);
     }
 
+    // ── CLIP query embedding — computed once (if enabled), shared by layer 3b
+    // (semantic recovery) and layer 4 (content-similarity for "visually
+    // similar"), so a request never pays for two separate CLIP inferences.
+    let uploadClip = null;
+    if (clipService.isAvailable() && !hashDecodeFailed) {
+      try { uploadClip = await clipService.embedImage(buffer, req.file.mimetype); } catch (e) {
+        console.warn('⚠️  Could not compute CLIP embedding for upload:', e.message);
+      }
+    }
+
     // ── Layer 3b: CLIP semantic-visual recovery — only when hashing found
     // nothing. Catches edits (heavy filters, noise) strong enough to push
     // every hash band above; see CLIP_MATCH_MIN_SCORE comment above. Never
     // runs when the hash scan already produced a verdict — CLIP is a softer
     // signal and shouldn't second-guess a real hash match.
-    if (verdict.type === 'no_match' && !hashDecodeFailed && clipService.isAvailable()) {
+    if (verdict.type === 'no_match' && uploadClip) {
       try {
-        const uploadClip = await clipService.embedImage(buffer, req.file.mimetype);
         let best = null;
         for (const row of await dbService.getAllClipEmbeddings()) {
           let stored;
@@ -1410,7 +1426,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       }
     }
 
-    // ── Layers 4 & 5: OpenAI description, embedding search, AI hint ──────────
+    // ── Layers 4 & 5: OpenAI description, similar-photos ranking, AI hint ────
     // Best-effort: if OpenAI is down, the hash verdict above is still returned.
     let queryDescription = null;
     let aiHint = null;
@@ -1430,7 +1446,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         // showing OpenAI both images side by side. Non-authoritative, best-effort.
         if (verdict.type === 'altered_copy' && verdict.original_cid) {
           try {
-            const { buffer: origBuffer } = await fetchImageBuffer(verdict.original_cid);
+            const origBuffer = cachedOriginalBuffer || (await fetchImageBuffer(verdict.original_cid)).buffer;
             const diff = await openaiService.compareImages(origBuffer, buffer, req.file.mimetype);
             verdict.changes = {
               summary: diff.summary || null,
@@ -1443,37 +1459,25 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           }
         }
 
-        const rows = await dbService.getAllEmbeddings();
-        similar = rows.map(row => {
-          let stored;
-          try { stored = JSON.parse(row.embedding); } catch { stored = null; }
-          const content = stored ? cosineSimilarity(q.embedding, stored) : 0;
-          // Deterministic visual closeness via the multi-hash blend (if either
-          // side has at least one perceptual hash to compare), checked against
-          // every stored rotation/mirror orientation of the candidate.
-          const cmp = bestCombinedHashDistance(uploadHashes, rowOrientationHashes(row));
-          const visual = cmp.distance === null ? null : 1 - cmp.distance;
-          const blend = blendedSimilarity(visual, content);
-          let tags = [];
-          try { tags = row.tags ? JSON.parse(row.tags) : []; } catch { tags = []; }
-          return {
-            claim_id: row.claim_id,
-            token_id: row.token_id || null,
-            cid: row.cid,
-            recipient_address: row.recipient_address || null,
-            device_id: row.device_id || null,
-            created_at: row.created_at,
-            description: row.description || null,
-            tags,
-            similarity: Math.round(blend.score * 100) / 100,
-            visual_similarity: blend.visual === null ? null : Math.round(blend.visual * 100) / 100,
-            content_similarity: Math.round(blend.content * 100) / 100,
-            claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
-          };
-        })
-          .filter(r => r.similarity >= SEARCH_MIN_SCORE)
-          .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, 5);
+        // Exclude the claim already surfaced as the verdict itself (exact OR
+        // altered_copy) — showing it again in "visually similar" is redundant
+        // at best and, for an exact match, was previously confusing: its own
+        // re-generated caption embeds slightly differently from its stored
+        // one every time (LLM captioning isn't deterministic), so a
+        // BYTE-IDENTICAL image could show up there at ~91% instead of the
+        // ~100% a user would expect from matching itself.
+        const alreadyMatchedClaimId = (verdict.type === 'authentic_original' || verdict.type === 'altered_copy')
+          ? verdict.claim_id
+          : null;
+
+        similar = buildSimilarResults({
+          rows: await dbService.getAllEmbeddings(),
+          excludeClaimId: alreadyMatchedClaimId,
+          query: { hashes: uploadHashes, clipEmbedding: uploadClip, textEmbedding: q.embedding },
+          frontendUrl: FRONTEND_URL,
+          minScore: SEARCH_MIN_SCORE,
+          limit: 5
+        });
       } catch (e) {
         console.warn('⚠️  OpenAI enrichment of query failed (hash verdict still returned):', e.message);
       }
@@ -1518,6 +1522,12 @@ app.get('/api/similar/:claim_id', async (req, res) => {
       return res.json({ success: true, results: [] });
     }
 
+    const selfClip = await dbService.getClipEmbedding(claim_id);
+    let selfClipEmbedding = null;
+    if (selfClip && selfClip.embedding) {
+      try { selfClipEmbedding = JSON.parse(selfClip.embedding); } catch { selfClipEmbedding = null; }
+    }
+
     const allRows = await dbService.getAllEmbeddings();
     const selfRow = allRows.find(r => r.claim_id === claim_id);
     // Query with just this claim's canonical (orientation '0') hash set — no
@@ -1528,28 +1538,14 @@ app.get('/api/similar/:claim_id', async (req, res) => {
       ? { dhash: selfRow.phash, phash: selfRow.phash_dct, ahash: selfRow.ahash }
       : { dhash: null, phash: null, ahash: null };
 
-    const rows = allRows.filter(r => r.claim_id !== claim_id);
-    const results = rows.map(row => {
-      let stored;
-      try { stored = JSON.parse(row.embedding); } catch { stored = null; }
-      const content = stored ? cosineSimilarity(selfEmbedding, stored) : 0;
-      const cmp = bestCombinedHashDistance(selfHashes, rowOrientationHashes(row));
-      const visual = cmp.distance === null ? null : 1 - cmp.distance;
-      const blend = blendedSimilarity(visual, content);
-      return {
-        claim_id: row.claim_id,
-        token_id: row.token_id || null,
-        cid: row.cid,
-        description: row.description || null,
-        similarity: Math.round(blend.score * 100) / 100,
-        visual_similarity: blend.visual === null ? null : Math.round(blend.visual * 100) / 100,
-        content_similarity: Math.round(blend.content * 100) / 100,
-        claim_url: `${FRONTEND_URL}/claim/${row.claim_id}`
-      };
-    })
-      .filter(r => r.similarity >= SEARCH_MIN_SCORE)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
+    const results = buildSimilarResults({
+      rows: allRows,
+      excludeClaimId: claim_id,
+      query: { hashes: selfHashes, clipEmbedding: selfClipEmbedding, textEmbedding: selfEmbedding },
+      frontendUrl: FRONTEND_URL,
+      minScore: SEARCH_MIN_SCORE,
+      limit
+    });
 
     res.json({ success: true, results });
   } catch (error) {
@@ -1615,6 +1611,7 @@ app.listen(PORT, async () => {
   console.log(`🌐 Endpoints:`);
   console.log(`   - POST /create-claim`);
   console.log(`   - GET  /check-claim?claim_id=<id>`);
+  console.log(`   - GET  /claims/by-wallet/:address`);
   console.log(`   - GET  /claim/:claim_id`);
   console.log(`   - POST /claim/:claim_id/submit`);
   console.log(`   - POST /complete-claim`);
