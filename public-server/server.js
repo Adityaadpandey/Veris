@@ -1109,32 +1109,6 @@ app.post('/complete-claim', async (req, res) => {
   }
 });
 
-// Re-run AI enrichment for a claim (recovers failed/missing enrichment).
-app.post('/api/enrich/:claim_id', async (req, res) => {
-  try {
-    const { claim_id } = req.params;
-    const claim = await dbService.getClaim(claim_id);
-    if (!claim) {
-      return res.status(404).json({ success: false, error: 'Claim not found' });
-    }
-    if (!geminiService.isAvailable()) {
-      return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
-    }
-    await enrichClaim(claim.claim_id, claim.cid);
-    const updated = await dbService.getClaim(claim_id);
-    res.json({
-      success: updated.ai_status === 'done',
-      claim_id,
-      ai_status: updated.ai_status,
-      ai_error: updated.ai_error || null,
-      description: updated.description || null
-    });
-  } catch (error) {
-    console.error('❌ Error enriching claim:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // In-memory progress for the batch backfill below. Single-process server, so
 // a plain object is enough — no need for a job table for this.
 let backfillStatus = { running: false, total: 0, done: 0, failed: 0, force: false, startedAt: null, finishedAt: null };
@@ -1158,6 +1132,10 @@ function requireAdminToken(req, res) {
 // the batch off in the background and responds immediately, since a large
 // backlog can take far longer than an HTTP request should stay open. Poll
 // GET /api/enrich/backfill for progress.
+//
+// Registered ABOVE POST /api/enrich/:claim_id on purpose — Express matches
+// routes in registration order, and :claim_id would otherwise swallow the
+// literal path "backfill" as a claim id.
 app.post('/api/enrich/backfill', async (req, res) => {
   if (!requireAdminToken(req, res)) return;
   if (!geminiService.isAvailable()) {
@@ -1201,6 +1179,32 @@ app.post('/api/enrich/backfill', async (req, res) => {
 app.get('/api/enrich/backfill', (req, res) => {
   if (!requireAdminToken(req, res)) return;
   res.json({ success: true, status: backfillStatus });
+});
+
+// Re-run AI enrichment for a claim (recovers failed/missing enrichment).
+app.post('/api/enrich/:claim_id', async (req, res) => {
+  try {
+    const { claim_id } = req.params;
+    const claim = await dbService.getClaim(claim_id);
+    if (!claim) {
+      return res.status(404).json({ success: false, error: 'Claim not found' });
+    }
+    if (!geminiService.isAvailable()) {
+      return res.status(503).json({ success: false, error: 'Gemini service is not configured' });
+    }
+    await enrichClaim(claim.claim_id, claim.cid);
+    const updated = await dbService.getClaim(claim_id);
+    res.json({
+      success: updated.ai_status === 'done',
+      claim_id,
+      ai_status: updated.ai_status,
+      ai_error: updated.ai_error || null,
+      description: updated.description || null
+    });
+  } catch (error) {
+    console.error('❌ Error enriching claim:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Verify & Search: upload an image, get a deterministic authenticity verdict
