@@ -15,7 +15,6 @@ import dbService from './dbService.js';
 import web3Service from './web3Service.js';
 import filecoinService from './filecoinService.js';
 import claimClient from './claimClient.js';
-import { generateProof, submitProofOnChain } from './vlayerService.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
 
@@ -823,81 +822,6 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
               console.log(`   ✅ Original NFT minted! Token ID: ${mintResult.tokenId}, TX: ${mintResult.txHash}`);
               console.log(`   ✅ Claim is now OPEN - users can mint unlimited editions`);
 
-              (async () => {
-                try {
-                  console.log(`\n🔐 [VLAYER] Generating ZK proof for claim: ${claimId} (background)`);
-                  const proofData = await generateProof(claimId);
-                  
-                  dbService.createProof(
-                    claimId,
-                    mintResult.tokenId,
-                    proofData.data.zkProof,
-                    proofData.data.journalDataAbi
-                  );
-                  
-                  console.log(`   ✅ ZK proof generated and stored for claim: ${claimId}`);
-                  
-                  try {
-                    console.log(`   🔄 Syncing proof status to claim server (pending)...`);
-                    await claimClient.updateProofStatus(claimId, mintResult.tokenId, 'pending', null);
-                    console.log(`   ✅ Proof status synced to claim server: pending`);
-                  } catch (syncError) {
-                    console.error(`   ❌ Could not sync proof status to claim server: ${syncError.message}`);
-                    console.error(`   ❌ Error details:`, syncError);
-                  }
-                  
-                  try {
-                    console.log(`   📤 Submitting proof on-chain...`);
-                    const deviceWallet = web3Service.deviceWallet;
-                    const submissionResult = await submitProofOnChain(
-                      claimId,
-                      proofData.data.zkProof,
-                      proofData.data.journalDataAbi,
-                      deviceWallet
-                    );
-                    
-                    dbService.updateProof(claimId, {
-                      proof_tx_hash: submissionResult.transactionHash,
-                      verification_status: submissionResult.status,
-                      submitted_at: 'now'
-                    });
-                    
-                    try {
-                      console.log(`   🔄 Syncing proof submission to claim server (${submissionResult.status})...`);
-                      await claimClient.updateProofStatus(
-                        claimId,
-                        mintResult.tokenId,
-                        submissionResult.status,
-                        submissionResult.transactionHash
-                      );
-                      console.log(`   ✅ Proof submission synced to claim server: ${submissionResult.status}`);
-                    } catch (syncError) {
-                      console.error(`   ❌ Could not sync proof submission to claim server: ${syncError.message}`);
-                      console.error(`   ❌ Error details:`, syncError);
-                    }
-                    
-                    console.log(`   ✅ Proof submitted on-chain! TX: ${submissionResult.transactionHash}`);
-                  } catch (submitError) {
-                    console.error(`   ⚠️ Proof submission failed: ${submitError.message}`);
-                    console.error(`   ⚠️ Proof generated but not submitted - can retry later`);
-                    dbService.updateProof(claimId, {
-                      verification_status: 'failed'
-                    });
-                    
-                    try {
-                      console.log(`   🔄 Syncing failed status to claim server...`);
-                      await claimClient.updateProofStatus(claimId, mintResult.tokenId, 'failed', null);
-                      console.log(`   ✅ Failed status synced to claim server`);
-                    } catch (syncError) {
-                      console.error(`   ❌ Could not sync failed status to claim server: ${syncError.message}`);
-                      console.error(`   ❌ Error details:`, syncError);
-                    }
-                  }
-                } catch (proofError) {
-                  console.error(`   ⚠️ ZK proof generation failed: ${proofError.message}`);
-                  console.error(`   ⚠️ NFT minted successfully but proof generation failed - can retry later`);
-                }
-              })();
             } catch (mintError) {
               console.error(`   ❌ Original NFT minting failed: ${mintError.message}`);
               console.error(`   ⚠️ Image uploaded but original NFT not minted - will retry later`);
@@ -1069,77 +993,6 @@ app.get('/status', (req, res) => {
   });
 });
 
-/**
- * GET /api/proofs/:claim_id
- * Get proof data for a claim ID
- */
-app.get('/api/proofs/:claim_id', async (req, res) => {
-  try {
-    const { claim_id } = req.params;
-
-    const proof = dbService.getProof(claim_id);
-
-    if (!proof) {
-      return res.status(404).json({
-        success: false,
-        error: 'Proof not found for this claim'
-      });
-    }
-
-    res.json({
-      success: true,
-      claim_id: proof.claim_id,
-      token_id: proof.token_id,
-      zk_proof: proof.zk_proof,
-      journal_data_abi: proof.journal_data_abi,
-      proof_tx_hash: proof.proof_tx_hash,
-      verification_status: proof.verification_status,
-      created_at: proof.created_at,
-      submitted_at: proof.submitted_at,
-      verified_at: proof.verified_at
-    });
-  } catch (error) {
-    console.error('❌ Error getting proof:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-app.get('/api/proofs/token/:token_id', async (req, res) => {
-  try {
-    const { token_id } = req.params;
-
-    const proof = dbService.getProofByTokenId(parseInt(token_id));
-
-    if (!proof) {
-      return res.status(404).json({
-        success: false,
-        error: 'Proof not found for this token ID'
-      });
-    }
-
-    res.json({
-      success: true,
-      claim_id: proof.claim_id,
-      token_id: proof.token_id,
-      zk_proof: proof.zk_proof,
-      journal_data_abi: proof.journal_data_abi,
-      proof_tx_hash: proof.proof_tx_hash,
-      verification_status: proof.verification_status,
-      created_at: proof.created_at,
-      submitted_at: proof.submitted_at,
-      verified_at: proof.verified_at
-    });
-  } catch (error) {
-    console.error('❌ Error getting proof by token ID:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
 
 // Privy Session Signer Endpoints
 app.post('/api/privy/create-session-signer', async (req, res) => {
