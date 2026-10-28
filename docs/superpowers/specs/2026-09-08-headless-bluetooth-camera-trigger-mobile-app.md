@@ -49,7 +49,7 @@ Add to `android/app/src/main/AndroidManifest.xml`. Android 12+ (API 31+) uses th
 ## Connection protocol
 
 - Fixed SPP UUID: `00001101-0000-1000-8000-00805F9B34FB` (the library's classic-RFCOMM `connect()` uses this by default — no manual UUID wiring needed).
-- Fixed, discoverable device name: `Veris-Cam-<device-id>`. The app finds the Pi by filtering the phone's *already-paired* devices by name — it does not run a fresh discovery scan each time, since the phone was paired with the Pi in the one-time setup step.
+- Fixed, discoverable device name: `Veris-Cam-<device-id>`. The app finds the Pi by filtering the phone's _already-paired_ devices by name — it does not run a fresh discovery scan each time, since the phone was paired with the Pi in the one-time setup step.
 - Line protocol, `\n`-delimited in both directions:
   - App → Pi: `CAPTURE\n` (v1 has exactly one command).
   - Pi → App: status lines, vocabulary below.
@@ -57,20 +57,20 @@ Add to `android/app/src/main/AndroidManifest.xml`. Android 12+ (API 31+) uses th
 
 ## Status vocabulary (from the design doc — implement exactly these)
 
-| Status line | Meaning | UI treatment |
-|---|---|---|
-| `CAPTURING` | Photo capture started | Spinner, "Capturing..." |
-| `CAPTURED` | Photo taken | "Captured" |
-| `SIGNED` | Hardware signature applied | "Signed" |
-| `TETHERING` | Bringing up Bluetooth PAN link | "Connecting to network..." |
-| `UPLOADING` | Upload to Filecoin/backend in progress | "Uploading..." |
-| `UPLOADED:<claimUrl>` | Upload + claim created | Show claim URL / QR, terminal success state |
-| `QUEUED:offline` | No network within timeout; queued on the Pi for later auto-retry | "Saved — will upload automatically" (not an error) |
-| `FAILED:capture` / `FAILED:signing` / `FAILED:upload` | Hard failure at that stage | Error state with the failed stage named |
+| Status line                                           | Meaning                                                          | UI treatment                                       |
+| ----------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------- |
+| `CAPTURING`                                           | Photo capture started                                            | Spinner, "Capturing..."                            |
+| `CAPTURED`                                            | Photo taken                                                      | "Captured"                                         |
+| `SIGNED`                                              | Hardware signature applied                                       | "Signed"                                           |
+| `TETHERING`                                           | Bringing up Bluetooth PAN link                                   | "Connecting to network..."                         |
+| `UPLOADING`                                           | Upload to Filecoin/backend in progress                           | "Uploading..."                                     |
+| `UPLOADED:<claimUrl>`                                 | Upload + claim created                                           | Show claim URL / QR, terminal success state        |
+| `QUEUED:offline`                                      | No network within timeout; queued on the Pi for later auto-retry | "Saved — will upload automatically" (not an error) |
+| `FAILED:capture` / `FAILED:signing` / `FAILED:upload` | Hard failure at that stage                                       | Error state with the failed stage named            |
 
 Any other free-form line (the shared pipeline also forwards human-readable progress text, e.g. `Uploading to Filecoin...`) should just be appended to a scrolling status log rather than driving UI state — only the fixed tokens above should trigger state transitions.
 
-Note that `QUEUED:offline` and a later successful retry are **not correlated back to this capture** in v1 — the Pi retries in the background and, if the phone happens to be connected when the retry succeeds, it will receive a *new*, unprompted `UPLOADED:<claimUrl>` line with no preceding `CAPTURE` from this session. The app's status parser must handle an `UPLOADED:` line arriving without having just sent `CAPTURE` (e.g. by always updating a "last claim" panel rather than assuming it's tied to the button press in progress).
+Note that `QUEUED:offline` and a later successful retry are **not correlated back to this capture** in v1 — the Pi retries in the background and, if the phone happens to be connected when the retry succeeds, it will receive a _new_, unprompted `UPLOADED:<claimUrl>` line with no preceding `CAPTURE` from this session. The app's status parser must handle an `UPLOADED:` line arriving without having just sent `CAPTURE` (e.g. by always updating a "last claim" panel rather than assuming it's tied to the button press in progress).
 
 ## Screens
 
@@ -90,39 +90,39 @@ The following is illustrative, matching `react-native-bluetooth-classic`'s docum
 ```typescript
 import RNBluetoothClassic, {
   BluetoothDevice,
-} from 'react-native-bluetooth-classic';
+} from "react-native-bluetooth-classic";
 
-const DEVICE_NAME_PREFIX = 'Veris-Cam-';
+const DEVICE_NAME_PREFIX = "Veris-Cam-";
 
 export type PiStatusLine =
-  | { kind: 'CAPTURING' }
-  | { kind: 'CAPTURED' }
-  | { kind: 'SIGNED' }
-  | { kind: 'TETHERING' }
-  | { kind: 'UPLOADING' }
-  | { kind: 'UPLOADED'; claimUrl: string }
-  | { kind: 'QUEUED_OFFLINE' }
-  | { kind: 'FAILED'; stage: string }
-  | { kind: 'RAW'; text: string };
+  | { kind: "CAPTURING" }
+  | { kind: "CAPTURED" }
+  | { kind: "SIGNED" }
+  | { kind: "TETHERING" }
+  | { kind: "UPLOADING" }
+  | { kind: "UPLOADED"; claimUrl: string }
+  | { kind: "QUEUED_OFFLINE" }
+  | { kind: "FAILED"; stage: string }
+  | { kind: "RAW"; text: string };
 
 export function parseStatusLine(line: string): PiStatusLine {
   const trimmed = line.trim();
 
-  if (trimmed === 'CAPTURING') return { kind: 'CAPTURING' };
-  if (trimmed === 'CAPTURED') return { kind: 'CAPTURED' };
-  if (trimmed === 'SIGNED') return { kind: 'SIGNED' };
-  if (trimmed === 'TETHERING') return { kind: 'TETHERING' };
-  if (trimmed === 'UPLOADING') return { kind: 'UPLOADING' };
-  if (trimmed === 'QUEUED:offline') return { kind: 'QUEUED_OFFLINE' };
+  if (trimmed === "CAPTURING") return { kind: "CAPTURING" };
+  if (trimmed === "CAPTURED") return { kind: "CAPTURED" };
+  if (trimmed === "SIGNED") return { kind: "SIGNED" };
+  if (trimmed === "TETHERING") return { kind: "TETHERING" };
+  if (trimmed === "UPLOADING") return { kind: "UPLOADING" };
+  if (trimmed === "QUEUED:offline") return { kind: "QUEUED_OFFLINE" };
 
-  if (trimmed.startsWith('UPLOADED:')) {
-    return { kind: 'UPLOADED', claimUrl: trimmed.slice('UPLOADED:'.length) };
+  if (trimmed.startsWith("UPLOADED:")) {
+    return { kind: "UPLOADED", claimUrl: trimmed.slice("UPLOADED:".length) };
   }
-  if (trimmed.startsWith('FAILED:')) {
-    return { kind: 'FAILED', stage: trimmed.slice('FAILED:'.length) };
+  if (trimmed.startsWith("FAILED:")) {
+    return { kind: "FAILED", stage: trimmed.slice("FAILED:".length) };
   }
 
-  return { kind: 'RAW', text: trimmed };
+  return { kind: "RAW", text: trimmed };
 }
 
 export class PiConnection {
@@ -141,10 +141,10 @@ export class PiConnection {
     onDisconnected: () => void,
   ): Promise<void> {
     const connected = await device.connect({
-      DELIMITER: '\n',
+      DELIMITER: "\n",
     });
     if (!connected) {
-      throw new Error('Failed to connect to Pi');
+      throw new Error("Failed to connect to Pi");
     }
 
     this.device = device;
@@ -153,17 +153,19 @@ export class PiConnection {
       onStatus(parseStatusLine(event.data));
     });
 
-    this.disconnectSubscription = RNBluetoothClassic.onDeviceDisconnected(() => {
-      this.cleanup();
-      onDisconnected();
-    });
+    this.disconnectSubscription = RNBluetoothClassic.onDeviceDisconnected(
+      () => {
+        this.cleanup();
+        onDisconnected();
+      },
+    );
   }
 
   async sendCapture(): Promise<void> {
     if (!this.device) {
-      throw new Error('Not connected');
+      throw new Error("Not connected");
     }
-    await this.device.write('CAPTURE\n');
+    await this.device.write("CAPTURE\n");
   }
 
   async disconnect(): Promise<void> {
@@ -184,7 +186,7 @@ export class PiConnection {
 ### `src/screens/TriggerScreen.tsx`
 
 ```tsx
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -193,22 +195,22 @@ import {
   StyleSheet,
   PermissionsAndroid,
   Platform,
-} from 'react-native';
-import { PiConnection, PiStatusLine } from '../bluetooth/piConnection';
+} from "react-native";
+import { PiConnection, PiStatusLine } from "../bluetooth/piConnection";
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected';
+type ConnectionState = "disconnected" | "connecting" | "connected";
 type CaptureStage =
-  | 'idle'
-  | 'capturing'
-  | 'captured'
-  | 'signed'
-  | 'tethering'
-  | 'uploading'
-  | 'queued'
-  | 'failed';
+  | "idle"
+  | "capturing"
+  | "captured"
+  | "signed"
+  | "tethering"
+  | "uploading"
+  | "queued"
+  | "failed";
 
 async function requestBluetoothPermissions(): Promise<boolean> {
-  if (Platform.OS !== 'android' || Platform.Version < 31) return true;
+  if (Platform.OS !== "android" || Platform.Version < 31) return true;
 
   const results = await PermissionsAndroid.requestMultiple([
     PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
@@ -223,8 +225,8 @@ async function requestBluetoothPermissions(): Promise<boolean> {
 export function TriggerScreen() {
   const connectionRef = useRef(new PiConnection());
   const [connectionState, setConnectionState] =
-    useState<ConnectionState>('disconnected');
-  const [stage, setStage] = useState<CaptureStage>('idle');
+    useState<ConnectionState>("disconnected");
+  const [stage, setStage] = useState<CaptureStage>("idle");
   const [failedStage, setFailedStage] = useState<string | null>(null);
   const [claimUrl, setClaimUrl] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -236,41 +238,41 @@ export function TriggerScreen() {
   const handleStatus = useCallback(
     (status: PiStatusLine) => {
       switch (status.kind) {
-        case 'CAPTURING':
-          setStage('capturing');
-          appendLog('Capturing...');
+        case "CAPTURING":
+          setStage("capturing");
+          appendLog("Capturing...");
           break;
-        case 'CAPTURED':
-          setStage('captured');
-          appendLog('Captured');
+        case "CAPTURED":
+          setStage("captured");
+          appendLog("Captured");
           break;
-        case 'SIGNED':
-          setStage('signed');
-          appendLog('Signed');
+        case "SIGNED":
+          setStage("signed");
+          appendLog("Signed");
           break;
-        case 'TETHERING':
-          setStage('tethering');
-          appendLog('Connecting to network...');
+        case "TETHERING":
+          setStage("tethering");
+          appendLog("Connecting to network...");
           break;
-        case 'UPLOADING':
-          setStage('uploading');
-          appendLog('Uploading...');
+        case "UPLOADING":
+          setStage("uploading");
+          appendLog("Uploading...");
           break;
-        case 'UPLOADED':
-          setStage('idle');
+        case "UPLOADED":
+          setStage("idle");
           setClaimUrl(status.claimUrl);
           appendLog(`Uploaded: ${status.claimUrl}`);
           break;
-        case 'QUEUED_OFFLINE':
-          setStage('queued');
-          appendLog('Offline - saved, will upload automatically');
+        case "QUEUED_OFFLINE":
+          setStage("queued");
+          appendLog("Offline - saved, will upload automatically");
           break;
-        case 'FAILED':
-          setStage('failed');
+        case "FAILED":
+          setStage("failed");
           setFailedStage(status.stage);
           appendLog(`Failed: ${status.stage}`);
           break;
-        case 'RAW':
+        case "RAW":
           appendLog(status.text);
           break;
       }
@@ -281,32 +283,30 @@ export function TriggerScreen() {
   const connect = useCallback(async () => {
     const granted = await requestBluetoothPermissions();
     if (!granted) {
-      appendLog('Bluetooth permission denied');
+      appendLog("Bluetooth permission denied");
       return;
     }
 
-    setConnectionState('connecting');
+    setConnectionState("connecting");
     try {
       const device = await connectionRef.current.findPairedPi();
       if (!device) {
-        appendLog('No paired Veris-Cam device found - pair it in Android Bluetooth settings first');
-        setConnectionState('disconnected');
+        appendLog(
+          "No paired Veris-Cam device found - pair it in Android Bluetooth settings first",
+        );
+        setConnectionState("disconnected");
         return;
       }
 
-      await connectionRef.current.connect(
-        device,
-        handleStatus,
-        () => {
-          setConnectionState('disconnected');
-          appendLog('Disconnected');
-        },
-      );
-      setConnectionState('connected');
+      await connectionRef.current.connect(device, handleStatus, () => {
+        setConnectionState("disconnected");
+        appendLog("Disconnected");
+      });
+      setConnectionState("connected");
       appendLog(`Connected to ${device.name}`);
     } catch (err) {
       appendLog(`Connection failed: ${(err as Error).message}`);
-      setConnectionState('disconnected');
+      setConnectionState("disconnected");
     }
   }, [appendLog, handleStatus]);
 
@@ -328,15 +328,15 @@ export function TriggerScreen() {
     }
   }, [appendLog]);
 
-  const isBusy = stage !== 'idle' && stage !== 'failed' && stage !== 'queued';
-  const shutterDisabled = connectionState !== 'connected' || isBusy;
+  const isBusy = stage !== "idle" && stage !== "failed" && stage !== "queued";
+  const shutterDisabled = connectionState !== "connected" || isBusy;
 
   return (
     <View style={styles.container}>
       <Text style={styles.connectionLabel}>
-        {connectionState === 'connected' && 'Connected'}
-        {connectionState === 'connecting' && 'Connecting...'}
-        {connectionState === 'disconnected' && 'Not connected'}
+        {connectionState === "connected" && "Connected"}
+        {connectionState === "connecting" && "Connecting..."}
+        {connectionState === "disconnected" && "Not connected"}
       </Text>
 
       <Pressable
@@ -351,7 +351,7 @@ export function TriggerScreen() {
       {failedStage && <Text style={styles.error}>Failed: {failedStage}</Text>}
       {claimUrl && <Text style={styles.claimUrl}>{claimUrl}</Text>}
 
-      {connectionState === 'disconnected' && (
+      {connectionState === "disconnected" && (
         <Pressable style={styles.retryButton} onPress={connect}>
           <Text>Retry connection</Text>
         </Pressable>
@@ -372,22 +372,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   connectionLabel: { fontSize: 14, marginBottom: 12 },
   shutter: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  shutterDisabled: { backgroundColor: '#9ca3af' },
-  shutterText: { color: 'white', fontWeight: '600' },
-  stage: { textAlign: 'center', marginTop: 12, fontSize: 16 },
-  error: { textAlign: 'center', color: '#dc2626', marginTop: 8 },
-  claimUrl: { textAlign: 'center', color: '#16a34a', marginTop: 8 },
-  retryButton: { alignSelf: 'center', marginTop: 12, padding: 8 },
+  shutterDisabled: { backgroundColor: "#9ca3af" },
+  shutterText: { color: "white", fontWeight: "600" },
+  stage: { textAlign: "center", marginTop: 12, fontSize: 16 },
+  error: { textAlign: "center", color: "#dc2626", marginTop: 8 },
+  claimUrl: { textAlign: "center", color: "#16a34a", marginTop: 8 },
+  retryButton: { alignSelf: "center", marginTop: 12, padding: 8 },
   log: { flex: 1, marginTop: 16 },
-  logLine: { fontSize: 12, color: '#6b7280' },
+  logLine: { fontSize: 12, color: "#6b7280" },
 });
 ```
 
@@ -399,18 +399,18 @@ const styles = StyleSheet.create({
 
 ## Error handling
 
-| Condition | App behavior |
-|---|---|
-| Bluetooth off | `RNBluetoothClassic.isBluetoothEnabled()` before connecting; if false, prompt the user to enable it (`requestBluetoothEnabled()`) rather than failing silently. |
-| Permission denied | Show a persistent banner explaining Bluetooth permission is required, with a button to open app settings. |
-| No paired Veris-Cam device found | Explicit message telling the user to pair via Android Bluetooth settings first (this app doesn't do pairing). |
+| Condition                           | App behavior                                                                                                                                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bluetooth off                       | `RNBluetoothClassic.isBluetoothEnabled()` before connecting; if false, prompt the user to enable it (`requestBluetoothEnabled()`) rather than failing silently.                                                                                                      |
+| Permission denied                   | Show a persistent banner explaining Bluetooth permission is required, with a button to open app settings.                                                                                                                                                            |
+| No paired Veris-Cam device found    | Explicit message telling the user to pair via Android Bluetooth settings first (this app doesn't do pairing).                                                                                                                                                        |
 | Connected, then dropped mid-capture | `onDeviceDisconnected` fires; any in-flight stage is abandoned in the UI (no status update will ever arrive) — surface this distinctly from a clean `FAILED:*` so the user knows to reconnect and possibly recapture, rather than assuming the photo failed cleanly. |
-| `QUEUED:offline` | Not an error state — communicate that the photo is safe and will upload automatically, matching the Pi's own retry behavior. |
+| `QUEUED:offline`                    | Not an error state — communicate that the photo is safe and will upload automatically, matching the Pi's own retry behavior.                                                                                                                                         |
 
 ## Testing
 
 Matches the design doc's testing section on the Pi side:
 
 1. Before this app exists / during its early development: use a generic Android "Bluetooth terminal" app to send `CAPTURE` to the paired Pi and confirm the status sequence.
-2. Once this app is buildable: normal trigger end-to-end, trigger with phone tethering off (confirm `QUEUED:offline` and that a *later* connection receives an unprompted `UPLOADED:<url>` once the Pi's background retry succeeds), and reconnect-after-drop (kill/reopen the app or walk out of Bluetooth range and back).
-3. No screen on the Pi — all verification during development is either through this app or by SSHing into the Pi and tailing `headless-camera.service` logs (`journalctl -u headless-camera.service -f`).
+2. Once this app is buildable: normal trigger end-to-end, trigger with phone tethering off (confirm `QUEUED:offline` and that a _later_ connection receives an unprompted `UPLOADED:<url>` once the Pi's background retry succeeds), and reconnect-after-drop (kill/reopen the app or walk out of Bluetooth range and back).
+3. No screen on the Pi — all verification during development is either through this app or by SSHing into the Pi and tailing `headless-camera@<user>.service` logs (`journalctl -u headless-camera@<user>.service -f`).
