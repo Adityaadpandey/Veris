@@ -8,7 +8,7 @@ VENV_PATH="${VENV_PATH:-$HOME/camera-env}"
 
 BACKEND_DIR="$PROJECT_ROOT/hardware-web3-service"
 BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
-CLAIM_SERVER_URL="${CLAIM_SERVER_URL:-https://veris.onrender.com}"
+CLAIM_SERVER_URL="${CLAIM_SERVER_URL:-https://api.veris.live}"
 NGROK_URL="${NGROK_URL:-https://set-daring-tadpole.ngrok-free.app}"
 
 BACKEND_PID=""
