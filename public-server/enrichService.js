@@ -11,7 +11,8 @@
 
 const dbService = require('./dbService');
 const openaiService = require('./openaiService');
-const { dHash } = require('./imageHash');
+const { computeOrientationHashes } = require('./imageHash');
+const { exifSignals } = require('./imageForensics');
 
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 
@@ -62,13 +63,42 @@ async function enrichClaim(claim_id, cid) {
     await dbService.setClaimAI(claim_id, { ai_status: 'pending', ai_error: '' });
     const { buffer, mimeType } = await fetchImageBuffer(cid);
 
-    // Deterministic perceptual hash for the tamper check. Computed and stored
-    // independently of OpenAI so verification works even if description fails.
+    // Deterministic perceptual hashes for the tamper check. Computed and
+    // stored independently of OpenAI so verification works even if the
+    // description step fails. Three hash families (gradient/frequency/
+    // average) at all 8 rotation/mirror orientations, so a physically
+    // rotated or mirrored re-upload of this image still matches on search
+    // (see imageHash.computeOrientationHashes). phash/phash_dct/ahash stay
+    // set to the orientation '0' entry for any older reader that expects them.
     try {
-      const phash = await dHash(buffer);
-      await dbService.setClaimAI(claim_id, { phash });
+      const orientations = await computeOrientationHashes(buffer);
+      const canonical = orientations.find(o => o.orientation === '0') || {};
+      if (!canonical.dhash && !canonical.phash && !canonical.ahash) {
+        // computeOrientationHashes swallows sharp decode errors internally
+        // (so this never throws), which means an undecodable format — e.g.
+        // HEIC, which this server's sharp build can't read — would otherwise
+        // fail completely silently at ingest time. Log it so it's at least
+        // visible in the server logs instead of just quietly never matching.
+        console.warn(`⚠️  Claim ${claim_id}: image did not decode for any perceptual hash (unsupported format or corrupt file?)`);
+      }
+      await dbService.setClaimAI(claim_id, {
+        phash: canonical.dhash || null,
+        phash_dct: canonical.phash || null,
+        ahash: canonical.ahash || null,
+        orientation_hashes: orientations
+      });
     } catch (hashErr) {
-      console.warn(`⚠️  Could not compute perceptual hash for ${claim_id}: ${hashErr.message}`);
+      console.warn(`⚠️  Could not compute perceptual hashes for ${claim_id}: ${hashErr.message}`);
+    }
+
+    // EXIF forensics on the on-chain original itself — best-effort, non-
+    // authoritative. Mostly useful to flag if a "camera" claim was actually
+    // captured/re-saved through editing software before being submitted.
+    try {
+      const exif = await exifSignals(buffer);
+      await dbService.setClaimAI(claim_id, { exif_signal: exif });
+    } catch (exifErr) {
+      console.warn(`⚠️  Could not extract EXIF signal for ${claim_id}: ${exifErr.message}`);
     }
 
     const result = await openaiService.processImage(buffer, mimeType);
@@ -90,4 +120,35 @@ async function enrichClaim(claim_id, cid) {
   }
 }
 
-module.exports = { fetchImageBuffer, enrichClaim };
+/**
+ * Fill in ONLY the deterministic forensic fields (multi-hash + EXIF signal)
+ * for a claim that already has AI enrichment but predates one of those fields
+ * being added. Free — no OpenAI call — so it's safe to run against every
+ * claim missing forensics without worrying about API cost or rate limits.
+ * Never throws. Returns 'done' | 'failed'.
+ */
+async function backfillForensics(claim_id, cid) {
+  try {
+    const { buffer } = await fetchImageBuffer(cid);
+    const orientations = await computeOrientationHashes(buffer);
+    const canonical = orientations.find(o => o.orientation === '0') || {};
+    if (!canonical.dhash && !canonical.phash && !canonical.ahash) {
+      console.warn(`⚠️  Claim ${claim_id}: image did not decode for any perceptual hash (unsupported format or corrupt file?)`);
+    }
+    const exif = await exifSignals(buffer);
+    await dbService.setClaimAI(claim_id, {
+      phash: canonical.dhash || null,
+      phash_dct: canonical.phash || null,
+      ahash: canonical.ahash || null,
+      orientation_hashes: orientations,
+      exif_signal: exif
+    });
+    console.log(`🔍 Backfilled forensics for ${claim_id}`);
+    return 'done';
+  } catch (error) {
+    console.error(`❌ Forensics backfill failed for ${claim_id}:`, error.message);
+    return 'failed';
+  }
+}
+
+module.exports = { fetchImageBuffer, enrichClaim, backfillForensics };
