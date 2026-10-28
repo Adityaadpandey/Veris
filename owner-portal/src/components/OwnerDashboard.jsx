@@ -6,6 +6,7 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { VERIS_ADDRESS, DEVICE_REGISTRY_ADDRESS, VERIS_ABI, hasTokenData } from "@/lib/contracts";
 import {
   Dialog,
   DialogContent,
@@ -40,39 +41,6 @@ const deBrand = (v) =>
         m[0] === m[0].toUpperCase() ? "Veris" : "veris",
       )
     : v;
-
-const VERIS_ADDRESS = "0x35f5B3b5D6BF361169743cB13D66849C4C839c69";
-const VERIS_ABI = [
-  {
-    name: "totalTokens",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    name: "getTokenMetadata",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "_tokenId", type: "uint256" }],
-    outputs: [
-      {
-        type: "tuple",
-        components: [
-          { name: "deviceAddress", type: "address" },
-          { name: "deviceId", type: "string" },
-          { name: "ipfsHash", type: "string" },
-          { name: "imageHash", type: "string" },
-          { name: "signature", type: "string" },
-          { name: "timestamp", type: "uint256" },
-          { name: "maxEditions", type: "uint256" },
-          { name: "isOriginal", type: "bool" },
-          { name: "originalTokenId", type: "uint256" },
-        ],
-      },
-    ],
-  },
-];
 
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
@@ -701,18 +669,18 @@ export default function OwnerDashboard() {
     backendOffline && onChainMeta
       ? onChainMeta
           .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
-          .filter(({ result }) => result?.isOriginal)
+          .filter(({ result }) => hasTokenData(result) && result.isOriginal)
           .map(({ result: m, id }) => ({
             id,
             status: "minted",
-            filecoinCid: cleanCid(m.ipfsHash),
+            filecoinCid: null, // CID is no longer on-chain; only the backend knows it
             createdAt: new Date(Number(m.timestamp) * 1000).toISOString(),
             claimId: resolvedClaimMap[id] || null,
             tokenId: id,
             txHash: null,
             ai_score: null,
-            deviceId: m.deviceId || null,
-            imageHash: m.imageHash || null,
+            deviceId: null,
+            imageHash: null,
             nftUrl: `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${id}`,
           }))
       : [];
@@ -1390,23 +1358,23 @@ export default function OwnerDashboard() {
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">ERC-1155</span>
                       <a
-                        href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
+                        href={`https://sepolia.etherscan.io/address/${VERIS_ADDRESS}`}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
                       >
-                        0x35f5…9c69 <ExternalLink size={10} />
+                        {VERIS_ADDRESS.slice(0, 6)}…{VERIS_ADDRESS.slice(-4)} <ExternalLink size={10} />
                       </a>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Registry</span>
                       <a
-                        href="https://sepolia.etherscan.io/address/0x874709472d1cF830d7F78809E7D37692a27013A0"
+                        href={`https://sepolia.etherscan.io/address/${DEVICE_REGISTRY_ADDRESS}`}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
                       >
-                        0x8747…13A0 <ExternalLink size={10} />
+                        {DEVICE_REGISTRY_ADDRESS.slice(0, 6)}…{DEVICE_REGISTRY_ADDRESS.slice(-4)} <ExternalLink size={10} />
                       </a>
                     </div>
                   </CardContent>

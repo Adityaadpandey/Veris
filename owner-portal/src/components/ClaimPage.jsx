@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Palette, Brutal, Pill, SectionHead, short } from '@/components/brutal'
+import { VERIS_ADDRESS, VERIS_ABI, hasTokenData } from '@/lib/contracts'
 import {
   Check,
   Copy,
@@ -16,40 +17,6 @@ import {
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
   || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
-
-const VERIS_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
-const VERIS_ABI = [
-  {
-    name: 'mintEdition',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: '_to',              type: 'address' },
-      { name: '_originalTokenId', type: 'uint256' },
-    ],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    name: 'getTokenMetadata',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: '_tokenId', type: 'uint256' }],
-    outputs: [{
-      type: 'tuple',
-      components: [
-        { name: 'deviceAddress',   type: 'address' },
-        { name: 'deviceId',        type: 'string'  },
-        { name: 'ipfsHash',        type: 'string'  },
-        { name: 'imageHash',       type: 'string'  },
-        { name: 'signature',       type: 'string'  },
-        { name: 'timestamp',       type: 'uint256' },
-        { name: 'maxEditions',     type: 'uint256' },
-        { name: 'isOriginal',      type: 'bool'    },
-        { name: 'originalTokenId', type: 'uint256' },
-      ],
-    }],
-  },
-]
 
 const cleanCid = (hash) => {
   if (!hash) return null
@@ -565,21 +532,23 @@ export default function ClaimPage() {
   const isOpen    = claim?.status === 'open' && !claimServerOffline
   const isPending = claim?.status === 'pending'
 
-  const cid           = cleanCid(onChainMeta?.ipfsHash) || claim?.cid
-  const imageHash     = onChainMeta?.imageHash     || claim?.image_hash
-  const signature     = onChainMeta?.signature     || claim?.signature
-  const deviceAddress = onChainMeta?.deviceAddress || claim?.device_address
-  const deviceId      = onChainMeta?.deviceId      || claim?.camera_id || claim?.device_id
-  const capturedAt    = onChainMeta?.timestamp
+  // The contract only holds device, timestamp and a metadata hash now. CID, image hash
+  // and signature come from the claim record.
+  const onChainVerified = hasTokenData(onChainMeta)
+  const cid           = cleanCid(claim?.cid)
+  const imageHash     = claim?.image_hash
+  const signature     = claim?.signature
+  const deviceAddress = (onChainVerified && onChainMeta.deviceAddress) || claim?.device_address
+  const deviceId      = claim?.camera_id || claim?.device_id
+  const capturedAt    = onChainVerified
     ? new Date(Number(onChainMeta.timestamp) * 1000).toISOString()
     : claim?.created_at
 
   const ipfsUrl        = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
   const etherscanTx    = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
-  const etherscanToken = `https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69`
+  const etherscanToken = `https://sepolia.etherscan.io/address/${VERIS_ADDRESS}`
   const etherscanNft   = claim?.token_id ? `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${claim.token_id}` : null
   const mapsUrl        = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
-  const onChainVerified = !!onChainMeta
   const isMinted = onChainVerified || !!claim?.token_id
 
   return (
