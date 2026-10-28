@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 5001;
 app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://veris.onrender.com';
-const { IPFS_GATEWAYS } = require('./ipfsGateways');
+const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 // Shared secret required to trigger a batch backfill (POST /api/enrich/backfill).
 // Unset by default, which keeps that route disabled rather than open to anyone.
@@ -755,7 +755,7 @@ app.get('/claim/:claim_id', async (req, res) => {
         <div class="nft-card-container">
           <div class="nft-card" id="nftCard">
             <div class="nft-token-id">Token #${claim.token_id}</div>
-            <img id="nftImage" src="${IPFS_GATEWAYS[0]}/${claim.cid}" data-cid="${claim.cid}" alt="Veris Photo #${claim.token_id}" class="nft-image">
+            <img id="nftImage" src="https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs/${claim.cid}" data-cid="${claim.cid}" alt="Veris Photo #${claim.token_id}" class="nft-image">
             <div class="nft-info">
               <div class="nft-name">Veris Photo #${claim.token_id}</div>
               <div class="nft-description">Captured by Veris Camera</div>
@@ -805,7 +805,12 @@ app.get('/claim/:claim_id', async (req, res) => {
           const img = document.getElementById('nftImage');
           if (!img) return;
           const cid = img.dataset.cid;
-          const gateways = ${JSON.stringify(IPFS_GATEWAYS.map(g => g + '/'))};
+          const gateways = [
+            'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs/',
+            'https://w3s.link/ipfs/',
+            'https://dweb.link/ipfs/',
+            'https://ipfs.io/ipfs/'
+          ];
           let idx = 0;
           img.onerror = function() {
             idx++;
@@ -1639,16 +1644,9 @@ app.get('/api/image/:cid', async (req, res) => {
     return res.status(400).json({ error: 'Invalid CID' });
   }
   try {
-    // First gateway that actually has the CID wins; a 404/timeout just moves on to the next one.
-    let upstream = null;
-    for (const gateway of IPFS_GATEWAYS) {
-      try {
-        const r = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10000) });
-        if (r.ok) { upstream = r; break; }
-      } catch (_) { /* try next gateway */ }
-    }
-    if (!upstream) {
-      return res.status(404).json({ error: 'Image not available' });
+    const upstream = await fetch(`${LIGHTHOUSE_GATEWAY}/${cid}`);
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: 'Image not available' });
     }
     const contentType = upstream.headers.get('content-type') || 'image/jpeg';
     res.setHeader('Content-Type', contentType);
