@@ -1,0 +1,16 @@
+[Unit]
+Description=Veris Hardware Web3 Service (Filecoin upload, ZK proofs, NFT minting)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/Veris/hardware-web3-service
+EnvironmentFile=-/home/%i/Veris/hardware-web3-service/.env
+ExecStart=/usr/bin/node /home/%i/Veris/hardware-web3-service/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
