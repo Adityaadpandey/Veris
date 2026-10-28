@@ -539,11 +539,6 @@ app.get('/claim/:claim_id', (req, res) => {
         <div id="message"></div>
         <div class="claim-id">Claim ID: ${claim_id}</div>
         
-        <div style="margin-top: 20px; text-align: center; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-          <a href="/verify/${claim_id}" class="proof-link">
-            🔐 Check ZK Proof Verification
-          </a>
-        </div>
       </div>
 
       <script>
