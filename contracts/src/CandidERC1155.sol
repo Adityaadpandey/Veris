@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./DeviceRegistry.sol";
 
-contract VerisERC1155 is ERC1155, Ownable {
+contract CandidERC1155 is ERC1155, Ownable {
     using Strings for uint256;
 
     // Reference to device registry for validation
@@ -15,6 +15,10 @@ contract VerisERC1155 is ERC1155, Ownable {
     mapping(uint256 => TokenMetadata) public tokenMetadata;
     mapping(uint256 => uint256) public editionCount;
     uint256 public totalTokens;
+
+    // sha256 of the companion (phone/DSLR) photo that was shot alongside an original.
+    // The photo itself lives on IPFS; this is the tamper-proof pointer to it.
+    mapping(uint256 => bytes32) public companionHash;
 
     // Photo metadata lives on IPFS, not on-chain. This used to carry the CID, the
     // image hash, the signature and the device id as strings, and every one of
@@ -40,6 +44,8 @@ contract VerisERC1155 is ERC1155, Ownable {
         uint256 indexed originalTokenId,
         address indexed to
     );
+
+    event CompanionHashSet(uint256 indexed tokenId, bytes32 indexed companionHash);
 
     event BaseURIUpdated(string newBaseURI);
     constructor(
@@ -152,6 +158,20 @@ contract VerisERC1155 is ERC1155, Ownable {
         }
 
         return tokenIds;
+    }
+
+    // Anchors the companion photo's hash to an original. Only the device that
+    // minted the original can do it, and only once, so the pairing can't be
+    // swapped for a different photo afterwards.
+    function setCompanionHash(uint256 _tokenId, bytes32 _hash) external {
+        TokenMetadata memory m = tokenMetadata[_tokenId];
+        require(m.isOriginal, "Not an original token");
+        require(msg.sender == m.deviceAddress, "Only the minting device");
+        require(_hash != bytes32(0), "Empty hash");
+        require(companionHash[_tokenId] == bytes32(0), "Companion hash already set");
+
+        companionHash[_tokenId] = _hash;
+        emit CompanionHashSet(_tokenId, _hash);
     }
 
     function getTokenMetadata(uint256 _tokenId) external view returns (TokenMetadata memory) {

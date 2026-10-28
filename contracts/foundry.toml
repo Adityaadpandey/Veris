@@ -7,6 +7,7 @@ optimizer = true
 optimizer_runs = 200
 via_ir = true
 evm_version = "cancun"
+fs_permissions = [{ access = "write", path = "deployment.json" }]
 
 [profile.ci]
 fuzz = { runs = 100 }
@@ -16,11 +17,10 @@ optimizer = false
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
-mainnet = "${MAINNET_RPC_URL}"
-# Base is an L2, so the same mint costs a fraction of mainnet gas.
-base = "${BASE_RPC_URL}"
+# Free testnet for zero-cost deploys; faucet ETH only.
+base_sepolia = "https://sepolia.base.org"
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
-base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
 
