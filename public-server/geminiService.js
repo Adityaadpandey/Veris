@@ -46,6 +46,33 @@ const RESPONSE_SCHEMA = {
   required: ['description', 'caption', 'tags', 'likely_ai_generated', 'ai_assessment']
 };
 
+// Prompt + schema for comparing a flagged "altered copy" against its on-chain
+// original. IMAGE A = verified original, IMAGE B = the uploaded copy.
+const COMPARE_PROMPT =
+  'You are shown two photographs of the SAME scene. IMAGE A is the verified, ' +
+  'ORIGINAL on-chain photo. IMAGE B is a copy that was flagged as the same ' +
+  'source image but is NOT byte-identical. Carefully compare B against A and ' +
+  'report ONLY concrete, observable differences in B: added/removed/moved ' +
+  'objects, edited or cloned regions, changed text, altered colors/brightness, ' +
+  'cropping or resizing, and any signs of AI generation or splicing (warped ' +
+  'text, impossible edges, inconsistent lighting/shadows). List each concrete ' +
+  'change as a short phrase in "changes". If A and B look visually identical ' +
+  'and the only difference is likely re-saving/compression, return an empty ' +
+  'changes array and set change_type to "reencoded". Choose change_type from: ' +
+  '"reencoded", "cropped_or_resized", "color_or_exposure_edit", ' +
+  '"content_edited", "ai_modified", "unknown". Write a one-line "summary". ' +
+  'This is a best-effort visual assessment, not cryptographic proof.';
+
+const COMPARE_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    changes: { type: 'array', items: { type: 'string' } },
+    change_type: { type: 'string' }
+  },
+  required: ['summary', 'changes', 'change_type']
+};
+
 // L2-normalize a vector. gemini-embedding-001 does NOT return unit-length
 // vectors when outputDimensionality < 3072, so we normalize ourselves; this
 // also lets stored vectors be compared with a plain dot product if needed.
@@ -155,6 +182,49 @@ class GeminiService {
     const likelyAiGenerated = Boolean(parsed.likely_ai_generated);
     const aiAssessment = (parsed.ai_assessment || '').trim();
     return { description, caption, tags, likelyAiGenerated, aiAssessment };
+  }
+
+  /**
+   * Compare an "altered copy" against its verified on-chain original and
+   * describe what changed. Best-effort / non-authoritative. Runs through the
+   * sequential rate-limit queue.
+   * @returns { summary, changes: string[], changeType }
+   */
+  async compareImages(originalBuffer, suspectBuffer, mimeType = 'image/jpeg') {
+    return this._enqueue(async () => {
+      if (!this.isAvailable()) throw new Error('GEMINI_API_KEY is not configured');
+      const url = `${GEMINI_API_BASE}/models/${VISION_MODEL}:generateContent`;
+      const body = {
+        contents: [{
+          parts: [
+            { text: COMPARE_PROMPT },
+            { text: 'IMAGE A (verified original):' },
+            { inline_data: { mime_type: mimeType, data: originalBuffer.toString('base64') } },
+            { text: 'IMAGE B (uploaded copy to inspect):' },
+            { inline_data: { mime_type: mimeType, data: suspectBuffer.toString('base64') } }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: COMPARE_SCHEMA
+        }
+      };
+      const data = await postJson(url, body);
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!raw) throw new Error('Gemini comparison returned no content');
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch {
+        throw new Error('Gemini comparison returned malformed JSON');
+      }
+      const changes = Array.isArray(parsed.changes)
+        ? parsed.changes.map(c => String(c).trim()).filter(Boolean)
+        : [];
+      return {
+        summary: (parsed.summary || '').trim(),
+        changes,
+        changeType: (parsed.change_type || 'unknown').trim()
+      };
+    });
   }
 
   async embedText(text, taskType = 'SEMANTIC_SIMILARITY') {
