@@ -35,3 +35,24 @@ def random_image():
 def test_data_exists():
     assert os.path.exists(DSLR_PATH), f"Missing {DSLR_PATH}"
     assert os.path.exists(ESP_PATH), f"Missing {ESP_PATH}"
+
+
+def test_preprocess_esp_sharpens_and_normalizes(esp_image):
+    from main import preprocess_esp
+    result = preprocess_esp(esp_image)
+    assert isinstance(result, Image.Image)
+    assert result.mode == "RGB"
+    arr = np.array(result)
+    assert arr.min() <= 5
+    assert arr.max() >= 250
+
+
+def test_preprocess_pair_returns_correct_sizes():
+    from main import preprocess_pair
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    result = preprocess_pair(dslr, esp)
+    assert result["orb_dslr"].size == (512, 512)
+    assert result["orb_esp"].size == (512, 512)
+    assert result["small_dslr"].size == (256, 256)
+    assert result["small_esp"].size == (256, 256)
