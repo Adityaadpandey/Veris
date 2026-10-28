@@ -933,6 +933,17 @@ app.get('/api/images/list', (req, res) => {
   }
 });
 
+app.get('/api/images/:id/photo', (req, res) => {
+  try {
+    const image = dbService.getImageById(parseInt(req.params.id));
+    if (!image) return res.status(404).send('Not found');
+    if (!fs.existsSync(image.filepath)) return res.status(404).send('File not on disk');
+    res.sendFile(image.filepath);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
 app.get('/api/images/:id', async (req, res) => {
   try {
     const { id } = req.params;
