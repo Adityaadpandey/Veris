@@ -105,3 +105,22 @@ def signal_orb(img1: Image.Image, img2: Image.Image,
     min_kp = min(len(kp1), len(kp2))
     score = inliers / max(min_kp, 1)
     return min(score, 1.0)
+
+
+# ------------------------------------------------------------------
+#  SIGNAL 2: SSIM ON EDGE MAPS
+# ------------------------------------------------------------------
+
+def signal_ssim_edge(img1: Image.Image, img2: Image.Image) -> float:
+    """
+    Canny edge detection on both images, then SSIM on the edge maps.
+    Returns 0-1 score.
+    """
+    gray1 = cv2.cvtColor(np.array(img1), cv2.COLOR_RGB2GRAY)
+    gray2 = cv2.cvtColor(np.array(img2), cv2.COLOR_RGB2GRAY)
+
+    edges1 = cv2.Canny(gray1, 50, 150)
+    edges2 = cv2.Canny(gray2, 50, 150)
+
+    score = ssim(edges1, edges2)
+    return max(0.0, min(score, 1.0))
