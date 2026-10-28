@@ -105,25 +105,12 @@ class ClaimDBService {
       )
     `);
 
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS proofs (
-        claim_id TEXT PRIMARY KEY,
-        token_id INTEGER,
-        verification_status TEXT DEFAULT 'pending',
-        proof_tx_hash TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        submitted_at DATETIME,
-        verified_at DATETIME,
-        FOREIGN KEY (claim_id) REFERENCES claims(claim_id)
-      )
-    `);
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
       CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_claim ON edition_requests(claim_id);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status);
-      CREATE INDEX IF NOT EXISTS idx_proofs_status ON proofs(verification_status);
     `);
   }
 
@@ -307,57 +294,6 @@ class ClaimDBService {
     return stmt.all(status);
   }
 
-  createOrUpdateProof(claimId, tokenId, verificationStatus, proofTxHash = null) {
-    const existing = this.getProof(claimId);
-    
-    if (existing) {
-      const updateFields = [];
-      const values = [];
-      
-      if (tokenId !== null && tokenId !== undefined) {
-        updateFields.push('token_id = ?');
-        values.push(tokenId);
-      }
-      
-      if (verificationStatus) {
-        updateFields.push('verification_status = ?');
-        values.push(verificationStatus);
-      }
-      
-      if (proofTxHash) {
-        updateFields.push('proof_tx_hash = ?');
-        values.push(proofTxHash);
-        updateFields.push('submitted_at = CURRENT_TIMESTAMP');
-      }
-      
-      if (verificationStatus === 'verified') {
-        updateFields.push('verified_at = CURRENT_TIMESTAMP');
-      }
-      
-      if (updateFields.length > 0) {
-        values.push(claimId);
-        const stmt = this.db.prepare(`
-          UPDATE proofs
-          SET ${updateFields.join(', ')}
-          WHERE claim_id = ?
-        `);
-        stmt.run(...values);
-      }
-    } else {
-      const stmt = this.db.prepare(`
-        INSERT INTO proofs (claim_id, token_id, verification_status, proof_tx_hash, created_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `);
-      stmt.run(claimId, tokenId, verificationStatus, proofTxHash);
-    }
-    
-    return this.getProof(claimId);
-  }
-
-  getProof(claimId) {
-    const stmt = this.db.prepare('SELECT * FROM proofs WHERE claim_id = ?');
-    return stmt.get(claimId);
-  }
 
   close() {
     if (this.db) {
