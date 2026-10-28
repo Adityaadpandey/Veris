@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 5001;
 // Middleware setup
 app.use(express.json());
 
-const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://veris.onrender.com';
+const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://api.veris.live';
 const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 const SEARCH_MIN_SCORE = parseFloat(process.env.SEARCH_MIN_SCORE || '0.7');
 // Shared secret required to trigger a batch backfill (POST /api/enrich/backfill).
@@ -1685,7 +1685,7 @@ app.listen(PORT, async () => {
   console.log(`🌐 Frontend URL: ${FRONTEND_URL}`);
   if (FRONTEND_URL.includes('localhost')) {
     console.log(`⚠️  WARNING: Frontend URL is localhost! Claim URLs will be incorrect.`);
-    console.log(`   Set FRONTEND_URL=https://veris.onrender.com in environment variables.`);
+    console.log(`   Set FRONTEND_URL=https://api.veris.live in environment variables.`);
   }
   console.log(`📁 Database: Postgres (${process.env.DATABASE_URL ? 'configured' : '⚠️  DATABASE_URL not set'})`);
   console.log(`🌐 Endpoints:`);
