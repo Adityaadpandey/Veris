@@ -68,23 +68,23 @@ class ThrottledFilter(Filter):
         self.pattern = pattern
         self.interval = interval
         self.last_log_time = {}
-    
+
     def filter(self, record):
         message = record.getMessage()
         if self.pattern in message:
             key = self.pattern
             now = time.time()
-            
+
             if key not in self.last_log_time:
                 self.last_log_time[key] = now
                 return True
-            
+
             if now - self.last_log_time[key] >= self.interval:
                 self.last_log_time[key] = now
                 return True
-            
+
             return False
-        
+
         return True
 
 logging.basicConfig(level=logging.INFO)
@@ -123,7 +123,7 @@ MIN_ZOOM = float(os.getenv('MIN_ZOOM', '1.0'))
 MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
 ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
 
-CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '270'))
+CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '90'))
 
 class ModernCard(FloatLayout):
     """Modern card component with glass-morphism effects and elevation."""
@@ -393,7 +393,7 @@ class BatteryMonitor:
         self.simulated = not UPS_AVAILABLE
         self.bus = None
         self.address = int(os.getenv('UPS_I2C_ADDRESS', '0x36'), 16)
-        
+
         if not self.simulated:
             try:
                 self.bus = smbus.SMBus(int(os.getenv('I2C_BUS', '1')))
@@ -414,13 +414,13 @@ class BatteryMonitor:
 
         try:
             soc_data = self.bus.read_i2c_block_data(self.address, 0x06, 2)
-            
+
             percentage = soc_data[0]
             if percentage > 100:
                 percentage = 100
-            
+
             return min(100, max(0, percentage))
-            
+
         except Exception as e:
             print(f"Battery read error: {e}")
             return 85
@@ -453,7 +453,7 @@ class CameraController:
 
         try:
             time.sleep(0.5)
-            
+
             self.camera = Picamera2()
             try:
                 config = self.camera.create_video_configuration(
@@ -470,20 +470,20 @@ class CameraController:
             try:
                 sensor_props = self.camera.camera_properties
                 self.sensor_size = sensor_props.get('PixelArraySize', (2592, 1944))
-                
+
                 self.camera_id = None
-                
+
                 camera_parts = []
-                
+
                 if 'Model' in sensor_props and sensor_props.get('Model'):
                     camera_parts.append(f"model:{sensor_props['Model']}")
-                
+
                 if 'SensorName' in sensor_props and sensor_props.get('SensorName'):
                     camera_parts.append(f"sensor:{sensor_props['SensorName']}")
-                
+
                 if 'LensName' in sensor_props and sensor_props.get('LensName'):
                     camera_parts.append(f"lens:{sensor_props['LensName']}")
-                
+
                 try:
                     import subprocess
                     result = subprocess.run(
@@ -496,14 +496,14 @@ class CameraController:
                         camera_parts.append(f"compatible:{result.stdout.strip()}")
                 except:
                     pass
-                
+
                 if camera_parts:
                     camera_id_str = "|".join(camera_parts)
                     import hashlib
                     self.camera_id = hashlib.sha256(camera_id_str.encode()).hexdigest()[:16]
                     print(f"Camera ID generated from properties: {self.camera_id}")
                     print(f"  Camera info: {camera_id_str[:80]}...")
-                
+
                 if not self.camera_id:
                     try:
                         import subprocess
@@ -527,14 +527,14 @@ class CameraController:
                                         break
                     except:
                         pass
-                
+
                 if not self.camera_id:
                     import hashlib
                     props_str = str(sorted(sensor_props.items()))
                     props_str += f"|size:{self.sensor_size[0]}x{self.sensor_size[1]}"
                     self.camera_id = hashlib.sha256(props_str.encode()).hexdigest()[:16]
                     print(f"Camera ID generated from properties hash: {self.camera_id}")
-                
+
             except Exception as e:
                 self.sensor_size = (2592, 1944)
                 print(f"Warning: Could not extract camera ID: {e}")
@@ -569,7 +569,7 @@ class CameraController:
             filename = CAPTURE_DIR / f"photo_{timestamp}.jpg"
 
             request = self.camera.capture_request()
-            
+
             if CAMERA_ROTATION != 0:
                 array = request.make_array("main")
                 if CAMERA_ROTATION == 90:
@@ -587,7 +587,7 @@ class CameraController:
                     request.save("main", str(filename))
             else:
                 request.save("main", str(filename))
-            
+
             request.release()
 
             print(f"Photo saved: {filename}")
@@ -662,7 +662,7 @@ class CameraController:
 
     def get_camera_id(self):
         return self.camera_id
-    
+
     def cleanup(self):
         if self.recording:
             self.stop_recording()
@@ -1120,7 +1120,7 @@ class CameraApp(App):
             fade_anim.start(self.status_card)
 
         Clock.schedule_once(hide_status, duration)
-    
+
     def _update_cinematic_viewfinder(self, widget, value):
         """Clean, minimal viewfinder overlay."""
         x, y = widget.pos
@@ -1167,31 +1167,31 @@ class CameraApp(App):
                     f'{BACKEND_URL}/api/balance',
                     timeout=10
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     if result.get('success'):
                         address = result.get('address')
                         eth_data = result.get('eth', {})
                         usdfc_data = result.get('usdfc', {})
-                        
+
                         balance_eth = eth_data.get('balanceEth', 0)
                         has_enough_eth = eth_data.get('hasEnoughBalance', False)
                         needs_eth_funding = eth_data.get('needsFunding', False)
-                        
+
                         balance_usdfc = usdfc_data.get('balanceUsdfc', 0)
                         has_enough_usdfc = usdfc_data.get('hasEnoughBalance', False)
                         needs_usdfc_funding = usdfc_data.get('needsFunding', False)
                         usdfc_available = usdfc_data.get('available', True)
-                        
+
                         has_enough = result.get('hasEnoughBalance', False)
-                        
+
                         # Always start camera stream - show QR overlay if balance is low
                         Clock.schedule_once(
                             lambda dt: self._start_camera_stream(),
                             0
                         )
-                        
+
                         # Device registration depends only on ETH balance (for gas fees)
                         if has_enough_eth:
                             # ETH balance sufficient - register device
@@ -1208,7 +1208,7 @@ class CameraApp(App):
                                 0.5
                             )
                             print(f"⚠️ ETH balance too low: {balance_eth} ETH (need 0.01 ETH) - Device registration skipped")
-                        
+
                         # Show USDFC funding QR if needed (but don't block registration)
                         if needs_usdfc_funding and usdfc_available:
                             Clock.schedule_once(
@@ -1216,7 +1216,7 @@ class CameraApp(App):
                                 0.5
                             )
                             print(f"⚠️ USDFC balance too low: {balance_usdfc} USDFC (need 0.1 USDFC) - Filecoin uploads may fail")
-                            
+
                             # Start balance polling
                             Clock.schedule_once(
                                 lambda dt: self._start_balance_polling(address),
@@ -1243,9 +1243,9 @@ class CameraApp(App):
                     lambda dt: self._start_camera_stream(),
                     0
                 )
-        
+
         threading.Thread(target=check_thread, daemon=True).start()
-    
+
     def _start_camera_stream(self):
         """Start camera preview stream with enhanced feedback."""
         if CAMERA_AVAILABLE and self.camera.initialized:
@@ -1261,13 +1261,13 @@ class CameraApp(App):
             Clock.schedule_once(lambda dt: self.photo_button.disable_glow(0.5), 5.0)
         else:
             self.show_status('Camera not available - Demo mode', 'warning', 5)
-    
+
     def _show_funding_qr_button(self, instance):
         if self.hardware_identity:
             hw_info = self.hardware_identity.get_hardware_info()
             address = hw_info['address']
             self._show_funding_qr(address, 0, 'ETH')
-    
+
     def _show_funding_qr(self, address, current_balance, token_type='ETH'):
         """Show QR code for funding the wallet with enhanced presentation."""
         if not QRCODE_AVAILABLE:
@@ -1325,53 +1325,53 @@ class CameraApp(App):
         except Exception as e:
             print(f"Error generating funding QR: {e}")
             self.show_status(f'Fund wallet: {address[:20]}...', 'warning', 8)
-    
+
     def _start_balance_polling(self, address):
         """Poll balance until sufficient funds are available."""
         def poll_balance(dt):
             if self.balance_check_passed:
                 return False  # Stop polling
-            
+
             try:
                 response = requests.get(
                     f'{BACKEND_URL}/api/balance',
                     timeout=5
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     if result.get('success'):
                         eth_data = result.get('eth', {})
                         balance_eth = eth_data.get('balanceEth', 0)
                         has_enough_eth = eth_data.get('hasEnoughBalance', False)
-                        
+
                         # Update status
                         self.qr_status.text = f'Current Balance: {balance_eth:.4f} ETH\n\nWaiting for 0.01+ ETH...'
-                        
+
                         if has_enough_eth:
                             # ETH balance is now sufficient - register device!
                             print(f"✅ ETH balance sufficient: {balance_eth} ETH")
                             self.balance_check_passed = True
-                            
+
                             # Hide QR overlay
                             Clock.schedule_once(
                                 lambda dt: setattr(self.qr_overlay, 'opacity', 0),
                                 0
                             )
-                            
+
                             # Start camera stream
                             Clock.schedule_once(
                                 lambda dt: self._start_camera_stream(),
                                 0
                             )
-                            
+
                             # Register device (only depends on ETH balance for gas fees)
                             if self.hardware_identity and self.camera.initialized:
                                 Clock.schedule_once(
                                     lambda dt: self._try_register_device(),
                                     1
                                 )
-                            
+
                             # Update status
                             Clock.schedule_once(
                                 lambda dt: setattr(self.status_label, 'text', 'Ready'),
@@ -1381,31 +1381,31 @@ class CameraApp(App):
                                 lambda dt: setattr(self.status_label, 'color', (0, 1, 0, 1)),
                                 0
                             )
-                            
+
                             return False  # Stop polling
-                            
+
             except Exception as e:
                 print(f"Balance polling error: {e}")
-            
+
             return True  # Continue polling
-        
+
         # Poll every 10 seconds
         Clock.schedule_interval(poll_balance, 10)
-    
+
     def _try_register_device(self):
         """Ensure device is registered and active with backend."""
         print("\n📋 [KIVY] Device registration check starting...")
-        
+
         if not self.hardware_identity:
             print("   ❌ Hardware identity not available")
             return
-        
+
         if not self.camera.initialized:
             print("   ❌ Camera not initialized")
             return
-        
+
         print("   ✅ Hardware identity and camera ready")
-        
+
         def register_thread():
             try:
                 print("   🔄 Getting hardware info...")
@@ -1413,15 +1413,15 @@ class CameraApp(App):
                 device_address = hw_info['address']
                 public_key = hw_info['public_key_hex']
                 camera_id = self.camera.get_camera_id()
-                
+
                 # Generate device ID from hardware info
                 device_id = f"{device_address[:8]}_{camera_id[:8]}"
-                
+
                 print(f"   📊 Device details:")
                 print(f"      Address: {device_address}")
                 print(f"      Device ID: {device_id}")
                 print(f"      Camera ID: {camera_id}")
-                
+
                 # Use ensure-registered endpoint which handles:
                 # 1. Check if registered - if not, register
                 # 2. Check if active - if not, activate
@@ -1438,13 +1438,13 @@ class CameraApp(App):
                     },
                     timeout=30
                 )
-                
+
                 print(f"   📊 Response status: {response.status_code}")
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     print(f"   📊 Response: {result}")
-                    
+
                     if result.get('success'):
                         if result.get('registered') and result.get('activated'):
                             if result.get('registrationTx'):
@@ -1464,14 +1464,14 @@ class CameraApp(App):
                         print(f"   Error details: {error_data}")
                     except:
                         print(f"   Response text: {response.text}")
-                    
+
             except requests.exceptions.RequestException as e:
                 print(f"❌ Network error during registration: {e}")
             except Exception as e:
                 print(f"❌ Could not register device: {e}")
                 import traceback
                 print(f"   Traceback: {traceback.format_exc()}")
-        
+
         threading.Thread(target=register_thread, daemon=True).start()
 
     def update_preview(self, dt):
@@ -1502,7 +1502,7 @@ class CameraApp(App):
                         k = 1  # 270° clockwise = 90° counter-clockwise
                     else:
                         k = 0
-                    
+
                     if k > 0:
                         frame = np.rot90(frame, k=k)
                         # Swap width and height after 90/270 degree rotation
@@ -1541,14 +1541,14 @@ class CameraApp(App):
         try:
             import json
             from pathlib import Path
-            
+
             if not self.hardware_identity:
                 return
-            
+
             # Get hardware info
             hw_info = self.hardware_identity.get_hardware_info()
             private_key_hex = self.hardware_identity.private_key.to_string().hex()
-            
+
             # Export data
             export_data = {
                 'privateKey': f'0x{private_key_hex}',
@@ -1556,24 +1556,24 @@ class CameraApp(App):
                 'cameraId': hw_info['camera_id'],
                 'publicKey': hw_info['public_key_hex']
             }
-            
+
             # Write to file
             export_file = Path(__file__).parent / '.device_key_export'
             with open(export_file, 'w') as f:
                 json.dump(export_data, f, indent=2)
-            
+
             print(f"✅ Device key exported to: {export_file}")
             print(f"   Address: {export_data['address']}")
             print(f"   Camera ID: {export_data['cameraId']}")
         except Exception as e:
             print(f"⚠️ Could not export device key: {e}")
-    
+
     def _print_hardware_info(self):
         """Print all hardware information on initialization."""
         print("\n" + "=" * 60)
         print("HARDWARE IDENTITY INFORMATION")
         print("=" * 60)
-        
+
         if self.hardware_identity:
             hw_info = self.hardware_identity.get_hardware_info()
             print(f"✓ Public Address: {hw_info['address']}")
@@ -1583,15 +1583,15 @@ class CameraApp(App):
             print(f"✓ Initialized: {hw_info['initialized']}")
         else:
             print("✗ Hardware identity not available")
-        
+
         if self.camera and self.camera.initialized:
             print(f"✓ Camera ID: {self.camera.get_camera_id()}")
             print(f"✓ Camera Initialized: {self.camera.initialized}")
         else:
             print("✗ Camera not initialized")
-        
+
         print("=" * 60 + "\n")
-    
+
     def update_battery(self, dt):
         """Update battery level display."""
         level = self.battery_monitor.get_battery_level()
@@ -1659,7 +1659,7 @@ class CameraApp(App):
         flash_anim = Animation(opacity=0, duration=0.12, t='out_cubic')
         flash_anim.bind(on_complete=lambda *args: self.root_layout.remove_widget(flash_overlay))
         flash_anim.start(flash_overlay)
-    
+
     def _get_location(self):
         """Fetch approximate location via IP geolocation. Returns dict or None."""
         try:
@@ -1789,7 +1789,7 @@ class CameraApp(App):
                 lambda dt: self.show_status('Upload Error', 'error', 3),
                 0
             )
-    
+
     def _generate_qr_image(self, data, out_path):
         """Generate QR code PNG to out_path. Tries local library first, then online API."""
         if QRCODE_AVAILABLE:
@@ -1872,27 +1872,27 @@ class CameraApp(App):
         """Close QR code overlay with smooth animation."""
         fade_anim = Animation(opacity=0, duration=0.4, t='in_cubic')
         fade_anim.start(self.qr_overlay)
-    
+
     def _start_claim_polling(self, claim_id):
         """Start polling for claim status."""
         def poll_claim(dt):
             if claim_id not in self.active_claims:
                 return False  # Stop polling
-            
+
             try:
                 response = requests.get(
                     f'{BACKEND_URL}/api/claims/check',
                     params={'claim_id': claim_id},
                     timeout=5
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
-                    
+
                     if result.get('success'):
                         status = result.get('status')
                         recipient = result.get('recipient_address')
-                        
+
                         if status == 'claimed' and recipient:
                             self.qr_status.text = f'Address received\nMinting NFT to:\n{recipient[:10]}...{recipient[-8:]}'
                             self.qr_status.color = (0, 1, 0, 1)  # Green
@@ -1900,13 +1900,13 @@ class CameraApp(App):
                             token_id = result.get('token_id')
                             self.qr_status.text = f'Original Minted\nToken ID: {token_id}\n\nScan QR to mint editions'
                             self.qr_status.color = (0, 1, 0, 1)  # Green
-                            
+
                             # Update status label
                             Clock.schedule_once(
                                 lambda dt: setattr(self.status_label, 'text', f'Minted #{token_id}'),
                                 0
                             )
-                            
+
                             # Clear status label after 10 seconds (only once per claim)
                             if claim_id not in self.cleared_mint_status:
                                 Clock.schedule_once(
@@ -1914,7 +1914,7 @@ class CameraApp(App):
                                     10
                                 )
                                 self.cleared_mint_status.add(claim_id)
-                            
+
                             # Keep QR code visible for others to mint editions
                             # Don't stop polling - keep showing QR for edition minting
                             # del self.active_claims[claim_id]
@@ -1922,52 +1922,52 @@ class CameraApp(App):
                         else:
                             self.qr_status.text = 'Waiting for wallet address...'
                             self.qr_status.color = (1, 1, 1, 1)  # White
-                            
+
             except Exception as e:
                 print(f"Polling error: {e}")
-            
+
             return True  # Continue polling
-        
+
         # Schedule polling
         Clock.schedule_interval(poll_claim, CLAIM_POLL_INTERVAL)
-    
+
     def _sign_image(self, image_path):
         """
         Sign an image file with hardware identity.
         Creates a signature file alongside the image.
-        
+
         Args:
             image_path: Path to image file
-            
+
         Returns:
             dict: Signature information
         """
         if not self.hardware_identity:
             return None
-        
+
         try:
             # Read image file and compute hash
             with open(image_path, 'rb') as f:
                 image_data = f.read()
-            
+
             # Compute SHA256 hash of image
             image_hash = hashlib.sha256(image_data).digest()
             image_hash_hex = image_hash.hex()
-            
+
             # Sign the hash
             signature_info = self.hardware_identity.sign_hash(image_hash)
             signature_info['image_hash'] = image_hash_hex
             signature_info['image_path'] = str(image_path)
             signature_info['timestamp'] = datetime.now().isoformat()
-            
+
             # Save signature to JSON file
             sig_path = Path(image_path).with_suffix('.sig.json')
             with open(sig_path, 'w') as f:
                 json.dump(signature_info, f, indent=2)
-            
+
             print(f"Signature saved: {sig_path}")
             return signature_info
-            
+
         except Exception as e:
             print(f"Error signing image: {e}")
             return None
@@ -2390,12 +2390,12 @@ class CameraApp(App):
     def close_viewer(self, instance):
         """Close media viewer and return to gallery grid."""
         print("Closing viewer and returning to gallery grid...")
-        
+
         # Store reference to viewer overlay before removal
         viewer_to_remove = None
         if hasattr(self, 'viewer_overlay'):
             viewer_to_remove = self.viewer_overlay
-        
+
         # Remove viewer overlay from wherever it is
         if viewer_to_remove:
             try:
@@ -2420,7 +2420,7 @@ class CameraApp(App):
                 # Clean up the viewer overlay reference
                 if hasattr(self, 'viewer_overlay'):
                     del self.viewer_overlay
-        
+
         # Ensure gallery grid is visible and properly displayed
         if hasattr(self, 'gallery_overlay'):
             # Make sure gallery overlay is visible and on top
