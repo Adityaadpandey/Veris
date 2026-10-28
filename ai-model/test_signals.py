@@ -74,3 +74,20 @@ def test_orb_random_image_scores_low(dslr_image, random_image):
     score = signal_orb(pair["orb_dslr"], pair["orb_esp"])
     assert 0.0 <= score <= 1.0
     assert score < 0.5, f"Random image ORB score {score} unexpectedly high"
+
+
+def test_ssim_edge_same_scene_above_floor():
+    from main import signal_ssim_edge, preprocess_pair
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    pair = preprocess_pair(dslr, esp)
+    score = signal_ssim_edge(pair["small_dslr"], pair["small_esp"])
+    assert 0.0 <= score <= 1.0
+    assert score > 0.15, f"Same scene SSIM edge score {score} below floor"
+
+
+def test_ssim_edge_random_image_scores_low(dslr_image, random_image):
+    from main import signal_ssim_edge, preprocess_pair
+    pair = preprocess_pair(dslr_image, random_image)
+    score = signal_ssim_edge(pair["small_dslr"], pair["small_esp"])
+    assert 0.0 <= score <= 1.0
