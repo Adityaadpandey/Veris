@@ -33,7 +33,7 @@ async function withNetworkRetry(label, fn) {
 
 class ClaimClient {
   constructor() {
-    this.baseURL = process.env.CLAIM_SERVER_URL || 'https://veris.onrender.com';
+    this.baseURL = process.env.CLAIM_SERVER_URL || 'https://api.veris.live';
     const timeout = parseInt(process.env.CLAIM_CLIENT_TIMEOUT || '30000', 10);
     this.client = axios.create({
       baseURL: this.baseURL,
