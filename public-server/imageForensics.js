@@ -94,4 +94,23 @@ async function exifSignals(buffer) {
   };
 }
 
-module.exports = { exifSignals };
+/**
+ * Best-effort original capture timestamp from EXIF (DateTimeOriginal, falling
+ * back to CreateDate). Used by Companion Capture to compare the device
+ * photo's actual capture instant against the phone's, instead of a later
+ * pipeline-artifact time (e.g. when the claim row was created, which can
+ * trail the real capture by however long minting took). Never throws —
+ * returns null when EXIF is missing or has no usable timestamp, same
+ * "no metadata is itself informative, not an error" stance as exifSignals.
+ */
+async function extractCaptureTimestamp(buffer) {
+  try {
+    const exif = await exifr.parse(buffer, { pick: ['DateTimeOriginal', 'CreateDate'] });
+    const timestamp = exif?.DateTimeOriginal || exif?.CreateDate;
+    return timestamp instanceof Date ? timestamp : null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { exifSignals, extractCaptureTimestamp };
