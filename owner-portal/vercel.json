@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/claim-server/:path*",
-      "destination": "http://ec2-3-110-190-144.ap-south-1.compute.amazonaws.com/:path*"
+      "destination": "http://ec2-65-2-151-80.ap-south-1.compute.amazonaws.com/:path*"
     },
     {
       "source": "/(.*)",
