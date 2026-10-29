@@ -1,25 +1,44 @@
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrutalBlock } from '@/components/brutal-block';
 import { Border, Palette, Radius } from '@/constants/theme';
 import { body, display, mono } from '@/constants/typography';
+import { useConnection } from '@/hooks/use-connection';
 import { useDevice } from '@/hooks/use-device';
+import { useWalletClaims } from '@/hooks/use-wallet-claims';
 
-// DEMO: static value — no real hardware telemetry channel exists yet.
-const SYNC_LATENCY_MS = 42;
-// DEMO: static value
-const FRAMES_CAPTURED_TODAY = 24;
-// DEMO: static value
-const FRAMES_SIGNED_TODAY = 24;
-// DEMO: static value
-const LAST_FRAME_AGO = '2M AGO';
+/** "2M AGO" style age of the newest frame, from its real claim timestamp. */
+function agoLabel(ms: number): string {
+  const min = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+  if (min < 1) return 'JUST NOW';
+  if (min < 60) return `${min}M AGO`;
+  const hr = Math.floor(min / 60);
+  return hr < 24 ? `${hr}H AGO` : `${Math.floor(hr / 24)}D AGO`;
+}
 
 export default function MonitorScreen() {
   const router = useRouter();
   const { paired } = useDevice();
+  const { address } = useConnection();
+  const claims = useWalletClaims(address);
+
+  // Real numbers from the wallet's own claims: how many frames today, how many carry a
+  // signature, and when the newest one landed.
+  const stats = useMemo(() => {
+    const startOfDay = new Date().setHours(0, 0, 0, 0);
+    const times = claims.map((c) => (c.created_at ? Date.parse(c.created_at) : NaN)).filter((t) => !Number.isNaN(t));
+    const today = claims.filter((c) => c.created_at && Date.parse(c.created_at) >= startOfDay);
+    return {
+      captured: today.length,
+      signed: today.filter((c) => c.signature).length,
+      lastFrame: times.length ? agoLabel(Math.max(...times)) : '—',
+      camera: claims.find((c) => c.camera_id)?.camera_id ?? null,
+    };
+  }, [claims]);
 
   // Only a paired Hotshoe has a shutter-side signing pipeline to watch — a Clip
   // signs from Click Photo instead, and "no device" has nothing to show. Same
@@ -51,9 +70,9 @@ export default function MonitorScreen() {
                 <Text style={mono(10, { spacing: 0.18, color: 'rgba(237,231,218,.55)' })}>PAIRED DEVICE</Text>
                 <Text style={mono(10, { spacing: 0.18, color: Palette.orange })}>TRIGGER →</Text>
               </View>
-              <Text style={[display(22, { color: Palette.bone }), { marginTop: 10 }]}>VERIS Hotshoe #0043</Text>
+              <Text style={[display(22, { color: Palette.bone }), { marginTop: 10 }]}>VERIS Hotshoe{stats.camera ? ` ${stats.camera.slice(0, 8).toUpperCase()}` : ''}</Text>
               <Text style={[mono(10, { spacing: 0.1, color: 'rgba(237,231,218,.5)' }), { marginTop: 6 }]}>
-                CLIPPED IN · KEY IN SECURE ELEMENT
+                PAIRED OVER BLUETOOTH
               </Text>
             </BrutalBlock>
           </Pressable>
@@ -65,15 +84,13 @@ export default function MonitorScreen() {
             radius={Radius.md}
             style={styles.statWrap}>
             <View style={styles.statGrid}>
-              <StatCell label="X-SYNC LATENCY" value={`${SYNC_LATENCY_MS}ms`} sub="NOMINAL" subColor={Palette.green} />
               <StatCell
                 label="FRAMES TODAY"
-                value={String(FRAMES_SIGNED_TODAY)}
-                sub={`${FRAMES_CAPTURED_TODAY} CAPTURED`}
+                value={String(stats.signed)}
+                sub={`${stats.captured} CAPTURED`}
                 subColor="rgba(16,14,12,.5)"
-                divider
               />
-              <StatCell label="LAST FRAME" value={LAST_FRAME_AGO} sub="VERIFIED" subColor={Palette.green} divider />
+              <StatCell label="LAST FRAME" value={stats.lastFrame} sub="FROM YOUR CLAIMS" subColor="rgba(16,14,12,.5)" divider />
             </View>
           </BrutalBlock>
         </ScrollView>
