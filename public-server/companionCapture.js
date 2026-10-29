@@ -154,30 +154,65 @@ async function getMobileAiHint(mobileBuffer, claimId) {
 }
 
 /**
- * Full background pipeline for a submitted companion photo: upload to
- * Cloudinary, fetch the device image bytes, score consistency, and persist
- * the result onto the claim row. Mirrors enrichService.enrichClaim's shape —
- * never throws, so the route handler can call this fire-and-forget after
- * acking the request.
- *
- * Everything independent runs in parallel (Cloudinary upload, device-image
- * fetch, AI hint) instead of one after another, and the AI hint specifically
- * is never on the critical path for the first write — it's the slowest step
- * (an OpenAI round trip) and the card doesn't need it to render (see
- * CompanionCaptureCard's AiFlagChip, which just omits itself until it's
- * there). The main record — image, score, forensic read, timestamps — lands
- * as soon as the upload + comparison are done; the hint gets patched in
- * moments later if it wasn't ready in time.
+ * Uploads the phone's own frame to Cloudinary the instant it's taken —
+ * deliberately split out from the scoring/linking step below so the mobile
+ * app can fire this the second the shutter closes, in parallel with the
+ * Pi's own capture -> Filecoin -> ZK proof -> mint pipeline, instead of
+ * waiting for that (much slower, tens-of-seconds) pipeline to finish before
+ * even starting the upload. See processCompanionLink for the second half.
  */
-async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
+async function uploadCompanionImage(buffer) {
+  return cloudinaryService.uploadBuffer(buffer, COMPANION_FOLDER);
+}
+
+/** Fetches raw bytes from an arbitrary https URL (the Cloudinary URL handed back by uploadCompanionImage). */
+async function fetchBufferFromUrl(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const aiHintPromise = getMobileAiHint(mobileBuffer, claim.claim_id);
-    const [upload, { buffer: deviceBuffer }] = await Promise.all([
-      cloudinaryService.uploadBuffer(mobileBuffer, COMPANION_FOLDER),
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Links an already-uploaded companion photo to a real claim once that claim
+ * exists, scores it against the device image, and persists the result.
+ * Mirrors enrichService.enrichClaim's shape — never throws, so the route
+ * handler can call this fire-and-forget after acking the request.
+ *
+ * By the time this runs, the mobile photo is already sitting in Cloudinary
+ * (uploaded the instant it was taken via uploadCompanionImage, well before
+ * the claim itself existed) — so the only work left on this critical path is
+ * fetching both images back and scoring them, not a multi-second upload.
+ * Everything independent still runs in parallel (both buffer fetches, the AI
+ * hint) and the AI hint is never on the critical path for the first write —
+ * it's the slowest step (an OpenAI round trip) and the card doesn't need it
+ * to render (see CompanionCaptureCard's AiFlagChip, which just omits itself
+ * until it's there). The main record lands as soon as the fetch + comparison
+ * are done; the hint gets patched in moments later if it wasn't ready in time.
+ */
+async function processCompanionLink(claim, mobileImageUrl, mobilePublicId, capturedAt) {
+  try {
+    const [mobileBuffer, { buffer: deviceBuffer }] = await Promise.all([
+      fetchBufferFromUrl(mobileImageUrl),
       fetchImageBuffer(claim.cid)
     ]);
 
-    const { consistency, forensic } = await compareDeviceAndMobile(deviceBuffer, mobileBuffer);
+    const aiHintPromise = getMobileAiHint(mobileBuffer, claim.claim_id);
+
+    // Race the AI hint against a short grace window: if it's already back (or lands within the
+    // window), include it in this first write; otherwise persist without it and patch it in below.
+    const [{ consistency, forensic }, raceResult] = await Promise.all([
+      compareDeviceAndMobile(deviceBuffer, mobileBuffer),
+      Promise.race([
+        aiHintPromise.then((hint) => ({ ready: true, hint })),
+        new Promise((resolve) => setTimeout(() => resolve({ ready: false }), AI_HINT_GRACE_MS))
+      ])
+    ]);
 
     const mobileCapturedAt = capturedAt ? new Date(capturedAt) : new Date();
     const deviceExifCapturedAt = await extractCaptureTimestamp(deviceBuffer);
@@ -188,16 +223,9 @@ async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
       timestampDeltaSeconds = timestampDelta(mobileCapturedAt, deviceCapturedAt);
     }
 
-    // Race the AI hint against a short grace window: if it's already back (or lands within the
-    // window), include it in this first write; otherwise persist without it and patch it in below.
-    const raceResult = await Promise.race([
-      aiHintPromise.then((hint) => ({ ready: true, hint })),
-      new Promise((resolve) => setTimeout(() => resolve({ ready: false }), AI_HINT_GRACE_MS))
-    ]);
-
     const companionCapture = {
-      mobile_image_url: upload.url,
-      mobile_public_id: upload.public_id,
+      mobile_image_url: mobileImageUrl,
+      mobile_public_id: mobilePublicId,
       mobile_captured_at: mobileCapturedAt.toISOString(),
       mobile_ai_hint: raceResult.ready ? raceResult.hint : null,
       consistency,
@@ -216,8 +244,8 @@ async function processCompanionCapture(claim, mobileBuffer, capturedAt) {
         .catch(() => {});
     }
   } catch (error) {
-    console.error(`❌ Companion capture processing failed for ${claim.claim_id}:`, error.message);
+    console.error(`❌ Companion capture linking failed for ${claim.claim_id}:`, error.message);
   }
 }
 
-module.exports = { compareDeviceAndMobile, processCompanionCapture };
+module.exports = { compareDeviceAndMobile, uploadCompanionImage, processCompanionLink };
