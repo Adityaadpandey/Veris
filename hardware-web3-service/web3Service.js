@@ -40,7 +40,7 @@ class Web3Service {
       }
       
       if (!verisAddress) {
-        verisAddress = process.env.VERIS_ERC1155_ADDRESS || process.env.VERIS_ERC1155_ADDRESS; // old name still accepted
+        verisAddress = process.env.VERIS_ERC1155_ADDRESS;
         console.log('⚠️  Using VERIS_ERC1155_ADDRESS from env (deployment.json not found)');
       } else {
         console.log(`✅ Using VerisERC1155 from deployment.json: ${verisAddress}`);
