@@ -296,6 +296,8 @@ app.get('/check-claim', (req, res) => {
       description: claim.description || null,
       tags: (() => { try { return claim.tags ? JSON.parse(claim.tags) : []; } catch { return []; } })(),
       ai_status: claim.ai_status || null,
+      likely_ai_generated: claim.likely_ai_generated == null ? null : Boolean(claim.likely_ai_generated),
+      ai_assessment: claim.ai_assessment || null,
       created_at: claim.created_at,
       claimed_at: claim.claimed_at || null,
       completed_at: claim.completed_at || null
