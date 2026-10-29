@@ -52,3 +52,9 @@ export const WALLETCONNECT_PROJECT_ID = "26f04dce1c97b0b9933ed58ab97e8dfa";
 /** Chain the contracts are actually deployed on (see contracts/script/Deploy.s.sol) — Ethereum Sepolia, not Base. */
 export const CHAIN_ID = 11155111;
 export const CHAIN_LABEL = "SEPOLIA";
+
+/** Human label for CHAIN_ID, shown in the claim proof panel. */
+export const CHAIN_NAME = "Sepolia Testnet";
+
+/** The deployed Veris ERC-1155 contract (same address owner-portal reads, and the Pi mints to). */
+export const VERIS_CONTRACT_ADDRESS = "0x4d6de10212f375ae896B22dC8Fc73F6F6bf2DE9f";
