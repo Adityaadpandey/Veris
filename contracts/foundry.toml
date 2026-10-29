@@ -17,7 +17,10 @@ optimizer = false
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
 mainnet = "${MAINNET_RPC_URL}"
+# Base is an L2, so the same mint costs a fraction of mainnet gas.
+base = "${BASE_RPC_URL}"
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
+base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
 
