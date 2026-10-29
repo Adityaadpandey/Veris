@@ -1,360 +1,328 @@
-import { useState, useRef } from "react";
+import { useCallback, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
+import { Palette, Brutal, Pill } from '@/components/brutal'
 
-const API_URL = import.meta.env.VITE_CLAIM_SERVER_URL || "http://localhost:5001";
+const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
+  || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
 
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
+  `${CLAIM_API}/api/image`,
   import.meta.env.VITE_IPFS_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
   'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
   'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
 ]
-
-function SimilarityBar({ score, visual, content }) {
-  const pct = Math.round(score * 100);
-  const color = pct >= 80 ? "#22c55e" : pct >= 60 ? "#f59e0b" : "#ef4444";
-  return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: "#9ca3af" }}>Match</span>
-        <span style={{ fontSize: 15, fontWeight: 700, color }}>{pct}%</span>
-      </div>
-      <div style={{ background: "#1f2937", borderRadius: 4, height: 6, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, background: color, height: "100%", borderRadius: 4, transition: "width 0.6s ease" }} />
-      </div>
-      {/* Transparent breakdown: the headline is a blend of these two signals. */}
-      {(visual != null || content != null) && (
-        <div style={{ display: "flex", gap: 12, marginTop: 5, fontSize: 10, color: "#6b7280" }}>
-          {visual != null && (
-            <span>Visual (look) <b style={{ color: "#9ca3af" }}>{Math.round(visual * 100)}%</b></span>
-          )}
-          {content != null && (
-            <span>Content (subject) <b style={{ color: "#9ca3af" }}>{Math.round(content * 100)}%</b></span>
-          )}
-        </div>
-      )}
-    </div>
-  );
+const cleanCid = (hash) => {
+  if (!hash) return null
+  if (hash.startsWith('ipfs://')) return hash.slice(7)
+  if (hash.startsWith('https://') || hash.startsWith('http://')) return null
+  return hash
+}
+const ipfsOnError = (cid) => (e) => {
+  const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
+  const next = idx + 1
+  if (next < IPFS_GATEWAYS.length) e.target.src = `${IPFS_GATEWAYS[next]}/${cid}`
+  else e.target.style.display = 'none'
 }
 
-const VERDICT_STYLES = {
-  authentic_original: { bg: "#0a1f12", border: "#15803d", accent: "#22c55e", icon: "✅", title: "Authentic Original" },
-  altered_copy:       { bg: "#241605", border: "#b45309", accent: "#f59e0b", icon: "⚠️", title: "Altered Copy — Not the Verified Original" },
-  no_match:           { bg: "#151515", border: "#374151", accent: "#9ca3af", icon: "❔", title: "No Match On-Chain" },
+/** Photos come in every aspect ratio a camera can shoot — clamp so a panorama or a tall portrait never blows up the card. */
+function clampAspect(aspect) {
+  return Math.min(1.9, Math.max(0.55, aspect))
 }
 
-function VerdictBanner({ verdict, aiHint }) {
-  if (!verdict) return null
-  const s = VERDICT_STYLES[verdict.type] || VERDICT_STYLES.no_match
-  return (
-    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <span style={{ fontSize: 22 }}>{s.icon}</span>
-        <span style={{ fontSize: 17, fontWeight: 700, color: s.accent }}>{s.title}</span>
-      </div>
-      <p style={{ fontSize: 13, color: "#d1d5db", lineHeight: 1.55, margin: 0 }}>{verdict.message}</p>
+const VERDICT_TONE = {
+  authentic_original: { border: Palette.green, badgeBg: Palette.green, badgeText: Palette.bone, label: 'AUTHENTIC ORIGINAL', glyph: '✓' },
+  altered_copy:        { border: Palette.orange, badgeBg: Palette.orange, badgeText: Palette.espresso, label: 'ALTERED COPY', glyph: '⚠' },
+  no_match:            { border: 'rgba(237,231,218,.3)', badgeBg: 'rgba(237,231,218,.14)', badgeText: Palette.bone, label: 'NO MATCH ON CHAIN', glyph: '◌' },
+}
 
-      {(verdict.token_id || verdict.bit_distance != null) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 12 }}>
+/** >=80 reads as a strong match, >=55 a soft one, below that no color claims confidence. */
+function matchColor(pct) {
+  if (pct >= 80) return Palette.green
+  if (pct >= 55) return Palette.orange
+  return 'rgba(237,231,218,.4)'
+}
+
+function VerdictCard({ verdict, onOpenClaim }) {
+  const tone = VERDICT_TONE[verdict.type] || VERDICT_TONE.no_match
+  return (
+    <Brutal bg={Palette.espresso} border={tone.border} borderWidth={2.5} offset={3} radius={12} contentClassName="p-4">
+      <Brutal bg={tone.badgeBg} border={Palette.ink} offset={2} radius={999} contentClassName="inline-flex px-3 py-1.5 w-fit">
+        <span className="font-brutal-mono font-semibold text-[10px] tracking-[0.12em]" style={{ color: tone.badgeText }}>
+          {tone.glyph} {tone.label}
+        </span>
+      </Brutal>
+
+      <p className="font-brutal-body text-[12.5px] leading-relaxed mt-2.5" style={{ color: 'rgba(237,231,218,.8)' }}>{verdict.message}</p>
+
+      {(verdict.token_id != null || verdict.visual_match != null) && (
+        <div className="flex flex-wrap gap-4 mt-2.5">
           {verdict.token_id != null && (
-            <span style={{ fontSize: 12, color: "#e5e7eb" }}>
-              Matched token <b style={{ color: s.accent }}>#{verdict.token_id}</b>
+            <span className="font-brutal-mono text-[10.5px]" style={{ color: 'rgba(237,231,218,.6)' }}>
+              TOKEN <span style={{ color: tone.border }}>#{verdict.token_id}</span>
             </span>
           )}
           {verdict.visual_match != null && (
-            <span style={{ fontSize: 12, color: "#e5e7eb" }}>
-              Visual match <b style={{ color: s.accent }}>{verdict.visual_match}%</b>
-              <span style={{ color: "#6b7280" }}> ({verdict.bit_distance}/64 bits differ)</span>
+            <span className="font-brutal-mono text-[10.5px]" style={{ color: 'rgba(237,231,218,.6)' }}>
+              VISUAL MATCH <span style={{ color: tone.border }}>{verdict.visual_match}%</span>
             </span>
           )}
-          {verdict.claim_url && verdict.claim_id && (
-            <a href={`/claim/${verdict.claim_id}`} style={{ fontSize: 12, color: s.accent, textDecoration: "none" }}>
-              View on-chain claim →
-            </a>
-          )}
         </div>
+      )}
+
+      {verdict.hash_decode_failed && verdict.hash_warning && (
+        <p className="font-brutal-mono text-[9.5px] leading-snug mt-2" style={{ color: Palette.orange }}>{verdict.hash_warning}</p>
       )}
 
       {verdict.changes && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
-            What changed vs the original · non-authoritative
-          </div>
+        <div className="mt-3 pt-2.5 space-y-1" style={{ borderTop: '1px solid rgba(237,231,218,.14)' }}>
+          <p className="font-brutal-mono text-[9px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.45)' }}>
+            WHAT CHANGED VS THE ORIGINAL · NON-AUTHORITATIVE
+          </p>
           {verdict.changes.summary && (
-            <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.5, marginBottom: 8 }}>
-              {verdict.changes.summary}
-            </div>
+            <p className="font-brutal-body text-[11.5px] leading-snug" style={{ color: 'rgba(237,231,218,.75)' }}>{verdict.changes.summary}</p>
           )}
           {verdict.changes.items?.length > 0 ? (
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {verdict.changes.items.map((c, i) => (
-                <li key={i} style={{ fontSize: 12, color: "#fbbf24", lineHeight: 1.5, marginBottom: 2 }}>{c}</li>
-              ))}
-            </ul>
+            verdict.changes.items.map((c, i) => (
+              <p key={i} className="font-brutal-body text-[11.5px] leading-snug" style={{ color: Palette.orange }}>• {c}</p>
+            ))
           ) : (
-            <div style={{ fontSize: 12, color: "#9ca3af" }}>
-              No visible content changes detected — the difference is likely re-saving or compression.
-            </div>
-          )}
-          {verdict.changes.change_type && (
-            <div style={{ marginTop: 8 }}>
-              <span style={{ fontSize: 10, color: "#9ca3af", background: "#1f2937", border: "1px solid #374151", borderRadius: 999, padding: "2px 8px" }}>
-                {verdict.changes.change_type.replace(/_/g, " ")}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {aiHint && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
-            AI-generation hint · non-authoritative
-          </div>
-          <div style={{ fontSize: 12, color: aiHint.likely_ai_generated ? "#f59e0b" : "#9ca3af" }}>
-            {aiHint.likely_ai_generated ? "⚠︎ May be AI-generated / manipulated" : "No obvious AI-generation artifacts"}
-            {aiHint.note ? ` — ${aiHint.note}` : ""}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ResultCard({ result }) {
-  const mintDate = result.created_at
-    ? new Date((result.created_at.includes("T") ? result.created_at : result.created_at.replace(" ", "T") + "Z")).toLocaleDateString()
-    : "Unknown";
-  const ipfsUrl = result.cid
-    ? `${IPFS_GATEWAYS[0]}/${result.cid}`
-    : null;
-
-  return (
-    <a
-      href={result.claim_id ? `/claim/${result.claim_id}` : result.claim_url}
-      style={{
-        display: "block",
-        textDecoration: "none",
-        background: "#111827",
-        border: "1px solid #374151",
-        borderRadius: 12,
-        padding: "16px 20px",
-        marginBottom: 12,
-      }}
-    >
-      <div style={{ display: "flex", gap: 14 }}>
-        {ipfsUrl && (
-          <img
-            src={ipfsUrl}
-            alt={result.description || "match"}
-            style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: "1px solid #374151" }}
-          />
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <SimilarityBar score={result.similarity} visual={result.visual_similarity} content={result.content_similarity} />
-          {result.description && (
-            <p style={{ fontSize: 12, color: "#9ca3af", margin: "8px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-              {result.description}
+            <p className="font-brutal-body text-[11.5px] leading-snug" style={{ color: 'rgba(237,231,218,.5)' }}>
+              No visible content changes detected — likely just re-saved or compressed.
             </p>
           )}
         </div>
-      </div>
-
-      {result.tags?.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-          {result.tags.slice(0, 8).map((tag, i) => (
-            <span key={i} style={{ fontSize: 10, color: "#9ca3af", background: "#1f2937", border: "1px solid #374151", borderRadius: 999, padding: "2px 8px" }}>
-              {tag}
-            </span>
-          ))}
-        </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginTop: 12 }}>
-        <div>
-          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Token ID</div>
-          <div style={{ fontSize: 12, color: "#e5e7eb" }}>{result.token_id ? `#${result.token_id}` : "—"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Captured</div>
-          <div style={{ fontSize: 12, color: "#e5e7eb" }}>{mintDate}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12, fontSize: 12, color: "#E85002" }}>
-        View claim →
-      </div>
-    </a>
-  );
+      {verdict.claim_id && (
+        <button onClick={() => onOpenClaim(verdict.claim_id)} className="mt-3">
+          <span className="font-brutal-mono font-semibold text-[10.5px]" style={{ color: tone.border }}>VIEW ON-CHAIN CLAIM →</span>
+        </button>
+      )}
+    </Brutal>
+  )
 }
 
-export default function SearchPage() {
-  const [dragging, setDragging] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const [verdict, setVerdict] = useState(null);
-  const [aiHint, setAiHint] = useState(null);
-  const [queryDescription, setQueryDescription] = useState(null);
-  const [error, setError] = useState(null);
-  const inputRef = useRef();
+function SimilarThumb({ cid }) {
+  const [gatewayIndex, setGatewayIndex] = useState(0)
+  const clean = cleanCid(cid)
+  const uri = clean && gatewayIndex < IPFS_GATEWAYS.length ? `${IPFS_GATEWAYS[gatewayIndex]}/${clean}` : null
+  if (!uri) return <div className="w-[52px] h-[52px] rounded-lg shrink-0" style={{ background: 'rgba(237,231,218,.08)' }} />
+  return (
+    <img
+      src={uri}
+      alt=""
+      className="w-[52px] h-[52px] rounded-lg shrink-0 object-cover"
+      onError={() => setGatewayIndex(i => i + 1)}
+    />
+  )
+}
 
-  async function handleFile(file) {
-    if (!file || !file.type.startsWith("image/")) {
-      setError("Please upload an image file.");
-      return;
-    }
-    setPreview(URL.createObjectURL(file));
-    setResults(null);
-    setVerdict(null);
-    setAiHint(null);
-    setQueryDescription(null);
-    setError(null);
-    setLoading(true);
+function SimilarRow({ result, onPress }) {
+  const pct = Math.round(result.similarity * 100)
+  return (
+    <button onClick={onPress} className="w-full text-left">
+      <Brutal bg="rgba(237,231,218,.05)" border="rgba(237,231,218,.28)" borderWidth={1.5} offset={3} radius={16} contentClassName="flex items-center gap-3 p-2.5">
+        <SimilarThumb cid={result.cid} />
+        <div className="flex-1 min-w-0">
+          {result.description && (
+            <p className="font-brutal-body text-[11.5px] leading-snug overflow-hidden" style={{ color: 'rgba(237,231,218,.7)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+              {result.description}
+            </p>
+          )}
+          <p className="font-brutal-mono text-[9px] mt-1" style={{ color: 'rgba(237,231,218,.4)' }}>
+            {result.token_id ? `#${result.token_id}` : '—'}
+            {result.created_at ? ` · ${new Date(result.created_at.includes('T') ? result.created_at : `${result.created_at.replace(' ', 'T')}Z`).toLocaleDateString()}` : ''}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="font-brutal-mono font-semibold text-sm" style={{ color: matchColor(pct) }}>{pct}%</p>
+          <p className="font-brutal-mono text-[8px]" style={{ color: 'rgba(237,231,218,.4)' }}>MATCH</p>
+        </div>
+      </Brutal>
+    </button>
+  )
+}
+
+/** The web equivalent of mobile-app's VerifyPanel: pick a photo, hash it against the chain. */
+function VerifyPanel({ onOpenClaim }) {
+  const [state, setState] = useState({ phase: 'idle' })
+  const [dragging, setDragging] = useState(false)
+  const inputRef = useRef()
+  const cameraInputRef = useRef()
+  const hasPreview = state.phase === 'running' || state.phase === 'done' || state.phase === 'error'
+
+  const reset = () => setState({ phase: 'idle' })
+
+  const runVerify = useCallback(async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    const previewUri = URL.createObjectURL(file)
+    const previewAspect = await new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => resolve(img.naturalWidth / img.naturalHeight || 1)
+      img.onerror = () => resolve(1)
+      img.src = previewUri
+    })
+    setState({ phase: 'running', previewUri, previewAspect })
 
     try {
-      const form = new FormData();
-      form.append("image", file);
-      const res = await fetch(`${API_URL}/api/search`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Search failed");
-      setResults(data.similar || data.results || []);
-      setVerdict(data.verdict || null);
-      setAiHint(data.ai_hint || null);
-      setQueryDescription(data.query_description || null);
+      const form = new FormData()
+      form.append('image', file)
+      const res = await fetch(`${CLAIM_API}/api/search`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Verification failed')
+      setState({
+        phase: 'done',
+        previewUri,
+        previewAspect,
+        verdict: data.verdict,
+        aiHint: data.ai_hint ?? null,
+        queryDescription: data.query_description ?? null,
+        similar: data.similar ?? data.results ?? [],
+      })
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      setState({ phase: 'error', previewUri, previewAspect, message: err.message || 'Verification failed' })
     }
-  }
-
-  function onDrop(e) {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  }
+  }, [])
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0a0a0a",
-      color: "#e5e7eb",
-      fontFamily: "Inter, system-ui, sans-serif",
-      padding: "40px 24px",
-    }}>
-      <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 32, textAlign: "center" }}>
-          <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-            Verify &amp; Search
-          </div>
-          <div style={{ fontSize: 14, color: "#6b7280" }}>
-            Upload a photo to check it against on-chain originals — is it authentic, altered, or unknown?
-          </div>
-        </div>
+    <Brutal
+      bg="rgba(237,231,218,.06)"
+      border={dragging ? Palette.orange : 'rgba(237,231,218,.4)'}
+      shadowColor="rgba(231,88,28,.4)"
+      offset={4}
+      radius={22}
+      className="mt-6"
+      contentClassName="p-5"
+    >
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) runVerify(f) }}
+      >
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && runVerify(e.target.files[0])} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => e.target.files[0] && runVerify(e.target.files[0])} />
 
-        {/* Drop zone */}
-        <div
-          onClick={() => inputRef.current.click()}
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          style={{
-            border: `2px dashed ${dragging ? "#E85002" : "#374151"}`,
-            borderRadius: 16,
-            padding: "32px 24px",
-            textAlign: "center",
-            cursor: "pointer",
-            background: dragging ? "rgba(232,80,2,0.05)" : "#111827",
-            transition: "all 0.2s",
-            marginBottom: 24,
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={e => e.target.files[0] && handleFile(e.target.files[0])}
-          />
-          {preview ? (
-            <img src={preview} alt="preview" style={{ maxHeight: 180, borderRadius: 8, marginBottom: 12 }} />
-          ) : (
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🔍</div>
-          )}
-          <div style={{ fontSize: 14, color: "#9ca3af" }}>
-            {preview ? "Click or drag to change image" : "Drag & drop or click to upload"}
-          </div>
-        </div>
+        <span className="font-brutal-mono text-[10px] tracking-[0.2em]" style={{ color: Palette.orange }}>REVERSE CHECK</span>
+        <p className="font-brutal-body font-semibold text-[15px] leading-snug mt-1" style={{ color: Palette.bone }}>
+          Pick or shoot a photo — we'll tell you if it was ever sealed
+        </p>
 
-        {/* Loading */}
-        {loading && (
-          <div style={{ textAlign: "center", padding: "24px 0", color: "#9ca3af" }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>⚙️</div>
-            Searching the blockchain...
+        {!hasPreview && (
+          <div className="flex justify-center mt-4 mb-1">
+            <Brutal bg={Palette.cream} border={Palette.ink} offset={3} radius={999} contentClassName="w-14 h-14 flex items-center justify-center">
+              <span className="text-2xl" style={{ color: Palette.espresso }}>◎</span>
+            </Brutal>
           </div>
         )}
 
-        {/* Error */}
-        {error && (
-          <div style={{
-            background: "#1f0a0a",
-            border: "1px solid #7f1d1d",
-            borderRadius: 10,
-            padding: "12px 16px",
-            color: "#fca5a5",
-            fontSize: 14,
-            marginBottom: 16
-          }}>
-            {error}
+        {hasPreview && (
+          <Brutal bg={Palette.ink} border={Palette.ink} offset={4} radius={12} className="mt-4">
+            <div style={{ aspectRatio: clampAspect(state.previewAspect) }}>
+              <img src={state.previewUri} alt="preview" className="w-full h-full object-cover" />
+            </div>
+          </Brutal>
+        )}
+
+        {state.phase === 'idle' && (
+          <div className="flex gap-2.5 mt-4">
+            <Pill label="CHOOSE PHOTO" onPress={() => inputRef.current.click()} bg={Palette.cream} color={Palette.espresso} className="flex-1" />
+            <Pill label="USE CAMERA" onPress={() => cameraInputRef.current.click()} bg="rgba(237,231,218,.1)" border="rgba(237,231,218,.4)" color={Palette.bone} className="flex-1" />
           </div>
         )}
 
-        {/* Results */}
-        {results !== null && !loading && (
-          <div>
-            {/* Authoritative verdict first */}
-            <VerdictBanner verdict={verdict} aiHint={aiHint} />
+        {state.phase === 'running' && (
+          <div className="flex items-center gap-2.5 mt-4">
+            <Loader2 size={16} className="animate-spin" style={{ color: Palette.orange }} />
+            <span className="font-brutal-mono text-[11px] tracking-[0.12em]" style={{ color: 'rgba(237,231,218,.55)' }}>
+              HASHING &amp; SEARCHING THE CHAIN…
+            </span>
+          </div>
+        )}
 
-            {queryDescription && (
-              <div style={{
-                background: "rgba(232,80,2,0.05)",
-                border: "1px solid rgba(232,80,2,0.2)",
-                borderRadius: 10,
-                padding: "12px 16px",
-                marginBottom: 16,
-              }}>
-                <div style={{ fontSize: 10, color: "#E85002", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 600 }}>
-                  We detected
+        {state.phase === 'error' && (
+          <>
+            <Brutal bg="rgba(231,88,28,.1)" border={Palette.orange} offset={0} radius={12} className="mt-3.5" contentClassName="p-3.5">
+              <p className="font-brutal-body text-xs leading-snug" style={{ color: Palette.bone }}>{state.message}</p>
+            </Brutal>
+            <div className="mt-3.5">
+              <Pill label="TRY AGAIN" onPress={reset} bg={Palette.cream} color={Palette.espresso} fullWidth />
+            </div>
+          </>
+        )}
+
+        {state.phase === 'done' && (
+          <>
+            <div className="mt-3.5">
+              <VerdictCard verdict={state.verdict} onOpenClaim={onOpenClaim} />
+            </div>
+
+            {state.queryDescription && (
+              <Brutal bg="rgba(231,88,28,.06)" border="rgba(231,88,28,.3)" offset={0} radius={12} className="mt-3" contentClassName="p-3">
+                <span className="font-brutal-mono text-[9.5px] tracking-[0.16em]" style={{ color: Palette.orange }}>WE DETECTED</span>
+                <p className="font-brutal-body text-xs leading-snug mt-1" style={{ color: 'rgba(237,231,218,.75)' }}>{state.queryDescription}</p>
+              </Brutal>
+            )}
+
+            {state.aiHint && (
+              <p className="font-brutal-mono text-[9.5px] leading-snug mt-2.5" style={{ color: 'rgba(237,231,218,.45)' }}>
+                {state.aiHint.likely_ai_generated ? '⚠ MAY BE AI-GENERATED / MANIPULATED' : 'NO OBVIOUS AI-GENERATION ARTIFACTS'}
+                {state.aiHint.note ? ` — ${state.aiHint.note}` : ''}
+              </p>
+            )}
+
+            {state.similar.length > 0 && (
+              <div className="mt-4.5">
+                <p className="font-brutal-mono text-[9.5px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.5)' }}>VISUALLY SIMILAR VERIFIED PHOTOS</p>
+                <p className="font-brutal-mono text-[8.5px] mt-0.5" style={{ color: 'rgba(237,231,218,.35)' }}>For discovery, not an authenticity check.</p>
+                <div className="mt-2.5 space-y-2.5">
+                  {state.similar.map(r => (
+                    <SimilarRow key={r.claim_id} result={r} onPress={() => onOpenClaim(r.claim_id)} />
+                  ))}
                 </div>
-                <div style={{ fontSize: 13, color: "#d1d5db", lineHeight: 1.5 }}>{queryDescription}</div>
               </div>
             )}
 
-            {/* Similar content — explicitly NOT an authenticity check */}
-            <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, marginTop: 8 }}>
-              Visually similar verified photos
+            <div className="mt-3.5">
+              <Pill label="RUN ANOTHER" onPress={reset} bg={Palette.cream} color={Palette.espresso} fullWidth />
             </div>
-            <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 12 }}>
-              Ranked by a blend of visual look (perceptual hash) and subject matter — for discovery, not an authenticity check.
-            </div>
-            {results.length === 0 ? (
-              <div style={{ fontSize: 13, color: "#6b7280" }}>No visually similar verified photos found.</div>
-            ) : (
-              results.map((r, i) => <ResultCard key={i} result={r} />)
-            )}
-          </div>
+          </>
         )}
+      </div>
+    </Brutal>
+  )
+}
 
-        {/* Back link */}
-        <div style={{ textAlign: "center", marginTop: 32 }}>
-          <a href="/dashboard" style={{ fontSize: 13, color: "#6b7280", textDecoration: "none" }}>
-            Back to Dashboard
-          </a>
+export default function SearchPage() {
+  const navigate = useNavigate()
+
+  return (
+    <div className="min-h-screen relative" style={{ background: Palette.espresso }}>
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(circle at 24% 0%, rgba(231,88,28,.4) 0%, rgba(231,88,28,0) 68%)' }}
+      />
+      <div className="relative max-w-[440px] mx-auto px-5 pt-6 pb-32">
+        <div className="flex items-center justify-between">
+          <button onClick={() => navigate(-1)}>
+            <Brutal bg="rgba(237,231,218,.1)" border="rgba(237,231,218,.55)" borderWidth={2.5} offset={3} radius={999} contentClassName="w-[42px] h-[42px] flex items-center justify-center">
+              <span className="text-lg font-semibold" style={{ color: Palette.bone }}>←</span>
+            </Brutal>
+          </button>
+          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(237,231,218,.1)', border: '1px solid rgba(237,231,218,.3)', backdropFilter: 'blur(12px)' }}>
+            <span className="font-brutal-mono text-[10px] tracking-[0.18em]" style={{ color: 'rgba(237,231,218,.55)' }}>REGISTRY / PUBLIC</span>
+          </div>
         </div>
+
+        <h1 className="font-brutal-display text-[36px] leading-[33px] mt-5" style={{ color: Palette.bone }}>Verify a<br />frame.</h1>
+        <p className="font-brutal-body text-[13px] leading-relaxed mt-2.5 max-w-[270px]" style={{ color: 'rgba(237,231,218,.55)' }}>
+          Every sealed photo lives on-chain. Drop a file below to check it against the registry.
+        </p>
+
+        <VerifyPanel onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
       </div>
     </div>
-  );
+  )
 }
