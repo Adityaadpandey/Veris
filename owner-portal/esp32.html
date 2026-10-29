@@ -1,0 +1,1328 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Veris Module — Camera Mount</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #060606;
+        color: #f0f0f0;
+        font-family: "Courier New", monospace;
+        overflow: hidden;
+        height: 100vh;
+      }
+
+      #canvas-container {
+        position: fixed;
+        inset: 0;
+      }
+
+      .hud-top {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 18px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .brand-name {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 6px;
+        color: #fff;
+      }
+
+      .brand-sub {
+        font-size: 10px;
+        color: #ff5500;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+      }
+
+      .status-panel {
+        background: rgba(8, 8, 8, 0.9);
+        border: 1px solid #1e1e1e;
+        border-top: 2px solid #ff5500;
+        padding: 14px 18px;
+        min-width: 210px;
+        backdrop-filter: blur(10px);
+        pointer-events: none;
+      }
+
+      .status-title {
+        font-size: 9px;
+        color: #ff5500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 6px;
+        font-size: 10px;
+      }
+
+      .sk {
+        color: #444;
+      }
+
+      .sv {
+        color: #ccc;
+      }
+
+      .sv.live {
+        color: #22cc55;
+      }
+
+      .sv.orange {
+        color: #ff5500;
+      }
+
+      .controls-bar {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+        background: rgba(8, 8, 8, 0.92);
+        border: 1px solid #1e1e1e;
+        padding: 10px 14px;
+        border-radius: 40px;
+        backdrop-filter: blur(10px);
+      }
+
+      .ctrl-btn {
+        padding: 7px 16px;
+        border-radius: 20px;
+        border: 1px solid #2a2a2a;
+        background: transparent;
+        color: #777;
+        font-family: "Courier New", monospace;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+
+      .ctrl-btn:hover,
+      .ctrl-btn.active {
+        background: #ff5500;
+        color: #000;
+        border-color: #ff5500;
+        font-weight: 700;
+      }
+
+      .step-panel {
+        position: fixed;
+        right: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(8, 8, 8, 0.92);
+        border: 1px solid #1e1e1e;
+        padding: 16px;
+        min-width: 200px;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+      }
+
+      .step-title {
+        font-size: 9px;
+        color: #ff5500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+      }
+
+      .step-item {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 8px 0;
+        border-bottom: 1px solid #161616;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .step-item:last-child {
+        border-bottom: none;
+      }
+
+      .step-item:hover {
+        padding-left: 4px;
+      }
+
+      .step-item.active .step-num {
+        background: #ff5500;
+        color: #000;
+      }
+
+      .step-item.active .step-name {
+        color: #fff;
+      }
+
+      .step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #1e1e1e;
+        color: #555;
+        font-size: 9px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all 0.2s;
+      }
+
+      .step-name {
+        font-size: 11px;
+        color: #666;
+        line-height: 1.4;
+        transition: color 0.2s;
+      }
+
+      .step-desc {
+        font-size: 9px;
+        color: #444;
+        margin-top: 1px;
+      }
+
+      .info-panel {
+        position: fixed;
+        bottom: 80px;
+        left: 24px;
+        background: rgba(8, 8, 8, 0.85);
+        border: 1px solid #1a1a1a;
+        padding: 12px 16px;
+        font-size: 10px;
+        color: #444;
+        letter-spacing: 1px;
+        pointer-events: none;
+        line-height: 1.8;
+      }
+
+      .info-panel span {
+        color: #777;
+      }
+
+      .component-label {
+        position: fixed;
+        background: rgba(8, 8, 8, 0.95);
+        border: 1px solid #2a2a2a;
+        border-left: 2px solid #ff5500;
+        padding: 6px 10px;
+        font-size: 9px;
+        color: #ccc;
+        letter-spacing: 1px;
+        pointer-events: none;
+        z-index: 20;
+        transition: opacity 0.15s;
+        white-space: nowrap;
+        opacity: 0;
+      }
+
+      .component-label .ln {
+        color: #ff5500;
+        font-weight: 700;
+        font-size: 10px;
+        display: block;
+        margin-bottom: 1px;
+      }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        background: #060606;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        z-index: 100;
+        transition: opacity 0.6s;
+      }
+
+      .load-text {
+        font-size: 11px;
+        color: #ff5500;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+      }
+
+      .load-bar {
+        width: 200px;
+        height: 2px;
+        background: #111;
+        border-radius: 1px;
+        overflow: hidden;
+      }
+
+      .load-fill {
+        height: 100%;
+        background: #ff5500;
+        border-radius: 1px;
+        animation: load 1.4s ease forwards;
+      }
+
+      @keyframes load {
+        from {
+          width: 0%;
+        }
+
+        to {
+          width: 100%;
+        }
+      }
+
+      .annotation-line {
+        position: fixed;
+        pointer-events: none;
+        z-index: 5;
+      }
+
+      /* mounting animation indicator */
+      .mount-progress {
+        position: fixed;
+        left: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(8, 8, 8, 0.9);
+        border: 1px solid #1e1e1e;
+        padding: 16px;
+        min-width: 180px;
+        z-index: 10;
+      }
+
+      .mp-title {
+        font-size: 9px;
+        color: #ff5500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+
+      .mp-bar-wrap {
+        margin-bottom: 8px;
+      }
+
+      .mp-label {
+        font-size: 9px;
+        color: #555;
+        margin-bottom: 4px;
+        letter-spacing: 1px;
+      }
+
+      .mp-bar {
+        height: 3px;
+        background: #1a1a1a;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-bottom: 2px;
+      }
+
+      .mp-fill {
+        height: 100%;
+        background: #ff5500;
+        border-radius: 2px;
+        transition: width 0.5s;
+      }
+
+      .mp-fill.green {
+        background: #22cc55;
+      }
+
+      .mp-val {
+        font-size: 9px;
+        color: #666;
+        text-align: right;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="loading">
+      <div class="load-text">Building Camera Scene</div>
+      <div class="load-bar">
+        <div class="load-fill"></div>
+      </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- HUD -->
+    <div class="hud-top">
+      <div class="brand">
+        <div class="brand-name">VERIS</div>
+        <div class="brand-sub">Hot Shoe Mount · Camera Integration</div>
+      </div>
+      <div class="status-panel">
+        <div class="status-title">Live Status</div>
+        <div class="status-row">
+          <span class="sk">Mount</span
+          ><span class="sv live" id="st-mount">DETACHED</span>
+        </div>
+        <div class="status-row">
+          <span class="sk">Sync Signal</span
+          ><span class="sv" id="st-sync">STANDBY</span>
+        </div>
+        <div class="status-row">
+          <span class="sk">Signing</span
+          ><span class="sv" id="st-sign">IDLE</span>
+        </div>
+        <div class="status-row">
+          <span class="sk">Chain Upload</span
+          ><span class="sv" id="st-chain">OFFLINE</span>
+        </div>
+        <div class="status-row">
+          <span class="sk">Last Token</span><span class="sv orange">#4821</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="step-panel">
+      <div class="step-title">Mount Steps</div>
+      <div class="step-item active" id="step-0" onclick="goToStep(0)">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-name">Overview</div>
+          <div class="step-desc">Full camera + module</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-1" onclick="goToStep(1)">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-name">Hot Shoe Align</div>
+          <div class="step-desc">Slide onto camera rail</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-2" onclick="goToStep(2)">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-name">Lock & Secure</div>
+          <div class="step-desc">Tighten locking screw</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-3" onclick="goToStep(3)">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-name">USB-C Connect</div>
+          <div class="step-desc">Tether to camera body</div>
+        </div>
+      </div>
+      <div class="step-item" id="step-4" onclick="goToStep(4)">
+        <div class="step-num">5</div>
+        <div>
+          <div class="step-name">Fully Mounted</div>
+          <div class="step-desc">Ready to capture & sign</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mount Progress -->
+    <div class="mount-progress">
+      <div class="mp-title">Mount Check</div>
+      <div class="mp-bar-wrap">
+        <div class="mp-label">HOT SHOE LOCK</div>
+        <div class="mp-bar">
+          <div class="mp-fill" id="prog-1" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="mp-bar-wrap">
+        <div class="mp-label">SYNC SIGNAL</div>
+        <div class="mp-bar">
+          <div class="mp-fill" id="prog-2" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="mp-bar-wrap">
+        <div class="mp-label">USB TETHER</div>
+        <div class="mp-bar">
+          <div class="mp-fill" id="prog-3" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="mp-bar-wrap">
+        <div class="mp-label">CRYPTO READY</div>
+        <div class="mp-bar">
+          <div class="mp-fill green" id="prog-4" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-panel">
+      <span>DRAG</span> rotate &nbsp;·&nbsp; <span>SCROLL</span> zoom
+      &nbsp;·&nbsp; <span>STEPS</span> right panel
+    </div>
+
+    <div class="component-label" id="hover-label">
+      <span class="ln" id="lbl-name"></span>
+      <span id="lbl-desc"></span>
+    </div>
+
+    <div class="controls-bar">
+      <button class="ctrl-btn active" id="btn-rot" onclick="toggleAutoRot()">
+        Auto Rotate
+      </button>
+      <button class="ctrl-btn" id="btn-mount" onclick="animateMount()">
+        ▶ Mount Animation
+      </button>
+      <button class="ctrl-btn" id="btn-xray" onclick="toggleXray()">
+        X-Ray
+      </button>
+      <button class="ctrl-btn" onclick="resetCam()">Reset</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      // ── Setup ──────────────────────────────────────────────────────
+      const W = window.innerWidth,
+        H = window.innerHeight;
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(W, H);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+      document
+        .getElementById("canvas-container")
+        .appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060606);
+      scene.fog = new THREE.FogExp2(0x060606, 0.025);
+
+      const camera = new THREE.PerspectiveCamera(42, W / H, 0.01, 300);
+      camera.position.set(0, 4, 14);
+      camera.lookAt(0, 0, 0);
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0x111111, 1.5));
+      const key = new THREE.DirectionalLight(0xffffff, 3);
+      key.position.set(6, 10, 8);
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      scene.add(key);
+      const fill = new THREE.DirectionalLight(0xff6600, 0.6);
+      fill.position.set(-5, 3, 4);
+      scene.add(fill);
+      const rim = new THREE.DirectionalLight(0x4488cc, 0.3);
+      rim.position.set(0, -4, -6);
+      scene.add(rim);
+      const pt = new THREE.PointLight(0xff5500, 2, 15);
+      pt.position.set(0, 4, 3);
+      scene.add(pt);
+
+      // Grid
+      const grid = new THREE.GridHelper(30, 50, 0x181818, 0x111111);
+      grid.position.y = -3.8;
+      scene.add(grid);
+      const floorGeo = new THREE.PlaneGeometry(30, 30);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x040404,
+        metalness: 0.6,
+        roughness: 0.5,
+        transparent: true,
+        opacity: 0.8,
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -3.81;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // ── Materials ──────────────────────────────────────────────────
+      function mat(
+        color,
+        metal = 0.3,
+        rough = 0.5,
+        emissive = 0,
+        emInt = 0,
+        opacity = 1,
+      ) {
+        return new THREE.MeshStandardMaterial({
+          color,
+          metalness: metal,
+          roughness: rough,
+          emissive,
+          emissiveIntensity: emInt,
+          transparent: opacity < 1,
+          opacity,
+        });
+      }
+
+      function rbox(w, h, d, r = 0.05) {
+        const s = new THREE.Shape();
+        const x = -w / 2,
+          y = -h / 2;
+        s.moveTo(x + r, y);
+        s.lineTo(x + w - r, y);
+        s.quadraticCurveTo(x + w, y, x + w, y + r);
+        s.lineTo(x + w, y + h - r);
+        s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        s.lineTo(x + r, y + h);
+        s.quadraticCurveTo(x, y + h, x, y + h - r);
+        s.lineTo(x, y + r);
+        s.quadraticCurveTo(x, y, x + r, y);
+        const geo = new THREE.ExtrudeGeometry(s, {
+          depth: d,
+          bevelEnabled: true,
+          bevelThickness: 0.015,
+          bevelSize: 0.015,
+          bevelSegments: 3,
+        });
+        geo.center();
+        return geo;
+      }
+
+      // ── CAMERA BODY ────────────────────────────────────────────────
+      const camGroup = new THREE.Group();
+      scene.add(camGroup);
+
+      // Main body
+      const bodyGeo = rbox(4.2, 2.8, 2.0, 0.1);
+      const bodyMat = mat(0x141414, 0.6, 0.4);
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.set(0, 0, 0);
+      body.castShadow = true;
+      body.userData.label = {
+        name: "Camera Body",
+        desc: "DSLR/Mirrorless · Professional",
+      };
+      camGroup.add(body);
+
+      // Grip bump right side
+      const gripGeo = rbox(1.1, 2.4, 2.2, 0.12);
+      const gripMat = mat(0x0e0e0e, 0.3, 0.85);
+      const grip = new THREE.Mesh(gripGeo, gripMat);
+      grip.position.set(1.85, -0.1, 0.1);
+      grip.castShadow = true;
+      camGroup.add(grip);
+
+      // Grip rubber texture dots
+      for (let i = 0; i < 4; i++)
+        for (let j = 0; j < 8; j++) {
+          const dGeo = new THREE.SphereGeometry(0.03, 6, 6);
+          const dMat = mat(0x0a0a0a, 0.1, 0.98);
+          const d = new THREE.Mesh(dGeo, dMat);
+          d.position.set(2.3, -0.8 + j * 0.22, 0.8 - i * 0.5);
+          camGroup.add(d);
+        }
+
+      // Top plate (flat area where hot shoe is)
+      const topGeo = rbox(4.0, 0.18, 1.9, 0.04);
+      const topMat = mat(0x1a1a1a, 0.7, 0.3);
+      const topPlate = new THREE.Mesh(topGeo, topMat);
+      topPlate.position.set(0, 1.49, 0.05);
+      camGroup.add(topPlate);
+
+      // ── HOT SHOE ON CAMERA (receiver) ─────────────────────────────
+      const hsBaseGeo = new THREE.BoxGeometry(1.8, 0.12, 0.42);
+      const hsBaseMat = mat(0x333333, 0.8, 0.25);
+      const hsBase = new THREE.Mesh(hsBaseGeo, hsBaseMat);
+      hsBase.position.set(-0.2, 1.62, -0.1);
+      hsBase.userData.label = {
+        name: "Hot Shoe Receiver",
+        desc: "ISO 518 Standard · Sync Pin",
+      };
+      camGroup.add(hsBase);
+
+      // Hot shoe rails (the two raised sides)
+      [-0.7, 0.7].forEach((x) => {
+        const railGeo = new THREE.BoxGeometry(1.8, 0.14, 0.1);
+        const railMat = mat(0x555555, 0.9, 0.2);
+        const rail = new THREE.Mesh(railGeo, railMat);
+        rail.position.set(x - 0.2, 1.68, -0.1);
+        camGroup.add(rail);
+      });
+
+      // Center sync contact on camera hot shoe
+      const syncPinGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.08, 10);
+      const syncPinMat = mat(0xddcc00, 0.95, 0.15, 0xddcc00, 0.3);
+      const syncPin = new THREE.Mesh(syncPinGeo, syncPinMat);
+      syncPin.position.set(-0.2, 1.69, -0.1);
+      camGroup.add(syncPin);
+
+      // Lens barrel
+      const lensOuterGeo = new THREE.CylinderGeometry(1.05, 1.1, 2.4, 32);
+      const lensOuterMat = mat(0x191919, 0.7, 0.3);
+      const lensOuter = new THREE.Mesh(lensOuterGeo, lensOuterMat);
+      lensOuter.rotation.x = Math.PI / 2;
+      lensOuter.position.set(0, -0.2, 1.7);
+      lensOuter.castShadow = true;
+      lensOuter.userData.label = {
+        name: "Camera Lens",
+        desc: "24-70mm f/2.8 · 3 lakh+ body",
+      };
+      camGroup.add(lensOuter);
+
+      // Lens rings
+      [0.6, 0.0, -0.6].forEach((z) => {
+        const ringGeo = new THREE.TorusGeometry(1.05, 0.02, 8, 32);
+        const ringMat = mat(0x444444, 0.8, 0.2);
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(0, -0.2, 1.7 + z);
+        camGroup.add(ring);
+      });
+
+      // Lens front glass
+      const frontGlassGeo = new THREE.CircleGeometry(0.85, 32);
+      const frontGlassMat = new THREE.MeshStandardMaterial({
+        color: 0x112233,
+        metalness: 0.1,
+        roughness: 0.05,
+        transparent: true,
+        opacity: 0.6,
+        emissive: 0x001122,
+        emissiveIntensity: 0.5,
+      });
+      const frontGlass = new THREE.Mesh(frontGlassGeo, frontGlassMat);
+      frontGlass.position.set(0, -0.2, 2.9);
+      camGroup.add(frontGlass);
+
+      // Lens glass reflection ring
+      const reflGeo = new THREE.RingGeometry(0.2, 0.8, 32);
+      const reflMat = new THREE.MeshStandardMaterial({
+        color: 0x001a33,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+      });
+      const refl = new THREE.Mesh(reflGeo, reflMat);
+      refl.position.set(0, -0.2, 2.91);
+      camGroup.add(refl);
+
+      // Inner lens recess
+      const recessGeo = new THREE.CylinderGeometry(0.9, 1.0, 0.15, 32);
+      const recessMat = mat(0x0a0a0a, 0.3, 0.7);
+      const recess = new THREE.Mesh(recessGeo, recessMat);
+      recess.rotation.x = Math.PI / 2;
+      recess.position.set(0, -0.2, 2.85);
+      camGroup.add(recess);
+
+      // Viewfinder hump
+      const vfGeo = rbox(1.4, 0.7, 1.2, 0.06);
+      const vfMat = mat(0x111111, 0.5, 0.4);
+      const vf = new THREE.Mesh(vfGeo, vfMat);
+      vf.position.set(-0.1, 1.95, -0.35);
+      camGroup.add(vf);
+
+      // Viewfinder eye piece
+      const eyeGeo = new THREE.BoxGeometry(0.55, 0.45, 0.12);
+      const eyeMat = mat(0x222222, 0.5, 0.6);
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(-0.1, 1.95, -0.98);
+      camGroup.add(eye);
+
+      // Mode dial
+      const dialGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.15, 20);
+      const dialMat = mat(0x2a2a2a, 0.6, 0.3);
+      const dial = new THREE.Mesh(dialGeo, dialMat);
+      dial.position.set(0.7, 1.65, -0.82);
+      dial.rotation.x = Math.PI / 2;
+      camGroup.add(dial);
+
+      // Shutter button
+      const shutterGeo = new THREE.CylinderGeometry(0.13, 0.15, 0.08, 16);
+      const shutterMat = mat(0x888888, 0.7, 0.3);
+      const shutter = new THREE.Mesh(shutterGeo, shutterMat);
+      shutter.position.set(1.5, 1.64, 0.6);
+      camGroup.add(shutter);
+
+      // Camera LCD screen on back
+      const lcdGeo = rbox(2.4, 1.6, 0.06, 0.06);
+      const lcdMat = new THREE.MeshStandardMaterial({
+        color: 0x001122,
+        metalness: 0.1,
+        roughness: 0.2,
+        emissive: 0x002233,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const lcd = new THREE.Mesh(lcdGeo, lcdMat);
+      lcd.position.set(-0.3, -0.1, -1.04);
+      camGroup.add(lcd);
+
+      // LCD content simulation
+      const lcdContentGeo = new THREE.PlaneGeometry(2.2, 1.4);
+      const lcdContentMat = new THREE.MeshStandardMaterial({
+        color: 0x001833,
+        emissive: 0x003355,
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.7,
+      });
+      const lcdContent = new THREE.Mesh(lcdContentGeo, lcdContentMat);
+      lcdContent.position.set(-0.3, -0.1, -1.06);
+      camGroup.add(lcdContent);
+
+      // Camera SD card slot
+      const sdGeo = new THREE.BoxGeometry(0.2, 0.25, 0.08);
+      const sdMat = mat(0x333333, 0.7, 0.3);
+      const sd = new THREE.Mesh(sdGeo, sdMat);
+      sd.position.set(2.05, -0.5, -0.5);
+      camGroup.add(sd);
+
+      // USB-C on camera body
+      const camUsbGeo = new THREE.BoxGeometry(0.14, 0.08, 0.1);
+      const camUsbMat = mat(0x777777, 0.8, 0.25);
+      const camUsb = new THREE.Mesh(camUsbGeo, camUsbMat);
+      camUsb.position.set(-2.16, 0.3, 0);
+      camUsb.userData.label = {
+        name: "Camera USB-C",
+        desc: "PTP/MTP · Data Transfer",
+      };
+      camGroup.add(camUsb);
+
+      // Strap lugs
+      [-1.6, 1.6].forEach((x) => {
+        const lugGeo = new THREE.BoxGeometry(0.18, 0.35, 0.22);
+        const lugMat = mat(0x1e1e1e, 0.6, 0.4);
+        const lug = new THREE.Mesh(lugGeo, lugMat);
+        lug.position.set(x, 1.2, -0.7);
+        camGroup.add(lug);
+        const holeGeo = new THREE.TorusGeometry(0.07, 0.03, 6, 10);
+        const holeMat = mat(0x333333, 0.8, 0.3);
+        const hole = new THREE.Mesh(holeGeo, holeMat);
+        hole.position.set(x, 1.2, -0.7);
+        hole.rotation.x = Math.PI / 2;
+        camGroup.add(hole);
+      });
+
+      // ── VERIS MODULE ───────────────────────────────────────────────
+      const verisGroup = new THREE.Group();
+      scene.add(verisGroup);
+
+      // Main enclosure
+      const encGeo = rbox(2.1, 1.3, 0.65, 0.07);
+      const encMat = mat(0x0f0f0f, 0.5, 0.45);
+      const enclosure = new THREE.Mesh(encGeo, encMat);
+      enclosure.castShadow = true;
+      verisGroup.add(enclosure);
+
+      // Orange accent stripes
+      const stripeGeo1 = new THREE.BoxGeometry(2.1, 0.035, 0.01);
+      const stripeMat2 = mat(0xff5500, 0.3, 0.4, 0xff5500, 1.5);
+      [-0.62, 0.62].forEach((y) => {
+        const s = new THREE.Mesh(stripeGeo1, stripeMat2);
+        s.position.set(0, y, 0.33);
+        verisGroup.add(s);
+      });
+
+      // Hexagonal Veris logo
+      const hGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.01, 6);
+      const hMat = mat(0xff5500, 0.3, 0.4, 0xff5500, 0.8);
+      const hexLogo = new THREE.Mesh(hGeo, hMat);
+      hexLogo.position.set(0.75, 0.42, 0.335);
+      hexLogo.rotation.x = Math.PI / 2;
+      verisGroup.add(hexLogo);
+
+      // PCB (visible through side)
+      const pcbGeo2 = rbox(1.9, 1.1, 0.05, 0.04);
+      const pcbMat2 = mat(0x0a2a0a, 0.1, 0.7, 0x001200, 0.2);
+      const pcb2 = new THREE.Mesh(pcbGeo2, pcbMat2);
+      pcb2.position.set(0, 0, 0);
+      verisGroup.add(pcb2);
+
+      // ESP32 chip
+      const espGeo2 = rbox(0.5, 0.36, 0.07, 0.025);
+      const espMat2 = mat(0x1a2a10, 0.2, 0.5, 0x223311, 0.1);
+      const esp2 = new THREE.Mesh(espGeo2, espMat2);
+      esp2.position.set(-0.3, 0.1, 0.065);
+      esp2.userData.label = { name: "ESP32-S3", desc: "Main MCU · WiFi + BLE" };
+      verisGroup.add(esp2);
+
+      // ATECC608A
+      const ateccGeo2 = rbox(0.2, 0.2, 0.055, 0.015);
+      const ateccMat2 = mat(0x0d0d2a, 0.4, 0.4, 0x0000aa, 0.08);
+      const atecc2 = new THREE.Mesh(ateccGeo2, ateccMat2);
+      atecc2.position.set(0.42, 0.22, 0.065);
+      atecc2.userData.label = {
+        name: "ATECC608A",
+        desc: "Secure Element · Hardware Key",
+      };
+      verisGroup.add(atecc2);
+
+      // SIM7600
+      const simGeo2 = rbox(0.55, 0.38, 0.09, 0.025);
+      const simMat2 = mat(0x0a1a2e, 0.3, 0.5, 0x001133, 0.1);
+      const sim2 = new THREE.Mesh(simGeo2, simMat2);
+      sim2.position.set(0.5, -0.2, 0.08);
+      sim2.userData.label = {
+        name: "SIM7600E",
+        desc: "4G LTE · Blockchain Upload",
+      };
+      verisGroup.add(sim2);
+
+      // LiPo
+      const lipoGeo2 = rbox(0.85, 0.5, 0.16, 0.035);
+      const lipoMat2 = mat(0x1a1200, 0.1, 0.7);
+      const lipo2 = new THREE.Mesh(lipoGeo2, lipoMat2);
+      lipo2.position.set(-0.55, -0.28, -0.11);
+      lipo2.userData.label = {
+        name: "1200mAh LiPo",
+        desc: "Battery · ~8hr life",
+      };
+      verisGroup.add(lipo2);
+
+      // Status LEDs
+      const ledCols = [0xff5500, 0x22cc55, 0xff3333];
+      const ledMeshes = [];
+      ledCols.forEach((c, i) => {
+        const lGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.035, 10);
+        const lMat = new THREE.MeshStandardMaterial({
+          color: c,
+          emissive: c,
+          emissiveIntensity: i === 0 ? 2 : 0.2,
+          transparent: true,
+          opacity: 0.92,
+        });
+        const led = new THREE.Mesh(lGeo, lMat);
+        led.position.set(0.72 + i * 0.11, 0.52, 0.06);
+        led.rotation.x = Math.PI / 2;
+        verisGroup.add(led);
+        ledMeshes.push(led);
+
+        // Glow
+        const gGeo = new THREE.SphereGeometry(0.055, 8, 8);
+        const gMat = new THREE.MeshStandardMaterial({
+          color: c,
+          emissive: c,
+          emissiveIntensity: i === 0 ? 0.8 : 0.05,
+          transparent: true,
+          opacity: 0.12,
+        });
+        const glow = new THREE.Mesh(gGeo, gMat);
+        glow.position.copy(led.position);
+        verisGroup.add(glow);
+      });
+
+      // USB-C port on Veris
+      const vusbGeo = new THREE.BoxGeometry(0.17, 0.09, 0.14);
+      const vusbMat = mat(0x888888, 0.9, 0.2);
+      const vusb = new THREE.Mesh(vusbGeo, vusbMat);
+      vusb.position.set(0, -0.69, 0);
+      vusb.userData.label = {
+        name: "USB-C (Veris)",
+        desc: "Connects to camera body",
+      };
+      verisGroup.add(vusb);
+
+      // Hot shoe PLUG (male — on Veris bottom)
+      const hsPlugGeo = new THREE.BoxGeometry(1.55, 0.22, 0.38);
+      const hsPlugMat = mat(0x2a2a2a, 0.8, 0.25);
+      const hsPlug = new THREE.Mesh(hsPlugGeo, hsPlugMat);
+      hsPlug.position.set(0, -0.76, -0.13);
+      hsPlug.userData.label = {
+        name: "Hot Shoe Plug",
+        desc: "Slides into camera mount",
+      };
+      verisGroup.add(hsPlug);
+
+      // Hot shoe plug rails
+      [-0.62, 0.62].forEach((x) => {
+        const r = new THREE.Mesh(
+          new THREE.BoxGeometry(1.55, 0.12, 0.09),
+          mat(0x555555, 0.9, 0.2),
+        );
+        r.position.set(x, -0.88, -0.12);
+        verisGroup.add(r);
+      });
+
+      // Locking screw knob
+      const screwGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.12, 10);
+      const screwMat = mat(0x666666, 0.7, 0.3);
+      const screw = new THREE.Mesh(screwGeo, screwMat);
+      screw.position.set(0.6, -0.72, -0.3);
+      screw.rotation.x = Math.PI / 2;
+      screw.userData.label = {
+        name: "Lock Screw",
+        desc: "Secure mount tightener",
+      };
+      verisGroup.add(screw);
+
+      // ── USB Cable connecting Veris to Camera ───────────────────────
+      const cableGroup = new THREE.Group();
+      scene.add(cableGroup);
+
+      function makeCable(points, color = 0x1a1a1a) {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const tubeGeo = new THREE.TubeGeometry(curve, 30, 0.035, 8, false);
+        const tubeMat = new THREE.MeshStandardMaterial({
+          color,
+          metalness: 0.2,
+          roughness: 0.7,
+        });
+        return new THREE.Mesh(tubeGeo, tubeMat);
+      }
+
+      // Will be updated dynamically
+      let cableMesh = null;
+
+      // ── Annotations / arrows ───────────────────────────────────────
+      function makeArrow(from, to, color = 0xff5500) {
+        const dir = new THREE.Vector3().subVectors(to, from).normalize();
+        const len = from.distanceTo(to);
+        const arrowHelper = new THREE.ArrowHelper(
+          dir,
+          from,
+          len,
+          color,
+          0.2,
+          0.1,
+        );
+        return arrowHelper;
+      }
+
+      // Floating highlight ring around hot shoe
+      const hsRingGeo = new THREE.TorusGeometry(1.1, 0.03, 8, 40);
+      const hsRingMat = new THREE.MeshStandardMaterial({
+        color: 0xff5500,
+        emissive: 0xff5500,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0,
+      });
+      const hsRing = new THREE.Mesh(hsRingGeo, hsRingMat);
+      hsRing.position.set(-0.2, 1.65, -0.1);
+      hsRing.rotation.x = Math.PI / 2;
+      scene.add(hsRing);
+
+      // ── Position setup ─────────────────────────────────────────────
+      // Camera at origin
+      camGroup.position.set(0, 0, 0);
+
+      // Veris starts ABOVE (unmounted position)
+      verisGroup.position.set(-0.2, 4.5, -0.1);
+      verisGroup.rotation.x = 0;
+
+      // ── Camera controls ────────────────────────────────────────────
+      let autoRot = true;
+      let mouseDown = false,
+        rightDown = false;
+      let prevM = { x: 0, y: 0 };
+      let sph = { theta: 0.3, phi: 1.05, r: 14 };
+      let tgt = new THREE.Vector3(0, 0.5, 0);
+
+      renderer.domElement.addEventListener("mousedown", (e) => {
+        if (e.button === 2) rightDown = true;
+        else mouseDown = true;
+        prevM = { x: e.clientX, y: e.clientY };
+        autoRot = false;
+        document.getElementById("btn-rot").classList.remove("active");
+      });
+      renderer.domElement.addEventListener("mouseup", () => {
+        mouseDown = false;
+        rightDown = false;
+      });
+      renderer.domElement.addEventListener("mousemove", (e) => {
+        const dx = e.clientX - prevM.x,
+          dy = e.clientY - prevM.y;
+        if (mouseDown) {
+          sph.theta -= dx * 0.007;
+          sph.phi = Math.max(0.2, Math.min(2.8, sph.phi + dy * 0.007));
+        }
+        if (rightDown) {
+          tgt.x -= dx * 0.015;
+          tgt.y += dy * 0.015;
+        }
+        prevM = { x: e.clientX, y: e.clientY };
+
+        // Hover labels
+        mouse2.x = (e.clientX / W) * 2 - 1;
+        mouse2.y = -(e.clientY / H) * 2 + 1;
+      });
+      renderer.domElement.addEventListener("wheel", (e) => {
+        sph.r = Math.max(4, Math.min(25, sph.r + e.deltaY * 0.015));
+        autoRot = false;
+        document.getElementById("btn-rot").classList.remove("active");
+      });
+      renderer.domElement.addEventListener("contextmenu", (e) =>
+        e.preventDefault(),
+      );
+
+      const mouse2 = new THREE.Vector2();
+      const raycaster = new THREE.Raycaster();
+      const labelEl = document.getElementById("hover-label");
+
+      // Collect labelable meshes
+      const labelMeshes = [];
+      [...camGroup.children, ...verisGroup.children].forEach((m) => {
+        if (m.userData.label) labelMeshes.push(m);
+      });
+
+      // ── State machine ──────────────────────────────────────────────
+      let currentStep = 0;
+      let mountT = 0; // 0 = unmounted, 1 = mounted
+      let mountAnimating = false;
+      let mountDir = 0;
+      let xrayMode = false;
+
+      const MOUNTED_POS = new THREE.Vector3(-0.2, 2.58, -0.1);
+      const UNMOUNTED_POS = new THREE.Vector3(-0.2, 4.5, -0.1);
+
+      const stepCameras = [
+        { theta: 0.3, phi: 1.05, r: 14, tgt: new THREE.Vector3(0, 0.5, 0) }, // overview
+        { theta: 0.0, phi: 0.75, r: 10, tgt: new THREE.Vector3(-0.2, 1.8, 0) }, // hot shoe
+        { theta: 0.3, phi: 0.8, r: 9, tgt: new THREE.Vector3(0, 1.5, 0) }, // lock
+        { theta: -0.5, phi: 1.1, r: 11, tgt: new THREE.Vector3(-1.5, 0.2, 0) }, // usb
+        { theta: 0.4, phi: 1.0, r: 13, tgt: new THREE.Vector3(0, 0.5, 0) }, // full
+      ];
+
+      function goToStep(s) {
+        currentStep = s;
+        document
+          .querySelectorAll(".step-item")
+          .forEach((el, i) => el.classList.toggle("active", i === s));
+
+        const sc = stepCameras[s];
+        sph = { theta: sc.theta, phi: sc.phi, r: sc.r };
+        tgt = sc.tgt.clone();
+
+        if (s >= 1) {
+          mountDir = 1;
+          mountAnimating = true;
+        } else {
+          mountDir = -1;
+          mountAnimating = true;
+        }
+
+        // Update progress bars
+        const progs = [0, 0, 0, 0];
+        if (s >= 1) progs[0] = 60;
+        if (s >= 2) progs[0] = 100;
+        if (s >= 3) progs[1] = 100;
+        if (s >= 3) progs[2] = 50;
+        if (s >= 4) {
+          progs[2] = 100;
+          progs[3] = 100;
+        }
+
+        document.getElementById("prog-1").style.width = progs[0] + "%";
+        document.getElementById("prog-2").style.width = progs[1] + "%";
+        document.getElementById("prog-3").style.width = progs[2] + "%";
+        document.getElementById("prog-4").style.width = progs[3] + "%";
+
+        // Update status
+        const stMount = document.getElementById("st-mount");
+        const stSync = document.getElementById("st-sync");
+        const stSign = document.getElementById("st-sign");
+        const stChain = document.getElementById("st-chain");
+
+        if (s === 0) {
+          stMount.textContent = "DETACHED";
+          stMount.style.color = "#555";
+          stSync.textContent = "STANDBY";
+          stSign.textContent = "IDLE";
+          stChain.textContent = "OFFLINE";
+        }
+        if (s === 1) {
+          stMount.textContent = "ALIGNING";
+          stMount.style.color = "#FF5500";
+        }
+        if (s === 2) {
+          stMount.textContent = "SECURING";
+          stMount.style.color = "#FF5500";
+          stSync.textContent = "DETECTING";
+          stSync.style.color = "#FF5500";
+        }
+        if (s === 3) {
+          stMount.textContent = "MOUNTED";
+          stMount.style.color = "#22cc55";
+          stSync.textContent = "ACTIVE";
+          stSync.style.color = "#22cc55";
+          stSign.textContent = "READY";
+          stSign.style.color = "#22cc55";
+        }
+        if (s === 4) {
+          stMount.textContent = "LOCKED";
+          stMount.style.color = "#22cc55";
+          stChain.textContent = "4G LIVE";
+          stChain.style.color = "#22cc55";
+        }
+      }
+
+      let mountAnim = false;
+      function animateMount() {
+        if (mountT > 0.5) {
+          goToStep(0);
+        } else {
+          goToStep(4);
+        }
+        mountAnim = true;
+        document.getElementById("btn-mount").classList.add("active");
+        setTimeout(() => {
+          document.getElementById("btn-mount").classList.remove("active");
+        }, 2000);
+      }
+
+      function toggleAutoRot() {
+        autoRot = !autoRot;
+        document.getElementById("btn-rot").classList.toggle("active", autoRot);
+      }
+
+      function toggleXray() {
+        xrayMode = !xrayMode;
+        document
+          .getElementById("btn-xray")
+          .classList.toggle("active", xrayMode);
+        enclosure.material.transparent = xrayMode;
+        enclosure.material.opacity = xrayMode ? 0.1 : 1;
+        enclosure.material.wireframe = xrayMode;
+        bodyMat.transparent = xrayMode;
+        bodyMat.opacity = xrayMode ? 0.1 : 1;
+        bodyMat.wireframe = xrayMode;
+      }
+
+      function resetCam() {
+        sph = { theta: 0.3, phi: 1.05, r: 14 };
+        tgt = new THREE.Vector3(0, 0.5, 0);
+        autoRot = true;
+        document.getElementById("btn-rot").classList.add("active");
+      }
+
+      // ── Highlight ring animation ────────────────────────────────────
+      let ringAlpha = 0;
+
+      // ── Render loop ────────────────────────────────────────────────
+      const clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        // Auto rotate
+        if (autoRot) sph.theta += 0.003;
+
+        // Camera position from spherical
+        camera.position.x =
+          tgt.x + sph.r * Math.sin(sph.phi) * Math.sin(sph.theta);
+        camera.position.y = tgt.y + sph.r * Math.cos(sph.phi);
+        camera.position.z =
+          tgt.z + sph.r * Math.sin(sph.phi) * Math.cos(sph.theta);
+        camera.lookAt(tgt);
+
+        // Mount animation
+        if (mountAnimating) {
+          const targetT = mountDir > 0 ? 1 : 0;
+          mountT += (targetT - mountT) * 0.04;
+          if (Math.abs(targetT - mountT) < 0.001) {
+            mountT = targetT;
+            mountAnimating = false;
+          }
+        }
+
+        // Veris position interpolation
+        verisGroup.position.lerpVectors(UNMOUNTED_POS, MOUNTED_POS, mountT);
+
+        // Slight tilt when descending
+        verisGroup.rotation.x = (1 - mountT) * 0.15;
+        verisGroup.rotation.z = (1 - mountT) * 0.05 * Math.sin(t * 2);
+
+        // Draw cable when mounted
+        if (cableMesh) {
+          scene.remove(cableMesh);
+          cableMesh = null;
+        }
+        if (mountT > 0.5) {
+          const startPt = new THREE.Vector3(
+            -0.2,
+            verisGroup.position.y - 0.7,
+            -0.1,
+          );
+          const endPt = new THREE.Vector3(-2.16, 0.3, 0);
+          const mid1 = new THREE.Vector3(-1.5, 0.0, 0.5);
+          const mid2 = new THREE.Vector3(-2.0, 0.6, 0.3);
+          cableMesh = makeCable([startPt, mid1, mid2, endPt], 0x222222);
+          scene.add(cableMesh);
+
+          // Cable connector at both ends
+          const connGeo = new THREE.BoxGeometry(0.12, 0.07, 0.12);
+          const connMat2 = mat(0x555555, 0.8, 0.25);
+          const c1 = new THREE.Mesh(connGeo, connMat2);
+          c1.position.copy(startPt);
+          scene.add(c1);
+          const c2 = new THREE.Mesh(connGeo, connMat2);
+          c2.position.copy(endPt);
+          scene.add(c2);
+        }
+
+        // LED pulse (only when mounted)
+        ledMeshes[0].material.emissiveIntensity =
+          mountT > 0.9 ? 1.5 + Math.sin(t * 3) * 1 : 0.2;
+
+        // Hot shoe ring highlight
+        if (mountT < 0.5 && currentStep >= 1) {
+          ringAlpha = Math.min(0.8, ringAlpha + 0.03);
+        } else {
+          ringAlpha = Math.max(0, ringAlpha - 0.03);
+        }
+        hsRing.material.opacity = ringAlpha * (0.5 + Math.sin(t * 3) * 0.3);
+
+        // Point light flicker
+        pt.intensity = 2 + Math.sin(t * 2.5) * 0.4;
+
+        // Raycasting for hover
+        raycaster.setFromCamera(mouse2, camera);
+        const allMeshes = [...camGroup.children, ...verisGroup.children].filter(
+          (m) => m.userData.label,
+        );
+        const hits = raycaster.intersectObjects(allMeshes);
+        if (hits.length > 0) {
+          const l = hits[0].object.userData.label;
+          document.getElementById("lbl-name").textContent = l.name;
+          document.getElementById("lbl-desc").textContent = l.desc;
+          labelEl.style.opacity = "1";
+          const canvas = renderer.domElement;
+          labelEl.style.left = (mouse2.x * 0.5 + 0.5) * W + 14 + "px";
+          labelEl.style.top = (-mouse2.y * 0.5 + 0.5) * H - 10 + "px";
+        } else {
+          labelEl.style.opacity = "0";
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      // ── Resize ─────────────────────────────────────────────────────
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // ── Start ──────────────────────────────────────────────────────
+      setTimeout(() => {
+        const l = document.getElementById("loading");
+        l.style.opacity = "0";
+        setTimeout(() => (l.style.display = "none"), 600);
+      }, 1500);
+
+      animate();
+    </script>
+  </body>
+</html>
