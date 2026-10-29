@@ -100,6 +100,8 @@ function timeOf(item: ArchiveItem): number {
 // Anything captured before this moment is hidden from the archive (fresh start after the wallet
 // switch). Nothing is deleted, it just stops showing up.
 const HIDE_BEFORE = Date.parse('2026-10-29T19:00:00Z');
+// Phone imports only store a date ("30 Oct 2026"), which parses to midnight, so compare them by day.
+const HIDE_BEFORE_DAY = new Date(HIDE_BEFORE).setHours(0, 0, 0, 0);
 
 export default function PortalScreen() {
   const router = useRouter();
@@ -147,7 +149,7 @@ export default function PortalScreen() {
   const shown = useMemo(() => {
     const filtered = items.filter(
       (it) =>
-        timeOf(it) >= HIDE_BEFORE &&
+        timeOf(it) >= (it.kind === 'unverified' ? HIDE_BEFORE_DAY : HIDE_BEFORE) &&
         (filter === 'ALL' || statusOf(it) === filter) &&
         (deviceFilter === 'ALL' || deviceOf(it) === deviceFilter.toLowerCase())
     );
