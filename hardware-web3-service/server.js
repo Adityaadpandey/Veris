@@ -681,6 +681,31 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       });
     }
 
+    // The camera retries an upload it thought timed out, even when the first try went through
+    // (Filecoin + mint can take over a minute). Hand back what we already have for this photo
+    // instead of failing on the unique hash, otherwise the camera re-queues it forever.
+    const existing = dbService.getImageByHash(imageHash);
+    if (existing) {
+      fs.unlinkSync(req.file.path);
+      const claimUrl = existing.claim_id
+        ? `${process.env.CLAIM_PORTAL_URL || 'https://veris.live'}/claim/${existing.claim_id}`
+        : null;
+      console.log(`♻️  Duplicate upload for image ${existing.id}, returning the existing result`);
+      return res.json({
+        success: true,
+        imageId: existing.id,
+        filename: existing.filename,
+        filepath: `/captures/${existing.filename}`,
+        imageHash,
+        filecoinCid: existing.filecoin_cid || null,
+        metadataCid: existing.filecoin_metadata_cid || null,
+        claimId: existing.claim_id || null,
+        claimUrl,
+        qrCodeUrl: claimUrl,
+        status: existing.status
+      });
+    }
+
     const filename = `photo_${Date.now()}.jpg`;
     const filepath = path.join(CAPTURES_PATH, filename);
     fs.renameSync(req.file.path, filepath);
