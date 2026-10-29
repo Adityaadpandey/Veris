@@ -91,6 +91,13 @@ sudo apt install -y \
     i2c-tools
 echo ""
 
+echo -e "${GREEN}[5.5/7] Installing Bluetooth libraries (for headless trigger mode)...${NC}"
+sudo apt install -y \
+    bluez \
+    bluez-tools \
+    libbluetooth-dev
+echo ""
+
 echo -e "${GREEN}[6/7] Installing Python packages...${NC}"
 
 echo -e "${YELLOW}Do you want to install Python packages in a virtual environment? (recommended)${NC}"
@@ -125,6 +132,9 @@ if [ "$use_venv" = "y" ] || [ "$use_venv" = "Y" ]; then
     pip install smbus2 || echo "Warning: smbus2 install failed"
     pip install ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
 
+    echo "Installing PyBluez (required for headless Bluetooth trigger mode)..."
+    pip install pybluez2 || pip install PyBluez || echo "Warning: PyBluez install failed - headless_camera_app.py needs it"
+
     echo ""
     echo -e "${GREEN}Virtual environment created at: $VENV_PATH${NC}"
     echo -e "${YELLOW}To activate it, run: source $VENV_PATH/bin/activate${NC}"
@@ -147,6 +157,9 @@ else
     echo "Installing additional libraries..."
     pip3 install --user smbus2 || echo "Warning: smbus2 install failed"
     pip3 install --user ecdsa || echo "Warning: ecdsa install failed (required for hardware identity)"
+
+    echo "Installing PyBluez (required for headless Bluetooth trigger mode)..."
+    pip3 install --user pybluez2 || pip3 install --user PyBluez || echo "Warning: PyBluez install failed - headless_camera_app.py needs it"
 fi
 echo ""
 
