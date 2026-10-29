@@ -13,7 +13,7 @@ const dbService = require('./dbService');
 const geminiService = require('./geminiService');
 const { dHash } = require('./imageHash');
 
-const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs';
+const LIGHTHOUSE_GATEWAY = process.env.LIGHTHOUSE_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs';
 
 const IPFS_GATEWAYS = [
   LIGHTHOUSE_GATEWAY,
