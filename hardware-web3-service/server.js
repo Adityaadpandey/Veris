@@ -1339,7 +1339,7 @@ app.post('/api/privy/mint-with-signer', async (req, res) => {
     }
 
     // Get contract ABI and address
-    const verisAddress = deploymentService.getVerisAddress() || process.env.VERIS_ERC1155_ADDRESS || process.env.VERIS_ERC1155_ADDRESS;
+    const verisAddress = deploymentService.getVerisAddress() || process.env.VERIS_ERC1155_ADDRESS;
     
     if (!verisAddress) {
       return res.status(400).json({
