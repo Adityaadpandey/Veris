@@ -22,9 +22,8 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 
-const CLAIM_API = import.meta.env.DEV
-  ? (import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001')
-  : '/api/claim-server'
+const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
+  || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
 
 const VERIS_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
 const VERIS_ABI = [
