@@ -10,8 +10,14 @@ contract DeployScript is Script {
         // Load deployer private key from environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
+
+        // Run with --network base, --network sepolia or --network mainnet. Base is
+        // the cheap option; mainnet is where the per-photo gas really hurts.
+        uint256 chainId = block.chainid;
+        string memory network = vm.envOr("NETWORK", vm.toString(chainId));
+
         console.log("Deploying contracts...");
+        console.log("Network:", network);
         console.log("Deployer address:", deployer);
         console.log("Deployer balance:", deployer.balance);
 
@@ -38,7 +44,8 @@ contract DeployScript is Script {
 
         // Write deployment.json for use by backend services
         string memory deploymentJson = string.concat(
-            '{"network":"sepolia","chainId":11155111,"contracts":{"DeviceRegistry":{"address":"',
+            '{"network":"', network, '","chainId":', vm.toString(chainId),
+            ',"contracts":{"DeviceRegistry":{"address":"',
             vm.toString(address(deviceRegistry)),
             '"},"VerisERC1155":{"address":"',
             vm.toString(address(veris)),

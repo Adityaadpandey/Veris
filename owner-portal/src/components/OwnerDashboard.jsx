@@ -1,17 +1,17 @@
-import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount, useReadContract, useReadContracts } from 'wagmi'
-import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   Camera,
   Cpu,
@@ -24,106 +24,125 @@ import {
   CircleAlert,
   QrCode,
   WifiOff,
-} from 'lucide-react'
+} from "lucide-react";
 
-const BACKEND_URL      = import.meta.env.VITE_BACKEND_URL      || 'http://localhost:5000'
-const CLAIM_SERVER_URL = import.meta.env.VITE_CLAIM_SERVER_URL || 'http://localhost:5001'
-const PRIVY_APP_ID     = import.meta.env.VITE_PRIVY_APP_ID     || 'your-privy-app-id'
-const PORTAL_URL       = import.meta.env.VITE_PORTAL_URL       || window.location.origin
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+const CLAIM_SERVER_URL =
+  import.meta.env.VITE_CLAIM_SERVER_URL || "http://localhost:5001";
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
+const PORTAL_URL = import.meta.env.VITE_PORTAL_URL || window.location.origin;
 
 // Display-only branding: rewrite legacy "veris" naming to "veris" for UI
 // text (cosmetic; may not match the raw on-chain value).
 const deBrand = (v) =>
-  typeof v === 'string'
-    ? v.replace(/veris/gi, (m) => (m[0] === m[0].toUpperCase() ? 'Veris' : 'veris'))
-    : v
+  typeof v === "string"
+    ? v.replace(/veris/gi, (m) =>
+        m[0] === m[0].toUpperCase() ? "Veris" : "veris",
+      )
+    : v;
 
-const VERIS_ADDRESS = '0x35f5B3b5D6BF361169743cB13D66849C4C839c69'
+const VERIS_ADDRESS = "0x35f5B3b5D6BF361169743cB13D66849C4C839c69";
 const VERIS_ABI = [
   {
-    name: 'totalTokens',
-    type: 'function',
-    stateMutability: 'view',
+    name: "totalTokens",
+    type: "function",
+    stateMutability: "view",
     inputs: [],
-    outputs: [{ type: 'uint256' }],
+    outputs: [{ type: "uint256" }],
   },
   {
-    name: 'getTokenMetadata',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: '_tokenId', type: 'uint256' }],
-    outputs: [{
-      type: 'tuple',
-      components: [
-        { name: 'deviceAddress', type: 'address' },
-        { name: 'deviceId',      type: 'string'  },
-        { name: 'ipfsHash',      type: 'string'  },
-        { name: 'imageHash',     type: 'string'  },
-        { name: 'signature',     type: 'string'  },
-        { name: 'timestamp',     type: 'uint256' },
-        { name: 'maxEditions',   type: 'uint256' },
-        { name: 'isOriginal',    type: 'bool'    },
-        { name: 'originalTokenId', type: 'uint256' },
-      ],
-    }],
+    name: "getTokenMetadata",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_tokenId", type: "uint256" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "deviceAddress", type: "address" },
+          { name: "deviceId", type: "string" },
+          { name: "ipfsHash", type: "string" },
+          { name: "imageHash", type: "string" },
+          { name: "signature", type: "string" },
+          { name: "timestamp", type: "uint256" },
+          { name: "maxEditions", type: "uint256" },
+          { name: "isOriginal", type: "bool" },
+          { name: "originalTokenId", type: "uint256" },
+        ],
+      },
+    ],
   },
-]
+];
 
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
 const IPFS_GATEWAYS = [
-  import.meta.env.VITE_IPFS_GATEWAY || 'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
-  'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
-  'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
-]
-const ipfsUrl = (cid) => cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
+  import.meta.env.VITE_IPFS_GATEWAY ||
+    "https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs",
+  "https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs",
+  "https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs",
+];
+const ipfsUrl = (cid) => (cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null);
 const ipfsOnError = (cid) => (e) => {
-  const idx = IPFS_GATEWAYS.findIndex(g => e.target.src.startsWith(g))
-  const next = idx + 1
+  const idx = IPFS_GATEWAYS.findIndex((g) => e.target.src.startsWith(g));
+  const next = idx + 1;
   if (next < IPFS_GATEWAYS.length) {
-    e.target.src = `${IPFS_GATEWAYS[next]}/${cid}`
+    e.target.src = `${IPFS_GATEWAYS[next]}/${cid}`;
   } else {
-    e.target.style.display = 'none'
+    e.target.style.display = "none";
   }
-}
+};
 
 /* ── Veris logo mark ── */
 function VerisLogoMark({ size = 28 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      aria-hidden="true"
+    >
       <circle cx="14" cy="14" r="12.5" stroke="#E85002" strokeWidth="1.5" />
-      <path d="M8.5 10.5L14 17.5L19.5 10.5" stroke="#E85002" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M8.5 10.5L14 17.5L19.5 10.5"
+        stroke="#E85002"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
-  )
+  );
 }
 
 function imageState(img) {
-  if (img.status === 'minted') return 'minted'
-  if (img.status === 'uploaded' && img.claimId && !img.tokenId) return 'minting'
-  if (img.status === 'uploaded' && !img.claimId) return 'claim_failed'
-  if (img.status === 'saved') return 'upload_failed'
-  return img.status
+  if (img.status === "minted") return "minted";
+  if (img.status === "uploaded" && img.claimId && !img.tokenId)
+    return "minting";
+  if (img.status === "uploaded" && !img.claimId) return "claim_failed";
+  if (img.status === "saved") return "upload_failed";
+  return img.status;
 }
 
 function statusVariant(img) {
-  const s = imageState(img)
-  if (s === 'minted') return 'minted'
-  if (s === 'minting') return 'uploaded'
-  if (s === 'upload_failed' || s === 'claim_failed') return 'failed'
-  return 'default'
+  const s = imageState(img);
+  if (s === "minted") return "minted";
+  if (s === "minting") return "uploaded";
+  if (s === "upload_failed" || s === "claim_failed") return "failed";
+  return "default";
 }
 
 /* ── QR Modal ── */
 function QRModal({ url, onClose, open }) {
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}&bgcolor=0e0e0e&color=F9F9F9&margin=16`
-  const [copied, setCopied] = useState(false)
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}&bgcolor=0e0e0e&color=F9F9F9&margin=16`;
+  const [copied, setCopied] = useState(false);
   const copy = () => {
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Claim QR Code</DialogTitle>
@@ -132,13 +151,25 @@ function QRModal({ url, onClose, open }) {
           <div className="rounded-xl overflow-hidden border border-white/[0.08] bg-[#0e0e0e] p-1">
             <img src={qrSrc} alt="QR Code" className="w-56 h-56" />
           </div>
-          <p className="text-xs text-text-muted font-mono break-all text-center px-2">{url}</p>
+          <p className="text-xs text-text-muted font-mono break-all text-center px-2">
+            {url}
+          </p>
           <div className="flex gap-3 w-full">
-            <Button variant="secondary" size="sm" className="flex-1 gap-2" onClick={copy}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={copy}
+            >
               {copied ? <Check size={13} /> : <Copy size={13} />}
-              {copied ? 'Copied' : 'Copy Link'}
+              {copied ? "Copied" : "Copy Link"}
             </Button>
-            <Button variant="primary" size="sm" className="flex-1 gap-2" asChild>
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 gap-2"
+              asChild
+            >
               <a href={url} target="_blank" rel="noreferrer">
                 <ExternalLink size={13} /> Open
               </a>
@@ -147,96 +178,133 @@ function QRModal({ url, onClose, open }) {
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 /* ── Featured card (latest shot, spans 2 cols) ── */
 function FeaturedCard({ img, claimServerUrl, onRetry }) {
-  const [showQR, setShowQR]   = useState(false)
-  const [copying, setCopying] = useState(false)
-  const state    = imageState(img)
-  const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
-  const imgSrc   = ipfsUrl(img.filecoinCid)
-  const isLive   = state !== 'minted'
+  const [showQR, setShowQR] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const state = imageState(img);
+  const claimUrl = img.claimId
+    ? `${claimServerUrl}/claim/${img.claimId}`
+    : null;
+  const imgSrc = ipfsUrl(img.filecoinCid);
+  const isLive = state !== "minted";
 
   const copyLink = () => {
-    if (!claimUrl) return
-    navigator.clipboard.writeText(claimUrl)
-    setCopying(true)
-    setTimeout(() => setCopying(false), 1500)
-  }
+    if (!claimUrl) return;
+    navigator.clipboard.writeText(claimUrl);
+    setCopying(true);
+    setTimeout(() => setCopying(false), 1500);
+  };
 
   const time = (() => {
-    if (!img.createdAt) return '—'
-    const iso = img.createdAt.includes('T') || img.createdAt.endsWith('Z')
-      ? img.createdAt
-      : img.createdAt.replace(' ', 'T') + 'Z'
-    const d = new Date(iso)
-    if (isNaN(d)) return '—'
-    return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
-  })()
+    if (!img.createdAt) return "—";
+    const iso =
+      img.createdAt.includes("T") || img.createdAt.endsWith("Z")
+        ? img.createdAt
+        : img.createdAt.replace(" ", "T") + "Z";
+    const d = new Date(iso);
+    if (isNaN(d)) return "—";
+    return d.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  })();
 
   const overlayText = {
-    minting:      'Uploaded · minting NFT…',
-    claim_failed: 'Uploaded · claim registration failed',
-    upload_failed: 'Captured · uploading to Filecoin…',
-  }[state]
+    minting: "Uploaded · minting NFT…",
+    claim_failed: "Uploaded · claim registration failed",
+    upload_failed: "Captured · uploading to Filecoin…",
+  }[state];
 
-  const badgeText = {
-    minted:       'Minted',
-    minting:      'Minting',
-    claim_failed: 'Claim Failed',
-    upload_failed: 'Upload Failed',
-  }[state] || img.status
+  const badgeText =
+    {
+      minted: "Minted",
+      minting: "Minting",
+      claim_failed: "Claim Failed",
+      upload_failed: "Upload Failed",
+    }[state] || img.status;
 
-  const overlayColor = (state === 'claim_failed' || state === 'upload_failed')
-    ? 'bg-[#fbbf24]/[0.07]'
-    : 'bg-brand/[0.07]'
-  const dotColor = (state === 'claim_failed' || state === 'upload_failed')
-    ? 'bg-[#fbbf24]'
-    : 'bg-brand'
-  const textColor = (state === 'claim_failed' || state === 'upload_failed')
-    ? 'text-[#fbbf24]'
-    : 'text-brand'
+  const overlayColor =
+    state === "claim_failed" || state === "upload_failed"
+      ? "bg-[#fbbf24]/[0.07]"
+      : "bg-brand/[0.07]";
+  const dotColor =
+    state === "claim_failed" || state === "upload_failed"
+      ? "bg-[#fbbf24]"
+      : "bg-brand";
+  const textColor =
+    state === "claim_failed" || state === "upload_failed"
+      ? "text-[#fbbf24]"
+      : "text-brand";
 
   const statusMsg = {
-    minting:       'Minting in progress…',
-    claim_failed:  'Claim registration failed · retry to recover',
-    upload_failed: 'Upload failed · retry to recover',
-  }[state]
+    minting: "Minting in progress…",
+    claim_failed: "Claim registration failed · retry to recover",
+    upload_failed: "Upload failed · retry to recover",
+  }[state];
 
   return (
-    <div className={`rounded-xl overflow-hidden col-span-2 border ${
-      isLive ? 'border-brand/25 bg-[#0e0e0e]' : 'border-white/[0.07] bg-[#0e0e0e]'
-    }`}>
+    <div
+      className={`rounded-xl overflow-hidden col-span-2 border ${
+        isLive
+          ? "border-brand/25 bg-[#0e0e0e]"
+          : "border-white/[0.07] bg-[#0e0e0e]"
+      }`}
+    >
       <div className="relative aspect-video bg-[#141414] overflow-hidden">
         {imgSrc && !isLive && (
-          <img src={imgSrc} alt="Captured" className="w-full h-full object-cover"
-            onError={ipfsOnError(img.filecoinCid)} />
+          <img
+            src={imgSrc}
+            alt="Captured"
+            className="w-full h-full object-cover"
+            onError={ipfsOnError(img.filecoinCid)}
+          />
         )}
         {isLive && (
-          <div className={`absolute inset-0 flex items-center justify-center gap-3 ${overlayColor}`}>
+          <div
+            className={`absolute inset-0 flex items-center justify-center gap-3 ${overlayColor}`}
+          >
             <div className={`w-2 h-2 rounded-full animate-pulse ${dotColor}`} />
-            <span className={`text-sm font-semibold ${textColor}`}>{overlayText}</span>
+            <span className={`text-sm font-semibold ${textColor}`}>
+              {overlayText}
+            </span>
           </div>
         )}
-        <Badge variant={statusVariant(img)} className="absolute top-3 left-3 shadow-lg">
+        <Badge
+          variant={statusVariant(img)}
+          className="absolute top-3 left-3 shadow-lg"
+        >
           {badgeText}
         </Badge>
-        {state === 'minted' && img.ai_score != null && (
+        {state === "minted" && img.ai_score != null && (
           <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm border border-[#34d399]/25 rounded-md px-2 py-1">
-            <span className="text-[10px] font-bold text-[#34d399]">AI {img.ai_score}</span>
+            <span className="text-[10px] font-bold text-[#34d399]">
+              AI {img.ai_score}
+            </span>
           </div>
         )}
         <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-md px-2 py-1">
-          <span className="text-[10px] text-text-muted">Latest shot · {time}</span>
+          <span className="text-[10px] text-text-muted">
+            Latest shot · {time}
+          </span>
         </div>
       </div>
       <div className="px-4 py-3 space-y-2">
         {isLive ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted flex-1">{statusMsg}</span>
-            <Button size="sm" variant="secondary" className="gap-1.5 shrink-0" onClick={() => onRetry(img.id)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-1.5 shrink-0"
+              onClick={() => onRetry(img.id)}
+            >
               <RotateCcw size={12} /> Retry
             </Button>
           </div>
@@ -245,39 +313,61 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
             {claimUrl && (
               <a
                 href={claimUrl}
-                target="_blank" rel="noreferrer"
+                target="_blank"
+                rel="noreferrer"
                 className="flex w-full items-center justify-center gap-2 bg-brand/10 border border-brand/25 text-brand rounded-lg py-2.5 text-xs font-semibold hover:bg-brand/18 transition-colors"
               >
                 <ExternalLink size={12} /> View Claim Page
               </a>
             )}
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-text-muted">#{img.id}</span>
+              <span className="font-mono text-xs text-text-muted">
+                #{img.id}
+              </span>
               {img.deviceId && (
                 <span className="text-[10px] text-text-muted/60 truncate max-w-[120px]">
-                  <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{deBrand(img.deviceId)}
+                  <span className="text-text-muted/40 uppercase tracking-wide mr-1">
+                    cam
+                  </span>
+                  {deBrand(img.deviceId)}
                 </span>
               )}
               <div className="ml-auto flex gap-1.5">
                 {claimUrl && (
                   <>
-                    <Button size="sm" variant="secondary" onClick={() => setShowQR(true)} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowQR(true)}
+                      className="gap-1.5"
+                    >
                       <QrCode size={12} /> QR
                     </Button>
-                    <Button size="sm" variant="secondary" className="gap-1.5" onClick={copyLink}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="gap-1.5"
+                      onClick={copyLink}
+                    >
                       {copying ? <Check size={12} /> : <Copy size={12} />}
-                      {copying ? 'Copied' : 'Copy'}
+                      {copying ? "Copied" : "Copy"}
                     </Button>
                   </>
                 )}
                 {(img.txHash || img.nftUrl) && (
                   <Button size="sm" variant="ghost" asChild>
                     <a
-                      href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
-                      target="_blank" rel="noreferrer"
+                      href={
+                        img.txHash
+                          ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                          : img.nftUrl
+                      }
+                      target="_blank"
+                      rel="noreferrer"
                       className="gap-1.5"
                     >
-                      <ExternalLink size={12} /> {img.txHash ? 'Etherscan' : 'View NFT'}
+                      <ExternalLink size={12} />{" "}
+                      {img.txHash ? "Etherscan" : "View NFT"}
                     </a>
                   </Button>
                 )}
@@ -286,67 +376,94 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
           </>
         )}
       </div>
-      {showQR && claimUrl && <QRModal url={claimUrl} onClose={() => setShowQR(false)} open={showQR} />}
+      {showQR && claimUrl && (
+        <QRModal
+          url={claimUrl}
+          onClose={() => setShowQR(false)}
+          open={showQR}
+        />
+      )}
     </div>
-  )
+  );
 }
 
 /* ── Standard image card ── */
 function ImageCard({ img, claimServerUrl, onRetry }) {
-  const [showQR, setShowQR]   = useState(false)
-  const [copying, setCopying] = useState(false)
-  const state    = imageState(img)
-  const claimUrl = img.claimId     ? `${claimServerUrl}/claim/${img.claimId}` : null
-  const imgSrc   = ipfsUrl(img.filecoinCid)
+  const [showQR, setShowQR] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const state = imageState(img);
+  const claimUrl = img.claimId
+    ? `${claimServerUrl}/claim/${img.claimId}`
+    : null;
+  const imgSrc = ipfsUrl(img.filecoinCid);
 
   const copyLink = () => {
-    if (!claimUrl) return
-    navigator.clipboard.writeText(claimUrl)
-    setCopying(true)
-    setTimeout(() => setCopying(false), 1500)
-  }
+    if (!claimUrl) return;
+    navigator.clipboard.writeText(claimUrl);
+    setCopying(true);
+    setTimeout(() => setCopying(false), 1500);
+  };
 
   const time = (() => {
-    if (!img.createdAt) return '—'
-    const iso = img.createdAt.includes('T') || img.createdAt.endsWith('Z')
-      ? img.createdAt
-      : img.createdAt.replace(' ', 'T') + 'Z'
-    const d = new Date(iso)
-    if (isNaN(d)) return '—'
-    return d.toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-  })()
+    if (!img.createdAt) return "—";
+    const iso =
+      img.createdAt.includes("T") || img.createdAt.endsWith("Z")
+        ? img.createdAt
+        : img.createdAt.replace(" ", "T") + "Z";
+    const d = new Date(iso);
+    if (isNaN(d)) return "—";
+    return d.toLocaleString("en-IN", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  })();
 
-  const borderClass = state === 'upload_failed' || state === 'claim_failed'
-    ? 'border-[#fbbf24]/15'
-    : state === 'minting'
-    ? 'border-[#60a5fa]/15'
-    : 'border-white/[0.07] hover:border-white/15'
+  const borderClass =
+    state === "upload_failed" || state === "claim_failed"
+      ? "border-[#fbbf24]/15"
+      : state === "minting"
+        ? "border-[#60a5fa]/15"
+        : "border-white/[0.07] hover:border-white/15";
 
-  const badgeLabel = {
-    minted:       'Minted',
-    minting:      'Minting',
-    claim_failed: 'Claim Failed',
-    upload_failed: 'Upload Failed',
-  }[state] || img.status
+  const badgeLabel =
+    {
+      minted: "Minted",
+      minting: "Minting",
+      claim_failed: "Claim Failed",
+      upload_failed: "Upload Failed",
+    }[state] || img.status;
 
   return (
-    <div className={`rounded-xl overflow-hidden border bg-[#0e0e0e] group transition-all duration-200 hover:-translate-y-0.5 ${borderClass}`}>
+    <div
+      className={`rounded-xl overflow-hidden border bg-[#0e0e0e] group transition-all duration-200 hover:-translate-y-0.5 ${borderClass}`}
+    >
       <div className="relative aspect-[4/3] bg-[#141414] overflow-hidden">
         {imgSrc ? (
-          <img src={imgSrc} alt="Captured"
+          <img
+            src={imgSrc}
+            alt="Captured"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={ipfsOnError(img.filecoinCid)} />
+            onError={ipfsOnError(img.filecoinCid)}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Camera size={22} className="text-white/15" strokeWidth={1} />
           </div>
         )}
-        <Badge variant={statusVariant(img)} className="absolute top-2.5 left-2.5 shadow-lg text-[9px]">
+        <Badge
+          variant={statusVariant(img)}
+          className="absolute top-2.5 left-2.5 shadow-lg text-[9px]"
+        >
           {badgeLabel}
         </Badge>
-        {state === 'minted' && img.ai_score != null && (
+        {state === "minted" && img.ai_score != null && (
           <div className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-sm border border-[#34d399]/25 rounded-md px-1.5 py-0.5">
-            <span className="text-[9px] font-bold text-[#34d399]">AI {img.ai_score}</span>
+            <span className="text-[9px] font-bold text-[#34d399]">
+              AI {img.ai_score}
+            </span>
           </div>
         )}
       </div>
@@ -358,32 +475,44 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         </div>
         {img.deviceId && (
           <div className="text-[9px] text-text-muted/70 truncate">
-            <span className="text-text-muted/40 uppercase tracking-wide mr-1">cam</span>{deBrand(img.deviceId)}
+            <span className="text-text-muted/40 uppercase tracking-wide mr-1">
+              cam
+            </span>
+            {deBrand(img.deviceId)}
           </div>
         )}
         {img.filecoinCid && (
-          <div className="font-mono text-[9px] text-text-muted/60 truncate">{img.filecoinCid.slice(0, 20)}…</div>
+          <div className="font-mono text-[9px] text-text-muted/60 truncate">
+            {img.filecoinCid.slice(0, 20)}…
+          </div>
         )}
         {img.imageHash && !img.filecoinCid && (
-          <div className="font-mono text-[9px] text-text-muted/60 truncate">sha256: {img.imageHash.slice(0, 16)}…</div>
+          <div className="font-mono text-[9px] text-text-muted/60 truncate">
+            sha256: {img.imageHash.slice(0, 16)}…
+          </div>
         )}
-        {state === 'upload_failed' && (
-          <p className="text-[9px] text-[#fbbf24]">Upload failed · needs retry</p>
+        {state === "upload_failed" && (
+          <p className="text-[9px] text-[#fbbf24]">
+            Upload failed · needs retry
+          </p>
         )}
-        {state === 'claim_failed' && (
-          <p className="text-[9px] text-[#fbbf24]">Claim registration failed · needs retry</p>
+        {state === "claim_failed" && (
+          <p className="text-[9px] text-[#fbbf24]">
+            Claim registration failed · needs retry
+          </p>
         )}
-        {state === 'minting' && (
+        {state === "minting" && (
           <p className="text-[9px] text-[#60a5fa]">Minting NFT on-chain…</p>
         )}
       </div>
 
       <div className="px-3 pb-3 space-y-1.5">
-        {claimUrl && state === 'minted' && (
+        {claimUrl && state === "minted" && (
           <>
             <a
               href={claimUrl}
-              target="_blank" rel="noreferrer"
+              target="_blank"
+              rel="noreferrer"
               className="flex w-full items-center justify-center gap-1.5 bg-brand/10 border border-brand/25 text-brand rounded-lg py-2 text-[10px] font-semibold hover:bg-brand/18 transition-colors"
             >
               <ExternalLink size={10} /> View Claim Page
@@ -399,15 +528,28 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
                 onClick={copyLink}
                 className="flex-1 flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
               >
-                {copying ? <Check size={10} className="text-[#34d399]" /> : <Copy size={10} />}
-                {copying ? 'Copied' : 'Copy'}
+                {copying ? (
+                  <Check size={10} className="text-[#34d399]" />
+                ) : (
+                  <Copy size={10} />
+                )}
+                {copying ? "Copied" : "Copy"}
               </button>
               {(img.txHash || img.nftUrl) && (
                 <a
-                  href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
-                  target="_blank" rel="noreferrer"
+                  href={
+                    img.txHash
+                      ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                      : img.nftUrl
+                  }
+                  target="_blank"
+                  rel="noreferrer"
                   className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg px-2.5 py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
-                  title={img.nftUrl && !img.txHash ? 'View NFT on Etherscan' : 'View transaction'}
+                  title={
+                    img.nftUrl && !img.txHash
+                      ? "View NFT on Etherscan"
+                      : "View transaction"
+                  }
                 >
                   <ExternalLink size={10} />
                 </a>
@@ -417,14 +559,20 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         )}
         {!claimUrl && (img.txHash || img.nftUrl) && (
           <a
-            href={img.txHash ? `https://sepolia.etherscan.io/tx/${img.txHash}` : img.nftUrl}
-            target="_blank" rel="noreferrer"
+            href={
+              img.txHash
+                ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                : img.nftUrl
+            }
+            target="_blank"
+            rel="noreferrer"
             className="flex w-full items-center justify-center gap-1.5 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-2 text-[10px] hover:text-white hover:border-white/15 transition-colors"
           >
-            <ExternalLink size={10} /> {img.txHash ? 'View on Etherscan' : 'View NFT'}
+            <ExternalLink size={10} />{" "}
+            {img.txHash ? "View on Etherscan" : "View NFT"}
           </a>
         )}
-        {state === 'minting' && (
+        {state === "minting" && (
           <button
             onClick={() => onRetry(img.id)}
             className="flex w-full items-center justify-center gap-1 bg-[#60a5fa]/[0.06] border border-[#60a5fa]/20 text-[#60a5fa] rounded-lg py-2 text-[10px] font-semibold hover:bg-[#60a5fa]/10 transition-colors"
@@ -432,7 +580,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
             <RotateCcw size={10} /> Force Mint
           </button>
         )}
-        {(state === 'upload_failed' || state === 'claim_failed') && (
+        {(state === "upload_failed" || state === "claim_failed") && (
           <button
             onClick={() => onRetry(img.id)}
             className="flex w-full items-center justify-center gap-1 bg-[#fbbf24]/[0.06] border border-[#fbbf24]/20 text-[#fbbf24] rounded-lg py-2 text-[10px] font-semibold hover:bg-[#fbbf24]/10 transition-colors"
@@ -442,9 +590,15 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
         )}
       </div>
 
-      {showQR && claimUrl && <QRModal url={claimUrl} onClose={() => setShowQR(false)} open={showQR} />}
+      {showQR && claimUrl && (
+        <QRModal
+          url={claimUrl}
+          onClose={() => setShowQR(false)}
+          open={showQR}
+        />
+      )}
     </div>
-  )
+  );
 }
 
 /* ── Stat card ── */
@@ -454,15 +608,22 @@ function StatCard({ label, value, accent, icon, sub }) {
       className="rounded-xl border border-white/[0.07] bg-[#0e0e0e] p-4"
       style={{
         borderColor: accent ? `${accent}22` : undefined,
-        background:  accent ? `${accent}08` : undefined,
+        background: accent ? `${accent}08` : undefined,
       }}
     >
-      <div className="text-xl mb-1" style={{ opacity: 0.7 }}>{icon}</div>
-      <p className="text-3xl font-display font-bold" style={{ color: accent || '#F9F9F9' }}>{value}</p>
+      <div className="text-xl mb-1" style={{ opacity: 0.7 }}>
+        {icon}
+      </div>
+      <p
+        className="text-3xl font-display font-bold"
+        style={{ color: accent || "#F9F9F9" }}
+      >
+        {value}
+      </p>
       <p className="text-xs text-text-secondary mt-1">{label}</p>
       {sub && <p className="text-[10px] text-[#fbbf24] mt-0.5">{sub}</p>}
     </div>
-  )
+  );
 }
 
 /* ── Skeleton card ── */
@@ -482,192 +643,228 @@ function ImageCardSkeleton() {
         <div className="h-7 flex-1 rounded-lg bg-white/[0.06]" />
       </div>
     </div>
-  )
+  );
 }
 
 export default function OwnerDashboard() {
-  const { ready, authenticated, login, logout, user } = usePrivy()
-  const { wallets } = useWallets()
-  const { address }  = useAccount()
-  const navigate = useNavigate()
+  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { wallets } = useWallets();
+  const { address } = useAccount();
+  const navigate = useNavigate();
 
-  const [images,        setImages]        = useState([])
-  const [loading,       setLoading]       = useState(false)
-  const [retrying,      setRetrying]      = useState(false)
-  const [deviceStatus,  setDeviceStatus]  = useState(null)
-  const [retryResult,   setRetryResult]   = useState(null)
-  const [filter,        setFilter]        = useState('all')
-  const [tab,           setTab]           = useState('photos')
-  const [backendOffline, setBackendOffline] = useState(false)
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [deviceStatus, setDeviceStatus] = useState(null);
+  const [retryResult, setRetryResult] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [tab, setTab] = useState("photos");
+  const [backendOffline, setBackendOffline] = useState(false);
   const [resolvedClaimMap, setResolvedClaimMap] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('veris_token_claim_map') || '{}') } catch { return {} }
-  })
+    try {
+      return JSON.parse(localStorage.getItem("veris_token_claim_map") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
   // On-chain fallback: read totalTokens then batch-fetch metadata
   const { data: totalTokens } = useReadContract({
     address: VERIS_ADDRESS,
     abi: VERIS_ABI,
-    functionName: 'totalTokens',
+    functionName: "totalTokens",
     query: { enabled: backendOffline },
-  })
+  });
 
-  const tokenIds = totalTokens ? Array.from({ length: Number(totalTokens) }, (_, i) => i + 1) : []
+  const tokenIds = totalTokens
+    ? Array.from({ length: Number(totalTokens) }, (_, i) => i + 1)
+    : [];
 
   const { data: onChainMeta, isLoading: onChainLoading } = useReadContracts({
-    contracts: tokenIds.map(id => ({
+    contracts: tokenIds.map((id) => ({
       address: VERIS_ADDRESS,
       abi: VERIS_ABI,
-      functionName: 'getTokenMetadata',
+      functionName: "getTokenMetadata",
       args: [BigInt(id)],
     })),
     query: { enabled: backendOffline && tokenIds.length > 0 },
-  })
+  });
 
   const cleanCid = (hash) => {
-    if (!hash) return null
-    if (hash.startsWith('ipfs://')) return hash.slice(7)
-    if (hash.startsWith('https://') || hash.startsWith('http://')) return null
-    return hash
-  }
+    if (!hash) return null;
+    if (hash.startsWith("ipfs://")) return hash.slice(7);
+    if (hash.startsWith("https://") || hash.startsWith("http://")) return null;
+    return hash;
+  };
 
-  const onChainImages = backendOffline && onChainMeta
-    ? onChainMeta
-        .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
-        .filter(({ result }) => result?.isOriginal)
-        .map(({ result: m, id }) => ({
-          id,
-          status:      'minted',
-          filecoinCid: cleanCid(m.ipfsHash),
-          createdAt:   new Date(Number(m.timestamp) * 1000).toISOString(),
-          claimId:     resolvedClaimMap[id] || null,
-          tokenId:     id,
-          txHash:      null,
-          ai_score:    null,
-          deviceId:    m.deviceId || null,
-          imageHash:   m.imageHash || null,
-          nftUrl:      `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${id}`,
-        }))
-    : []
+  const onChainImages =
+    backendOffline && onChainMeta
+      ? onChainMeta
+          .map((r, i) => ({ result: r.result, id: tokenIds[i] }))
+          .filter(({ result }) => result?.isOriginal)
+          .map(({ result: m, id }) => ({
+            id,
+            status: "minted",
+            filecoinCid: cleanCid(m.ipfsHash),
+            createdAt: new Date(Number(m.timestamp) * 1000).toISOString(),
+            claimId: resolvedClaimMap[id] || null,
+            tokenId: id,
+            txHash: null,
+            ai_score: null,
+            deviceId: m.deviceId || null,
+            imageHash: m.imageHash || null,
+            nftUrl: `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${id}`,
+          }))
+      : [];
 
-  const walletAddress = address || wallets[0]?.address
+  const walletAddress = address || wallets[0]?.address;
 
   const fetchImages = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await axios.get(`${BACKEND_URL}/api/images/list`, { timeout: 6000 })
+      const res = await axios.get(`${BACKEND_URL}/api/images/list`, {
+        timeout: 6000,
+        headers: { "ngrok-skip-browser-warning": "1" },
+      });
       if (res.data.success) {
-        const imgs = res.data.images || []
-        setImages(imgs)
-        setBackendOffline(false)
+        const imgs = res.data.images || [];
+        setImages(imgs);
+        setBackendOffline(false);
         // Persist tokenId → claimId so on-chain fallback can still link to claim pages
         try {
-          setResolvedClaimMap(prev => {
-            const next = { ...prev }
-            imgs.forEach(img => { if (img.tokenId && img.claimId) next[img.tokenId] = img.claimId })
-            localStorage.setItem('veris_token_claim_map', JSON.stringify(next))
-            return next
-          })
+          setResolvedClaimMap((prev) => {
+            const next = { ...prev };
+            imgs.forEach((img) => {
+              if (img.tokenId && img.claimId) next[img.tokenId] = img.claimId;
+            });
+            localStorage.setItem("veris_token_claim_map", JSON.stringify(next));
+            return next;
+          });
         } catch {}
       }
     } catch (_) {
-      setBackendOffline(true)
+      setBackendOffline(true);
     }
-    setLoading(false)
-  }, [])
+    setLoading(false);
+  }, []);
 
   const fetchDeviceStatus = useCallback(async () => {
     try {
-      const res = await axios.get(`${BACKEND_URL}/api/device/status`, { timeout: 6000 })
-      setDeviceStatus(res.data)
+      const res = await axios.get(`${BACKEND_URL}/api/device/status`, {
+        timeout: 6000,
+      });
+      setDeviceStatus(res.data);
     } catch (_) {
-      setDeviceStatus(null)
+      setDeviceStatus(null);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (authenticated) {
-      fetchImages()
-      fetchDeviceStatus()
+      fetchImages();
+      fetchDeviceStatus();
     }
-  }, [authenticated, fetchImages, fetchDeviceStatus])
+  }, [authenticated, fetchImages, fetchDeviceStatus]);
 
   // When offline and on-chain images are loaded, fetch any missing claimIds from the public server
   useEffect(() => {
-    if (!backendOffline || !onChainImages.length) return
-    const missing = onChainImages.filter(img => img.tokenId && !resolvedClaimMap[img.tokenId])
-    if (!missing.length) return
+    if (!backendOffline || !onChainImages.length) return;
+    const missing = onChainImages.filter(
+      (img) => img.tokenId && !resolvedClaimMap[img.tokenId],
+    );
+    if (!missing.length) return;
     Promise.allSettled(
-      missing.map(img =>
-        axios.get(`${CLAIM_SERVER_URL}/claim/by-token/${img.tokenId}`, { timeout: 5000 })
-          .then(r => r.data.success ? { tokenId: img.tokenId, claimId: r.data.claim_id } : null)
-          .catch(() => null)
-      )
-    ).then(results => {
-      const additions = {}
-      results.forEach(r => { if (r.status === 'fulfilled' && r.value) additions[r.value.tokenId] = r.value.claimId })
-      if (!Object.keys(additions).length) return
-      setResolvedClaimMap(prev => {
-        const next = { ...prev, ...additions }
-        try { localStorage.setItem('veris_token_claim_map', JSON.stringify(next)) } catch {}
-        return next
-      })
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendOffline, onChainMeta])
+      missing.map((img) =>
+        axios
+          .get(`${CLAIM_SERVER_URL}/claim/by-token/${img.tokenId}`, {
+            timeout: 5000,
+          })
+          .then((r) =>
+            r.data.success
+              ? { tokenId: img.tokenId, claimId: r.data.claim_id }
+              : null,
+          )
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      const additions = {};
+      results.forEach((r) => {
+        if (r.status === "fulfilled" && r.value)
+          additions[r.value.tokenId] = r.value.claimId;
+      });
+      if (!Object.keys(additions).length) return;
+      setResolvedClaimMap((prev) => {
+        const next = { ...prev, ...additions };
+        try {
+          localStorage.setItem("veris_token_claim_map", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendOffline, onChainMeta]);
 
   // Auto-refresh every 8 s while any image is still being processed
   useEffect(() => {
-    const hasPending = images.some(i => i.status === 'uploaded' || i.status === 'saved')
-    if (!authenticated || !hasPending) return
-    const id = setInterval(fetchImages, 8000)
-    return () => clearInterval(id)
-  }, [authenticated, images, fetchImages])
+    const hasPending = images.some(
+      (i) => i.status === "uploaded" || i.status === "saved",
+    );
+    if (!authenticated || !hasPending) return;
+    const id = setInterval(fetchImages, 8000);
+    return () => clearInterval(id);
+  }, [authenticated, images, fetchImages]);
 
   const retryPending = async () => {
-    setRetrying(true)
-    setRetryResult(null)
+    setRetrying(true);
+    setRetryResult(null);
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/retry-pending`)
-      setRetryResult(res.data)
-      await fetchImages()
+      const res = await axios.post(`${BACKEND_URL}/api/retry-pending`);
+      setRetryResult(res.data);
+      await fetchImages();
     } catch (e) {
-      setRetryResult({ success: false, error: e.message })
+      setRetryResult({ success: false, error: e.message });
     }
-    setRetrying(false)
-  }
+    setRetrying(false);
+  };
 
   const retrySingle = async () => {
     try {
-      await axios.post(`${BACKEND_URL}/api/retry-pending`)
-      await fetchImages()
+      await axios.post(`${BACKEND_URL}/api/retry-pending`);
+      await fetchImages();
     } catch (_) {}
-  }
+  };
 
-  const activeImages = backendOffline ? onChainImages : images
+  const activeImages = backendOffline ? onChainImages : images;
 
   const stats = {
-    total:      activeImages.length,
-    minted:     activeImages.filter(i => i.status === 'minted').length,
-    processing: activeImages.filter(i => i.status === 'uploaded').length,
-    failed:     activeImages.filter(i => i.status === 'saved').length,
-  }
-  const retryableCount = images.filter(i => i.status !== 'minted').length
+    total: activeImages.length,
+    minted: activeImages.filter((i) => i.status === "minted").length,
+    processing: activeImages.filter((i) => i.status === "uploaded").length,
+    failed: activeImages.filter((i) => i.status === "saved").length,
+  };
+  const retryableCount = images.filter((i) => i.status !== "minted").length;
 
   const FILTER_TABS = [
-    { key: 'all',      label: 'All',        color: null,      count: activeImages.length  },
-    { key: 'minted',   label: 'Minted',     color: '#34d399', count: stats.minted   },
-    { key: 'uploaded', label: 'Processing', color: '#60a5fa', count: stats.processing },
-    { key: 'saved',    label: 'Failed',     color: '#fbbf24', count: stats.failed   },
-  ]
+    { key: "all", label: "All", color: null, count: activeImages.length },
+    { key: "minted", label: "Minted", color: "#34d399", count: stats.minted },
+    {
+      key: "uploaded",
+      label: "Processing",
+      color: "#60a5fa",
+      count: stats.processing,
+    },
+    { key: "saved", label: "Failed", color: "#fbbf24", count: stats.failed },
+  ];
 
   // activeImages[0] = latest shot (featured); rest go in the regular grid
-  const [featuredImg, ...restImages] = activeImages
-  const filtered = filter === 'all'
-    ? restImages
-    : restImages.filter(i => i.status === filter)
+  const [featuredImg, ...restImages] = activeImages;
+  const filtered =
+    filter === "all"
+      ? restImages
+      : restImages.filter((i) => i.status === filter);
 
-  const isOnline = deviceStatus?.servicesInitialized
-  const deviceId = deviceStatus?.device?.deviceId
+  const isOnline = deviceStatus?.servicesInitialized;
+  const deviceId = deviceStatus?.device?.deviceId;
 
   /* ── Loading splash ── */
   if (!ready) {
@@ -675,14 +872,17 @@ export default function OwnerDashboard() {
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
-    )
+    );
   }
 
   /* ── Login screen ── */
   if (!authenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-black p-6 gap-10">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2.5 group">
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-2.5 group"
+        >
           <VerisLogoMark size={24} />
           <span className="font-display font-bold text-lg text-white tracking-tight group-hover:text-brand transition-colors">
             Veris
@@ -690,72 +890,97 @@ export default function OwnerDashboard() {
         </button>
         <div className="w-full max-w-sm rounded-xl border border-white/[0.07] bg-[#0e0e0e] p-8 space-y-6">
           <div>
-            <h2 className="text-xl font-display font-bold text-white">Owner Dashboard</h2>
-            <p className="text-text-secondary mt-1 text-sm leading-relaxed">Sign in to manage your cameras and NFTs.</p>
+            <h2 className="text-xl font-display font-bold text-white">
+              Owner Dashboard
+            </h2>
+            <p className="text-text-secondary mt-1 text-sm leading-relaxed">
+              Sign in to manage your cameras and NFTs.
+            </p>
           </div>
-          {PRIVY_APP_ID === 'your-privy-app-id' && (
+          {PRIVY_APP_ID === "your-privy-app-id" && (
             <div className="bg-[#fbbf24]/10 text-[#fbbf24] text-xs px-4 py-2 rounded-lg border border-[#fbbf24]/20">
               Configure VITE_PRIVY_APP_ID in .env
             </div>
           )}
-          <Button size="lg" variant="primary" className="w-full" onClick={login}
-            disabled={PRIVY_APP_ID === 'your-privy-app-id'}>
+          <Button
+            size="lg"
+            variant="primary"
+            className="w-full"
+            onClick={login}
+            disabled={PRIVY_APP_ID === "your-privy-app-id"}
+          >
             Connect Wallet
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   /* ── Dashboard ── */
   return (
     <div className="flex h-screen bg-black overflow-hidden">
-
       {/* ── Sidebar ── */}
       <aside className="w-52 shrink-0 flex flex-col border-r border-white/[0.07] bg-[#080808]">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate("/")}
           className="px-5 h-[52px] flex items-center gap-2.5 hover:bg-white/[0.03] transition-colors border-b border-white/[0.07]"
         >
           <VerisLogoMark size={20} />
-          <span className="font-display font-bold text-base text-white tracking-tight">Veris</span>
+          <span className="font-display font-bold text-base text-white tracking-tight">
+            Veris
+          </span>
         </button>
 
         {/* Device status */}
-        <div className={`mx-3 mt-3 mb-1 rounded-lg border px-3 py-2.5 flex items-center gap-2.5 ${
-          isOnline
-            ? 'border-[#34d399]/20 bg-[#34d399]/[0.06]'
-            : 'border-white/[0.07] bg-white/[0.02]'
-        }`}>
+        <div
+          className={`mx-3 mt-3 mb-1 rounded-lg border px-3 py-2.5 flex items-center gap-2.5 ${
+            isOnline
+              ? "border-[#34d399]/20 bg-[#34d399]/[0.06]"
+              : "border-white/[0.07] bg-white/[0.02]"
+          }`}
+        >
           <div
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? 'bg-[#34d399] animate-pulse' : 'bg-[#646464]'}`}
-            style={isOnline ? { boxShadow: '0 0 6px #34d399' } : {}}
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-[#34d399] animate-pulse" : "bg-[#646464]"}`}
+            style={isOnline ? { boxShadow: "0 0 6px #34d399" } : {}}
           />
           <div className="min-w-0">
-            <p className={`text-[10px] font-semibold ${isOnline ? 'text-[#34d399]' : 'text-text-muted'}`}>
-              {isOnline ? 'Camera Online' : deviceStatus === null ? 'Connecting…' : 'Camera Offline'}
+            <p
+              className={`text-[10px] font-semibold ${isOnline ? "text-[#34d399]" : "text-text-muted"}`}
+            >
+              {isOnline
+                ? "Camera Online"
+                : deviceStatus === null
+                  ? "Connecting…"
+                  : "Camera Offline"}
             </p>
-            {deviceId && <p className="text-[9px] text-text-muted truncate">{deBrand(deviceId)}</p>}
+            {deviceId && (
+              <p className="text-[9px] text-text-muted truncate">
+                {deBrand(deviceId)}
+              </p>
+            )}
           </div>
         </div>
 
         <nav className="flex-1 p-2.5 space-y-0.5">
           {[
-            { id: 'photos', label: 'Photos', icon: Images },
-            { id: 'device', label: 'Device', icon: Cpu },
+            { id: "photos", label: "Photos", icon: Images },
+            { id: "device", label: "Device", icon: Cpu },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 tab === id
-                  ? 'bg-brand/10 text-brand'
-                  : 'text-text-secondary hover:bg-white/[0.04] hover:text-white'
+                  ? "bg-brand/10 text-brand"
+                  : "text-text-secondary hover:bg-white/[0.04] hover:text-white"
               }`}
-              onClick={() => { setTab(id); if (id === 'device') fetchDeviceStatus() }}
+              onClick={() => {
+                setTab(id);
+                if (id === "device") fetchDeviceStatus();
+              }}
             >
               <Icon size={15} strokeWidth={1.75} />
               {label}
-              {id === 'photos' && retryableCount > 0 && (
+              {id === "photos" && retryableCount > 0 && (
                 <span className="ml-auto text-[9px] font-bold bg-[#fbbf24]/15 text-[#fbbf24] px-1.5 py-0.5 rounded-full">
                   {retryableCount}
                 </span>
@@ -766,11 +991,13 @@ export default function OwnerDashboard() {
 
         <div className="border-t border-white/[0.07] p-4 space-y-3">
           <div className="space-y-0.5">
-            <p className="text-[9px] uppercase tracking-widest text-text-muted font-medium">Wallet</p>
+            <p className="text-[9px] uppercase tracking-widest text-text-muted font-medium">
+              Wallet
+            </p>
             <p className="text-[10px] font-mono text-text-secondary truncate">
               {walletAddress
                 ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-                : 'Not connected'}
+                : "Not connected"}
             </p>
           </div>
           <button
@@ -784,19 +1011,39 @@ export default function OwnerDashboard() {
 
       {/* ── Main ── */}
       <main className="flex-1 overflow-y-auto flex flex-col">
-
-        {tab === 'photos' && (
+        {tab === "photos" && (
           <div className="flex flex-col flex-1">
             {/* Top bar */}
             <div className="flex items-center justify-between px-8 h-[52px] border-b border-white/[0.07] shrink-0">
-              <h1 className="text-base font-display font-bold text-white">Photos</h1>
+              <h1 className="text-base font-display font-bold text-white">
+                Photos
+              </h1>
               <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={fetchImages} disabled={loading} className="gap-1.5 text-xs">
-                  <RotateCcw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={fetchImages}
+                  disabled={loading}
+                  className="gap-1.5 text-xs"
+                >
+                  <RotateCcw
+                    size={12}
+                    className={loading ? "animate-spin" : ""}
+                  />{" "}
+                  Refresh
                 </Button>
                 {retryableCount > 0 && (
-                  <Button variant="primary" size="sm" onClick={retryPending} disabled={retrying} className="gap-1.5 text-xs">
-                    <RotateCcw size={12} className={retrying ? 'animate-spin' : ''} />
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={retryPending}
+                    disabled={retrying}
+                    className="gap-1.5 text-xs"
+                  >
+                    <RotateCcw
+                      size={12}
+                      className={retrying ? "animate-spin" : ""}
+                    />
                     Retry {retryableCount} pending
                   </Button>
                 )}
@@ -804,43 +1051,76 @@ export default function OwnerDashboard() {
             </div>
 
             <div className="p-8 flex flex-col gap-6 max-w-7xl w-full mx-auto">
-
               {/* Offline banner */}
               {backendOffline && (
                 <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[#fbbf24]/25 bg-[#fbbf24]/[0.06] text-sm">
                   <div className="flex items-center gap-2.5">
                     <WifiOff size={14} className="text-[#fbbf24] shrink-0" />
-                    <span className="text-[#fbbf24] font-medium">Camera offline</span>
-                    <span className="text-[#fbbf24]/60 text-xs">· showing on-chain data from Sepolia</span>
+                    <span className="text-[#fbbf24] font-medium">
+                      Camera offline
+                    </span>
+                    <span className="text-[#fbbf24]/60 text-xs">
+                      · showing on-chain data from Sepolia
+                    </span>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-xs text-[#fbbf24]/70 hover:text-[#fbbf24] shrink-0" onClick={fetchImages} disabled={loading}>
-                    <RotateCcw size={11} className={loading ? 'animate-spin mr-1' : 'mr-1'} /> Retry
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-[#fbbf24]/70 hover:text-[#fbbf24] shrink-0"
+                    onClick={fetchImages}
+                    disabled={loading}
+                  >
+                    <RotateCcw
+                      size={11}
+                      className={loading ? "animate-spin mr-1" : "mr-1"}
+                    />{" "}
+                    Retry
                   </Button>
                 </div>
               )}
 
               {/* Stats */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard label="Total shots"  value={stats.total}      icon="📷" />
-                <StatCard label="Minted NFTs"  value={stats.minted}     icon="⛓" accent="#34d399" />
-                <StatCard label="Processing"   value={stats.processing} icon="🗂" accent="#60a5fa" />
-                <StatCard label="Failed"       value={stats.failed}     icon="⚠" accent="#fbbf24"
-                  sub={stats.failed > 0 ? 'needs retry' : undefined} />
+                <StatCard label="Total shots" value={stats.total} icon="📷" />
+                <StatCard
+                  label="Minted NFTs"
+                  value={stats.minted}
+                  icon="⛓"
+                  accent="#34d399"
+                />
+                <StatCard
+                  label="Processing"
+                  value={stats.processing}
+                  icon="🗂"
+                  accent="#60a5fa"
+                />
+                <StatCard
+                  label="Failed"
+                  value={stats.failed}
+                  icon="⚠"
+                  accent="#fbbf24"
+                  sub={stats.failed > 0 ? "needs retry" : undefined}
+                />
               </div>
 
               {/* Retry result banner */}
               {retryResult && (
-                <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm border ${
-                  retryResult.success
-                    ? 'bg-[#34d399]/10 text-[#34d399] border-[#34d399]/20'
-                    : 'bg-[#f87171]/10 text-[#f87171] border-[#f87171]/20'
-                }`}>
+                <div
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm border ${
+                    retryResult.success
+                      ? "bg-[#34d399]/10 text-[#34d399] border-[#34d399]/20"
+                      : "bg-[#f87171]/10 text-[#f87171] border-[#f87171]/20"
+                  }`}
+                >
                   <span>
                     {retryResult.success
                       ? `Processed ${retryResult.processed} image(s).`
                       : `Error: ${retryResult.error}`}
                   </span>
-                  <button className="ml-4 opacity-60 hover:opacity-100 transition-opacity" onClick={() => setRetryResult(null)}>
+                  <button
+                    className="ml-4 opacity-60 hover:opacity-100 transition-opacity"
+                    onClick={() => setRetryResult(null)}
+                  >
                     ✕
                   </button>
                 </div>
@@ -852,7 +1132,9 @@ export default function OwnerDashboard() {
                   <button
                     key={key}
                     className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                      filter === key ? 'bg-white/[0.08] text-white shadow-sm' : 'text-text-muted hover:text-white'
+                      filter === key
+                        ? "bg-white/[0.08] text-white shadow-sm"
+                        : "text-text-muted hover:text-white"
                     }`}
                     onClick={() => setFilter(key)}
                   >
@@ -860,8 +1142,13 @@ export default function OwnerDashboard() {
                     <span
                       className="text-[9px] px-1.5 py-0.5 rounded-md tabular-nums"
                       style={{
-                        background: color ? `${color}18` : 'rgba(255,255,255,0.06)',
-                        color: color && (filter === key || count > 0) ? color : '#646464',
+                        background: color
+                          ? `${color}18`
+                          : "rgba(255,255,255,0.06)",
+                        color:
+                          color && (filter === key || count > 0)
+                            ? color
+                            : "#646464",
                       }}
                     >
                       {count}
@@ -871,31 +1158,55 @@ export default function OwnerDashboard() {
               </div>
 
               {/* Grid */}
-              {(loading || (backendOffline && onChainLoading)) ? (
+              {loading || (backendOffline && onChainLoading) ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   <div className="col-span-2 rounded-xl aspect-video bg-white/[0.03] animate-pulse" />
-                  {Array.from({ length: 6 }).map((_, i) => <ImageCardSkeleton key={i} />)}
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <ImageCardSkeleton key={i} />
+                  ))}
                 </div>
               ) : activeImages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
-                  <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center ${
-                    backendOffline ? 'border-[#fbbf24]/20 bg-[#fbbf24]/[0.06]' : 'border-white/[0.08]'
-                  }`}>
-                    {backendOffline
-                      ? <WifiOff size={24} className="text-[#fbbf24]/50" strokeWidth={1} />
-                      : <Camera size={24} className="text-white/20" strokeWidth={1} />
-                    }
+                  <div
+                    className={`w-14 h-14 rounded-2xl border flex items-center justify-center ${
+                      backendOffline
+                        ? "border-[#fbbf24]/20 bg-[#fbbf24]/[0.06]"
+                        : "border-white/[0.08]"
+                    }`}
+                  >
+                    {backendOffline ? (
+                      <WifiOff
+                        size={24}
+                        className="text-[#fbbf24]/50"
+                        strokeWidth={1}
+                      />
+                    ) : (
+                      <Camera
+                        size={24}
+                        className="text-white/20"
+                        strokeWidth={1}
+                      />
+                    )}
                   </div>
                   <div>
                     {backendOffline ? (
                       <>
-                        <p className="text-text-secondary font-medium">Camera offline · no on-chain tokens found</p>
-                        <p className="text-text-muted text-sm mt-1">Connect the camera and capture a photo to mint your first NFT.</p>
+                        <p className="text-text-secondary font-medium">
+                          Camera offline · no on-chain tokens found
+                        </p>
+                        <p className="text-text-muted text-sm mt-1">
+                          Connect the camera and capture a photo to mint your
+                          first NFT.
+                        </p>
                       </>
                     ) : (
                       <>
-                        <p className="text-text-secondary font-medium">No images yet</p>
-                        <p className="text-text-muted text-sm mt-1">Capture a photo on the camera to get started.</p>
+                        <p className="text-text-secondary font-medium">
+                          No images yet
+                        </p>
+                        <p className="text-text-muted text-sm mt-1">
+                          Capture a photo on the camera to get started.
+                        </p>
                       </>
                     )}
                   </div>
@@ -903,14 +1214,25 @@ export default function OwnerDashboard() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {featuredImg && (
-                    <FeaturedCard img={featuredImg} claimServerUrl={PORTAL_URL} onRetry={retrySingle} />
+                    <FeaturedCard
+                      img={featuredImg}
+                      claimServerUrl={PORTAL_URL}
+                      onRetry={retrySingle}
+                    />
                   )}
-                  {filtered.map(img => (
-                    <ImageCard key={img.id} img={img} claimServerUrl={PORTAL_URL} onRetry={retrySingle} />
+                  {filtered.map((img) => (
+                    <ImageCard
+                      key={img.id}
+                      img={img}
+                      claimServerUrl={PORTAL_URL}
+                      onRetry={retrySingle}
+                    />
                   ))}
                   {filtered.length === 0 && restImages.length > 0 && (
                     <div className="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <p className="text-text-secondary font-medium">No images with status "{filter}"</p>
+                      <p className="text-text-secondary font-medium">
+                        No images with status "{filter}"
+                      </p>
                     </div>
                   )}
                 </div>
@@ -919,35 +1241,57 @@ export default function OwnerDashboard() {
           </div>
         )}
 
-        {tab === 'device' && (
+        {tab === "device" && (
           <div className="p-8 max-w-4xl mx-auto w-full">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-2xl font-display font-bold text-white">Device Status</h1>
-                <p className="text-sm text-text-secondary mt-0.5">Camera hardware and service health</p>
+                <h1 className="text-2xl font-display font-bold text-white">
+                  Device Status
+                </h1>
+                <p className="text-sm text-text-secondary mt-0.5">
+                  Camera hardware and service health
+                </p>
               </div>
-              <Button variant="secondary" size="sm" onClick={fetchDeviceStatus} className="gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={fetchDeviceStatus}
+                className="gap-1.5"
+              >
                 <RotateCcw size={13} /> Refresh
               </Button>
             </div>
 
             {deviceStatus ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">Camera Service</CardTitle>
+                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">
+                      Camera Service
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Status</span>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${deviceStatus.servicesInitialized ? 'bg-[#34d399]' : 'bg-[#f87171]'}`}
-                          style={deviceStatus.servicesInitialized
-                            ? { boxShadow: '0 0 6px #34d399' }
-                            : { boxShadow: '0 0 6px #f87171' }} />
-                        <Badge variant={deviceStatus.servicesInitialized ? 'minted' : 'failed'}>
-                          {deviceStatus.servicesInitialized ? 'Online' : 'Offline'}
+                        <div
+                          className={`w-2 h-2 rounded-full ${deviceStatus.servicesInitialized ? "bg-[#34d399]" : "bg-[#f87171]"}`}
+                          style={
+                            deviceStatus.servicesInitialized
+                              ? { boxShadow: "0 0 6px #34d399" }
+                              : { boxShadow: "0 0 6px #f87171" }
+                          }
+                        />
+                        <Badge
+                          variant={
+                            deviceStatus.servicesInitialized
+                              ? "minted"
+                              : "failed"
+                          }
+                        >
+                          {deviceStatus.servicesInitialized
+                            ? "Online"
+                            : "Offline"}
                         </Badge>
                       </div>
                     </div>
@@ -955,20 +1299,34 @@ export default function OwnerDashboard() {
                       <>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-text-secondary">Device ID</span>
-                          <span className="font-mono text-text-primary text-xs">{deBrand(deviceStatus.device.deviceId) || "—"}</span>
+                          <span className="font-mono text-text-primary text-xs">
+                            {deBrand(deviceStatus.device.deviceId) || "—"}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-text-secondary">Registered</span>
+                          <span className="text-text-secondary">
+                            Registered
+                          </span>
                           <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${deviceStatus.device.isRegistered ? 'bg-[#34d399]' : 'bg-[#fbbf24]'}`} />
-                            <Badge variant={deviceStatus.device.isRegistered ? 'minted' : 'saved'}>
-                              {deviceStatus.device.isRegistered ? 'Yes' : 'No'}
+                            <div
+                              className={`w-2 h-2 rounded-full ${deviceStatus.device.isRegistered ? "bg-[#34d399]" : "bg-[#fbbf24]"}`}
+                            />
+                            <Badge
+                              variant={
+                                deviceStatus.device.isRegistered
+                                  ? "minted"
+                                  : "saved"
+                              }
+                            >
+                              {deviceStatus.device.isRegistered ? "Yes" : "No"}
                             </Badge>
                           </div>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-text-secondary">Address</span>
-                          <span className="font-mono text-text-primary text-xs truncate max-w-[140px]">{deviceStatus.device.address || '—'}</span>
+                          <span className="font-mono text-text-primary text-xs truncate max-w-[140px]">
+                            {deviceStatus.device.address || "—"}
+                          </span>
                         </div>
                       </>
                     )}
@@ -976,9 +1334,19 @@ export default function OwnerDashboard() {
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-text-secondary">Lighthouse</span>
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${deviceStatus.filecoin.connected ? 'bg-[#34d399]' : 'bg-[#f87171]'}`} />
-                          <Badge variant={deviceStatus.filecoin.connected ? 'minted' : 'failed'}>
-                            {deviceStatus.filecoin.connected ? 'Ready' : 'Not configured'}
+                          <div
+                            className={`w-2 h-2 rounded-full ${deviceStatus.filecoin.connected ? "bg-[#34d399]" : "bg-[#f87171]"}`}
+                          />
+                          <Badge
+                            variant={
+                              deviceStatus.filecoin.connected
+                                ? "minted"
+                                : "failed"
+                            }
+                          >
+                            {deviceStatus.filecoin.connected
+                              ? "Ready"
+                              : "Not configured"}
                           </Badge>
                         </div>
                       </div>
@@ -987,9 +1355,17 @@ export default function OwnerDashboard() {
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-text-secondary">Blockchain</span>
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${deviceStatus.blockchain ? 'bg-[#34d399]' : 'bg-[#f87171]'}`} />
-                          <Badge variant={deviceStatus.blockchain ? 'minted' : 'failed'}>
-                            {deviceStatus.blockchain ? 'Connected' : 'Disconnected'}
+                          <div
+                            className={`w-2 h-2 rounded-full ${deviceStatus.blockchain ? "bg-[#34d399]" : "bg-[#f87171]"}`}
+                          />
+                          <Badge
+                            variant={
+                              deviceStatus.blockchain ? "minted" : "failed"
+                            }
+                          >
+                            {deviceStatus.blockchain
+                              ? "Connected"
+                              : "Disconnected"}
                           </Badge>
                         </div>
                       </div>
@@ -999,7 +1375,9 @@ export default function OwnerDashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">Contracts</CardTitle>
+                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">
+                      Contracts
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <div className="flex justify-between items-center text-sm">
@@ -1011,17 +1389,23 @@ export default function OwnerDashboard() {
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">ERC-1155</span>
-                      <a href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
-                        target="_blank" rel="noreferrer"
-                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1">
+                      <a
+                        href="https://sepolia.etherscan.io/address/0x35f5B3b5D6BF361169743cB13D66849C4C839c69"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
+                      >
                         0x35f5…9c69 <ExternalLink size={10} />
                       </a>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Registry</span>
-                      <a href="https://sepolia.etherscan.io/address/0x874709472d1cF830d7F78809E7D37692a27013A0"
-                        target="_blank" rel="noreferrer"
-                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1">
+                      <a
+                        href="https://sepolia.etherscan.io/address/0x874709472d1cF830d7F78809E7D37692a27013A0"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
+                      >
                         0x8747…13A0 <ExternalLink size={10} />
                       </a>
                     </div>
@@ -1030,45 +1414,70 @@ export default function OwnerDashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">Account</CardTitle>
+                    <CardTitle className="text-sm text-text-secondary uppercase tracking-widest font-semibold">
+                      Account
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 pb-5">
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">User ID</span>
-                      <span className="font-mono text-text-primary text-xs truncate max-w-[140px]">{user?.id?.slice(0, 20)}…</span>
+                      <span className="font-mono text-text-primary text-xs truncate max-w-[140px]">
+                        {user?.id?.slice(0, 20)}…
+                      </span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Wallet</span>
                       <span className="font-mono text-text-primary text-xs">
-                        {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'Not connected'}
+                        {walletAddress
+                          ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+                          : "Not connected"}
                       </span>
                     </div>
                     {walletAddress && (
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-text-secondary">Etherscan</span>
-                        <a href={`https://sepolia.etherscan.io/address/${walletAddress}`} target="_blank" rel="noreferrer"
-                          className="text-brand text-xs hover:brightness-125 flex items-center gap-1">
+                        <a
+                          href={`https://sepolia.etherscan.io/address/${walletAddress}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-brand text-xs hover:brightness-125 flex items-center gap-1"
+                        >
                           View <ExternalLink size={10} />
                         </a>
                       </div>
                     )}
                   </CardContent>
                 </Card>
-
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
                 <div className="w-14 h-14 rounded-2xl border border-[#fbbf24]/20 bg-[#fbbf24]/[0.06] flex items-center justify-center">
-                  <WifiOff size={22} className="text-[#fbbf24]/60" strokeWidth={1} />
+                  <WifiOff
+                    size={22}
+                    className="text-[#fbbf24]/60"
+                    strokeWidth={1}
+                  />
                 </div>
                 <div>
-                  <p className="text-text-secondary font-medium">Camera hardware offline</p>
-                  <p className="text-text-muted text-sm mt-1">
-                    Cannot reach <code className="text-brand font-mono text-xs">{BACKEND_URL}</code>
+                  <p className="text-text-secondary font-medium">
+                    Camera hardware offline
                   </p>
-                  <p className="text-text-muted text-xs mt-1">Make sure the Raspberry Pi and ngrok tunnel are running.</p>
+                  <p className="text-text-muted text-sm mt-1">
+                    Cannot reach{" "}
+                    <code className="text-brand font-mono text-xs">
+                      {BACKEND_URL}
+                    </code>
+                  </p>
+                  <p className="text-text-muted text-xs mt-1">
+                    Make sure the Raspberry Pi and ngrok tunnel are running.
+                  </p>
                 </div>
-                <Button variant="secondary" size="sm" onClick={fetchDeviceStatus} className="gap-1.5 mt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={fetchDeviceStatus}
+                  className="gap-1.5 mt-2"
+                >
                   <RotateCcw size={12} /> Retry connection
                 </Button>
               </div>
@@ -1077,5 +1486,5 @@ export default function OwnerDashboard() {
         )}
       </main>
     </div>
-  )
+  );
 }

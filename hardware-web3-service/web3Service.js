@@ -13,8 +13,21 @@ class Web3Service {
 
   async initialize() {
     try {
-      // Support multiple RPC URL environment variables
-      const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL;
+      // Prefer the network the contracts were actually deployed to, so the same
+      // build works on sepolia, base-sepolia or mainnet without code changes.
+      const deployment = deploymentService.getDeployment();
+      const deployedChainId = deployment?.chainId;
+      const rpcUrl =
+        process.env.RPC_URL ||
+        (deployedChainId === 8453 && process.env.BASE_RPC_URL) ||
+        (deployedChainId === 84532 && process.env.BASE_SEPOLIA_RPC_URL) ||
+        (deployedChainId === 11155111 && process.env.SEPOLIA_RPC_URL) ||
+        process.env.SEPOLIA_RPC_URL ||
+        process.env.RPC_URL;
+
+      if (rpcUrl) {
+        console.log(`🌐 Using RPC for chain ${deployedChainId ?? 'unknown'}`);
+      }
       
       let deviceRegistryAddress = deploymentService.getDeviceRegistryAddress();
       let verisAddress = deploymentService.getVerisAddress();
@@ -34,7 +47,7 @@ class Web3Service {
       }
       
       if (!rpcUrl) {
-        throw new Error('RPC_URL or SEPOLIA_RPC_URL not set in environment');
+        throw new Error('No RPC URL set. Set RPC_URL, or one of BASE_RPC_URL / BASE_SEPOLIA_RPC_URL / SEPOLIA_RPC_URL');
       }
 
       if (!deviceRegistryAddress || !verisAddress) {
@@ -42,8 +55,17 @@ class Web3Service {
         return false;
       }
 
-      // Initialize provider
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
+
+      if (deployedChainId) {
+        const onChain = await this.provider.getNetwork();
+        if (Number(onChain.chainId) !== Number(deployedChainId)) {
+          throw new Error(
+            `RPC is on chain ${onChain.chainId} but deployment.json says ${deployedChainId}. ` +
+            'Point RPC_URL at the right network, or delete deployment.json.'
+          );
+        }
+      }
 
       // Try to get device private key automatically from hardware identity
       let devicePrivateKey = process.env.DEVICE_PRIVATE_KEY;
@@ -266,6 +288,9 @@ class Web3Service {
     }
 
     try {
+      // The contract no longer stores the CID, image hash and signature on-chain.
+      // We hash the same document that is uploaded to IPFS and commit to that,
+      // so a verifier can fetch baseURI<tokenId>, re-hash it and compare.
       const {
         recipient,
         ipfsHash,
@@ -273,6 +298,10 @@ class Web3Service {
         signature,
         maxEditions = 0
       } = photoData;
+
+      const metadataHash = ethers.keccak256(
+        ethers.toUtf8Bytes(JSON.stringify({ ipfsHash, imageHash, signature }))
+      );
 
       const deviceAddress = this.deviceWallet.address;
       console.log(`🔍 [MINT] Checking device status for: ${deviceAddress}`);
@@ -306,9 +335,7 @@ class Web3Service {
       try {
         const gasEstimate = await this.veris.mintOriginal.estimateGas(
           recipient,
-          ipfsHash,
-          imageHash,
-          signature,
+          metadataHash,
           maxEditions
         );
         console.log(`   ⛽ Estimated gas: ${gasEstimate.toString()}`);
@@ -320,9 +347,7 @@ class Web3Service {
       const gasBump = (val) => val ? val * 120n / 100n : undefined;
       const tx = await this.veris.mintOriginal(
         recipient,
-        ipfsHash,
-        imageHash,
-        signature,
+        metadataHash,
         maxEditions,
         {
           maxFeePerGas: gasBump(feeData.maxFeePerGas),
@@ -516,12 +541,13 @@ class Web3Service {
 
     try {
       const metadata = await this.veris.getTokenMetadata(tokenId);
+      // deviceId, ipfsHash, imageHash and signature are not on-chain any more.
+      // uri() points at the metadata document uploaded to IPFS for this token.
+      const uri = await this.veris.uri(tokenId).catch(() => null);
       return {
         deviceAddress: metadata.deviceAddress,
-        deviceId: metadata.deviceId,
-        ipfsHash: metadata.ipfsHash,
-        imageHash: metadata.imageHash,
-        signature: metadata.signature,
+        metadataHash: metadata.metadataHash,
+        uri,
         timestamp: metadata.timestamp.toString(),
         maxEditions: metadata.maxEditions.toString(),
         isOriginal: metadata.isOriginal,
@@ -548,11 +574,12 @@ class Web3Service {
 
   getVerisABI() {
     return [
-      "function mintOriginal(address _to, string memory _ipfsHash, string memory _imageHash, string memory _signature, uint256 _maxEditions) external returns (uint256)",
+      "function mintOriginal(address _to, bytes32 _metadataHash, uint256 _maxEditions) external returns (uint256)",
       "function mintEdition(address _to, uint256 _originalTokenId) external returns (uint256)",
-      "function getTokenMetadata(uint256 _tokenId) external view returns (tuple(address deviceAddress, string deviceId, string ipfsHash, string imageHash, string signature, uint256 timestamp, uint256 maxEditions, bool isOriginal, uint256 originalTokenId))",
+      "function uri(uint256 _tokenId) external view returns (string)",
+      "function getTokenMetadata(uint256 _tokenId) external view returns (tuple(address deviceAddress, bytes32 metadataHash, uint256 timestamp, uint256 maxEditions, bool isOriginal, uint256 originalTokenId))",
       "function getEditionCount(uint256 _originalTokenId) external view returns (uint256)",
-      "event TokenMinted(uint256 indexed tokenId, address indexed deviceAddress, string deviceId, string ipfsHash, bool isOriginal)",
+      "event TokenMinted(uint256 indexed tokenId, address indexed deviceAddress, bytes32 indexed metadataHash)",
       "event EditionMinted(uint256 indexed tokenId, uint256 indexed originalTokenId, address indexed to)"
     ];
   }
