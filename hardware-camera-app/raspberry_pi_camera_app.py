@@ -727,7 +727,7 @@ class CameraApp(App):
 
         # Enhanced battery indicator with modern styling
         self.battery_label = AnimatedLabel(
-            text='⚡ ---%',
+            text='Battery: ---%',
             size_hint=(0.22, 1),
             halign='right', valign='middle',
             font_size='13sp',
@@ -738,8 +738,8 @@ class CameraApp(App):
 
         # Modern fund button with enhanced styling
         self.fund_button = RoundedButton(
-            text='💰',
-            font_size='16sp',
+            text='FUND',
+            font_size='13sp',
             size_hint=(0.08, 0.85),
             btn_color=(0.12, 0.35, 0.58, 0.92),
             glow_color=(0.20, 0.55, 0.85, 0.4),
@@ -776,7 +776,7 @@ class CameraApp(App):
 
         # Enhanced gallery button
         self.gallery_button = RoundedButton(
-            text='🖼️ GALLERY',
+            text='GALLERY',
             font_size='13sp',
             size_hint=(0.16, 1),
             btn_color=(0.14, 0.18, 0.28, 0.95),
@@ -789,7 +789,7 @@ class CameraApp(App):
 
         # Enhanced video button with modern icon
         self.video_button = RoundedButton(
-            text='🎬 VIDEO',
+            text='VIDEO',
             font_size='14sp',
             size_hint=(0.18, 1),
             btn_color=(0.42, 0.12, 0.12, 0.95),
@@ -818,7 +818,7 @@ class CameraApp(App):
         zoom_layout = BoxLayout(orientation='vertical', size_hint=(0.16, 1), spacing=8)
 
         self.zoom_in_button = RoundedButton(
-            text='🔍 +',
+            text='ZOOM +',
             font_size='13sp',
             btn_color=(0.15, 0.20, 0.32, 0.95),
             glow_color=(0.3, 0.4, 0.6, 0.4),
@@ -829,7 +829,7 @@ class CameraApp(App):
         self.zoom_in_button.bind(on_press=self.zoom_in)
 
         self.zoom_out_button = RoundedButton(
-            text='🔍 -',
+            text='ZOOM -',
             font_size='13sp',
             btn_color=(0.15, 0.20, 0.32, 0.95),
             glow_color=(0.3, 0.4, 0.6, 0.4),
@@ -844,8 +844,8 @@ class CameraApp(App):
 
         # Enhanced power button
         self.quit_button = RoundedButton(
-            text='⏻',
-            font_size='24sp',
+            text='EXIT',
+            font_size='14sp',
             size_hint=(0.12, 1),
             btn_color=(0.28, 0.08, 0.08, 0.88),
             glow_color=(0.6, 0.2, 0.2, 0.4),
@@ -916,7 +916,7 @@ class CameraApp(App):
         )
 
         self.qr_title = AnimatedLabel(
-            text='✨ Scan QR Code',
+            text='Scan QR Code',
             font_size='24sp',
             bold=True,
             color=(0.95, 0.97, 1.0, 1),
@@ -952,7 +952,7 @@ class CameraApp(App):
         self.qr_status.bind(size=self.qr_status.setter('text_size'))
 
         qr_close = RoundedButton(
-            text='✕  Close',
+            text='Close',
             font_size='16sp',
             size_hint=(1, 0.10),
             btn_color=(0.32, 0.12, 0.12, 0.95),
@@ -990,17 +990,21 @@ class CameraApp(App):
                 if self.camera.initialize():
                     camera_id = self.camera.get_camera_id()
                     self.camera_ready = True
+                    print("Camera initialized successfully")
                 else:
-                    self.show_status('✗ Camera Initialization Failed', 'error', 5)
+                    self.show_status('Camera Initialization Failed', 'error', 5)
+                    print("Camera initialization failed")
             except Exception as e:
-                self.show_status('✗ Camera Not Found', 'error', 5)
+                self.show_status('Camera Not Found', 'error', 5)
+                print(f"Camera error: {e}")
                 try:
                     if self.camera.camera is not None:
                         self.camera.cleanup()
                 except:
                     pass
         else:
-            self.show_status('📸 Demo Mode - Picamera2 Not Installed', 'warning', 5)
+            self.show_status('Demo Mode - Picamera2 Not Installed', 'warning', 5)
+            print("Picamera2 not available - demo mode")
 
         if HARDWARE_IDENTITY_AVAILABLE:
             try:
@@ -1245,7 +1249,7 @@ class CameraApp(App):
         """Start camera preview stream with enhanced feedback."""
         if CAMERA_AVAILABLE and self.camera.initialized:
             # Show ready status with success animation
-            self.show_status('✨ Camera Ready!', 'success', 3)
+            self.show_status('Camera Ready!', 'success', 3)
 
             # Schedule preview updates
             Clock.schedule_interval(self.update_preview, 1.0 / 30.0)  # 30 FPS
@@ -1254,6 +1258,8 @@ class CameraApp(App):
             # Add a subtle glow to the photo button to indicate readiness
             Clock.schedule_once(lambda dt: self.photo_button.enable_glow(0.5), 3.5)
             Clock.schedule_once(lambda dt: self.photo_button.disable_glow(0.5), 5.0)
+        else:
+            self.show_status('Camera not available - Demo mode', 'warning', 5)
     
     def _show_funding_qr_button(self, instance):
         if self.hardware_identity:
@@ -1265,9 +1271,9 @@ class CameraApp(App):
         """Show QR code for funding the wallet with enhanced presentation."""
         if not QRCODE_AVAILABLE:
             if token_type == 'ETH':
-                self.show_status(f'⚠️ Low Balance: {current_balance:.4f} ETH\nFund: {address}', 'warning', 10)
+                self.show_status(f'Low Balance: {current_balance:.4f} ETH - Fund: {address}', 'warning', 10)
             else:
-                self.show_status(f'⚠️ Low Balance: {current_balance:.4f} {token_type}\nFund: {address}', 'warning', 10)
+                self.show_status(f'Low Balance: {current_balance:.4f} {token_type} - Fund: {address}', 'warning', 10)
             return
 
         try:
@@ -1302,9 +1308,9 @@ class CameraApp(App):
             self.qr_image.reload()
 
             # Update title and status text with better formatting
-            self.qr_title.text = '💰 Fund Your Wallet'
+            self.qr_title.text = 'Fund Your Wallet'
             min_amount = '0.01 ETH' if token_type == 'ETH' else '0.1 USDFC'
-            self.qr_status.text = f'⚠️ Low Balance: {current_balance:.4f} {token_type}\n\n🏠 Wallet Address:\n{address[:22]}...\n{address[-20:]}\n\n📱 Scan with MetaMask\n💸 Send {min_amount} or more'
+            self.qr_status.text = f'Low Balance: {current_balance:.4f} {token_type}\n\nWallet Address:\n{address[:22]}...\n{address[-20:]}\n\nScan with MetaMask\nSend {min_amount} or more'
             self.qr_status.color = (1, 0.85, 0.3, 1)  # Warm yellow
 
             # Show overlay with smooth animation
@@ -1313,7 +1319,7 @@ class CameraApp(App):
             fade_anim.start(self.qr_overlay)
 
             # Update main status with enhanced styling
-            self.show_status('💰 Funding Required for Full Features', 'warning', 0)
+            self.show_status('Funding Required for Full Features', 'warning', 0)
 
         except Exception as e:
             print(f"Error generating funding QR: {e}")
@@ -1607,7 +1613,7 @@ class CameraApp(App):
         self._create_camera_flash()
 
         # Show capturing status with animation
-        self.show_status('📸 Capturing...', 'info', 1)
+        self.show_status('Capturing...', 'info', 1)
 
         # Run in thread to avoid blocking UI
         def capture_thread():
@@ -1617,7 +1623,7 @@ class CameraApp(App):
                 try:
                     # Show success feedback
                     Clock.schedule_once(
-                        lambda dt: self.show_status('✓ Photo Captured!', 'success', 2),
+                        lambda dt: self.show_status('Photo Captured!', 'success', 2),
                         0
                     )
 
@@ -1629,7 +1635,7 @@ class CameraApp(App):
                             if signature_info:
                                 print(f"Image signed: {signature_info['address']}")
                                 Clock.schedule_once(
-                                    lambda dt: self.show_status('🔐 Image Signed', 'success', 1.5),
+                                    lambda dt: self.show_status('Image Signed', 'success', 1.5),
                                     0.5
                                 )
                         except Exception as e:
@@ -1640,19 +1646,19 @@ class CameraApp(App):
                         self._upload_and_create_claim(filename, signature_info)
                     else:
                         Clock.schedule_once(
-                            lambda dt: self.show_status('✗ Signing Failed', 'error', 3),
+                            lambda dt: self.show_status('Signing Failed', 'error', 3),
                             0
                         )
 
                 except Exception as e:
                     print(f"Error processing photo: {e}")
                     Clock.schedule_once(
-                        lambda dt: self.show_status('✗ Processing Error', 'error', 3),
+                        lambda dt: self.show_status('Processing Error', 'error', 3),
                         0
                     )
             else:
                 Clock.schedule_once(
-                    lambda dt: self.show_status('✗ Capture Failed', 'error', 3),
+                    lambda dt: self.show_status('Capture Failed', 'error', 3),
                     0
                 )
 
@@ -1709,14 +1715,14 @@ class CameraApp(App):
             online = False
             print("⚠️ Backend offline - saving to queue")
             Clock.schedule_once(
-                lambda dt: self.show_status('⚠️ Offline - Saved Locally', 'warning', 4),
+                lambda dt: self.show_status('Offline - Saved Locally', 'warning', 4),
                 0
             )
             return
 
         try:
             Clock.schedule_once(
-                lambda dt: self.show_status('📤 Uploading to blockchain...', 'info', 0),
+                lambda dt: self.show_status('Uploading to blockchain...', 'info', 0),
                 0
             )
 
@@ -1768,7 +1774,7 @@ class CameraApp(App):
 
                         # Show success message with animation
                         Clock.schedule_once(
-                            lambda dt: self.show_status('✓ Uploaded! Minting NFT...', 'success', 3),
+                            lambda dt: self.show_status('Uploaded! Minting NFT...', 'success', 3),
                             0
                         )
 
@@ -1785,7 +1791,7 @@ class CameraApp(App):
                         )
                     else:
                         Clock.schedule_once(
-                            lambda dt: self.show_status('✓ Saved (No Claim)', 'success', 3),
+                            lambda dt: self.show_status('Saved (No Claim)', 'success', 3),
                             0
                         )
                 else:
@@ -1796,13 +1802,13 @@ class CameraApp(App):
         except requests.exceptions.RequestException as e:
             print(f"Upload error: {e}")
             Clock.schedule_once(
-                lambda dt: self.show_status('✗ Upload Failed - Check Connection', 'error', 4),
+                lambda dt: self.show_status('Upload Failed - Check Connection', 'error', 4),
                 0
             )
         except Exception as e:
             print(f"Error uploading: {e}")
             Clock.schedule_once(
-                lambda dt: self.show_status('✗ Upload Error', 'error', 3),
+                lambda dt: self.show_status('Upload Error', 'error', 3),
                 0
             )
     
@@ -1840,34 +1846,49 @@ class CameraApp(App):
             temp_path = Path(CAPTURE_DIR) / f"qr_{claim_id}.png"
             ok = self._generate_qr_image(claim_url, str(temp_path))
 
+            print(f"QR Debug: Generated QR code: {ok}, Path: {temp_path}")
+
             if ok and temp_path.exists():
                 self.qr_image.source = str(temp_path)
                 self.qr_image.reload()
+                print(f"QR Debug: QR image loaded successfully")
             else:
                 self.qr_image.source = ''
+                print(f"QR Debug: Failed to generate or load QR image")
 
             # Update content with enhanced styling
-            self.qr_title.text = '🎨 Scan to Claim NFT'
+            self.qr_title.text = 'Scan to Claim NFT'
             self.qr_status.text = claim_url if not ok else 'Share this QR code to let others mint NFT editions'
             self.qr_status.color = (0.75, 0.82, 0.95, 1)
 
+            print(f"QR Debug: About to show overlay")
+
             # Animate overlay appearance
             self.qr_overlay.opacity = 0
-            fade_anim = Animation(opacity=1, duration=0.5, t='out_cubic')
-            fade_anim.start(self.qr_overlay)
 
-            # Animate QR card with scale effect
-            qr_card = self.qr_overlay.children[0]  # Get the main card
-            original_size = qr_card.size_hint
-            qr_card.size_hint = (0.1, 0.1)
-            scale_anim = Animation(size_hint=original_size, duration=0.6, t='out_back')
-            Clock.schedule_once(lambda dt: scale_anim.start(qr_card), 0.1)
+            # Simple fade-in first to test
+            def show_overlay(dt):
+                print(f"QR Debug: Setting overlay opacity to 1")
+                self.qr_overlay.opacity = 1
+
+            Clock.schedule_once(show_overlay, 0.1)
+
+            # Show immediate status
+            self.show_status('QR Code Ready - Check display', 'success', 3)
 
         except Exception as e:
             print(f"Error generating QR code: {e}")
+            import traceback
+            traceback.print_exc()
+
+            # Show error and simple text fallback
+            self.qr_title.text = 'NFT Claim URL'
             self.qr_status.text = f"URL: {claim_url}"
-            fade_anim = Animation(opacity=1, duration=0.3)
-            fade_anim.start(self.qr_overlay)
+            self.qr_image.source = ''  # Clear any existing image
+
+            # Still show the overlay with the URL text
+            self.qr_overlay.opacity = 1
+            self.show_status('QR generation failed - showing URL', 'warning', 5)
 
     def close_qr_overlay(self, instance):
         """Close QR code overlay with smooth animation."""
@@ -1982,7 +2003,7 @@ class CameraApp(App):
 
             if filename:
                 # Animate button state change
-                instance.text = '⏹️ STOP'
+                instance.text = 'STOP'
                 new_color = [0.8, 0.4, 0.1, 1]
                 color_anim = Animation(duration=0.3, t='out_cubic')
                 # Update button colors manually for recording state
@@ -1991,7 +2012,7 @@ class CameraApp(App):
                     instance._color_instr.rgba = new_color
 
                 # Show recording status with pulsing effect
-                self.show_status('🔴 REC', 'error', 0)  # Keep showing until stop
+                self.show_status('REC', 'error', 0)  # Keep showing until stop
 
                 # Make status pulse during recording
                 def pulse_recording_status(dt):
@@ -2009,14 +2030,14 @@ class CameraApp(App):
             self.camera.stop_recording()
 
             # Animate button back to original state
-            instance.text = '🎬 VIDEO'
+            instance.text = 'VIDEO'
             original_color = [0.42, 0.12, 0.12, 0.95]
             instance._btn_color = original_color
             if instance._color_instr:
                 instance._color_instr.rgba = original_color
 
             instance.disable_glow()
-            self.show_status('✓ Video Saved', 'success', 2)
+            self.show_status('Video Saved', 'success', 2)
 
     def zoom_in(self, instance):
         """Enhanced zoom with visual feedback."""
@@ -2024,7 +2045,7 @@ class CameraApp(App):
         self.camera.zoom_in()
 
         # Show zoom level with smooth animation
-        self.show_status(f'🔍 Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
+        self.show_status(f'Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
 
         # Disable glow after short time
         Clock.schedule_once(lambda dt: instance.disable_glow(0.2), 0.3)
@@ -2035,7 +2056,7 @@ class CameraApp(App):
         self.camera.zoom_out()
 
         # Show zoom level with smooth animation
-        self.show_status(f'🔍 Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
+        self.show_status(f'Zoom: {self.camera.current_zoom:.1f}x', 'info', 1.5)
 
         # Disable glow after short time
         Clock.schedule_once(lambda dt: instance.disable_glow(0.2), 0.3)
@@ -2043,7 +2064,7 @@ class CameraApp(App):
     def show_error(self, message):
         """Display error message using enhanced status system."""
         print(f"ERROR: {message}")
-        self.show_status(f'⚠️ {message}', 'error', 5)
+        self.show_status(f'Error: {message}', 'error', 5)
 
     def open_gallery(self, instance):
         """Open modern gallery view with enhanced styling."""
@@ -2085,7 +2106,7 @@ class CameraApp(App):
         )
 
         title = AnimatedLabel(
-            text='[b][color=00D4C0]🖼️[/color]  GALLERY[/b]',
+            text='[b][color=00D4C0]GALLERY[/color][/b]',
             markup=True,
             font_size='26sp',
             size_hint=(0.50, 1),
@@ -2095,7 +2116,7 @@ class CameraApp(App):
         title.bind(size=title.setter('text_size'))
 
         quit_gallery_button = RoundedButton(
-            text='📸  CAMERA',
+            text='CAMERA',
             font_size='16sp',
             size_hint=(0.32, 0.9),
             btn_color=(0.12, 0.32, 0.20, 0.95),
@@ -2107,7 +2128,7 @@ class CameraApp(App):
         quit_gallery_button.bind(on_press=self.quit_gallery)
 
         close_button = RoundedButton(
-            text='✕',
+            text='X',
             font_size='20sp',
             size_hint=(0.15, 0.9),
             btn_color=(0.28, 0.10, 0.10, 0.95),
@@ -2191,7 +2212,7 @@ class CameraApp(App):
             )
 
             no_files_label = AnimatedLabel(
-                text='[b][color=00D4C0]📷[/color][/b]\n\nNo captures yet\n\n✨ Take a photo to get started!',
+                text='[b][color=00D4C0]CAMERA[/color][/b]\n\nNo captures yet\n\nTake a photo to get started!',
                 markup=True,
                 font_size='22sp',
                 halign='center', valign='middle',
@@ -2246,8 +2267,8 @@ class CameraApp(App):
             else:
                 # Video placeholder with modern styling
                 thumb_container = RoundedButton(
-                    text='▶️\nVIDEO',
-                    font_size='28sp',
+                    text='PLAY\nVIDEO',
+                    font_size='20sp',
                     btn_color=(0.15, 0.18, 0.25, 0.95),
                     glow_color=(0.3, 0.4, 0.6, 0.4),
                     radius=12,
@@ -2266,7 +2287,7 @@ class CameraApp(App):
             try:
                 date_part = filename[6:14]
                 time_part = filename[15:21]
-                icon = '📷' if media_type == 'photo' else '🎬'
+                icon = 'PIC' if media_type == 'photo' else 'VID'
                 label_text = (
                     f'{icon}  {date_part[:4]}-{date_part[4:6]}-{date_part[6:]}'
                     f'  {time_part[:2]}:{time_part[2:4]}'
