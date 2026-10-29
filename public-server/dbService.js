@@ -80,14 +80,14 @@ class ClaimDBService {
       { name: 'camera_id', type: 'TEXT' },
       { name: 'image_hash', type: 'TEXT' },
       { name: 'signature', type: 'TEXT' },
-      { name: 'device_address', type: 'TEXT' }
+      { name: 'device_address', type: 'TEXT' },
+      { name: 'latitude', type: 'REAL' },
+      { name: 'longitude', type: 'REAL' },
+      { name: 'location_name', type: 'TEXT' }
     ];
 
     columnsToAdd.forEach(col => {
-      try {
-        this.db.exec(`ALTER TABLE claims ADD COLUMN ${col.name} ${col.type}`);
-      } catch (e) {
-      }
+      try { this.db.exec(`ALTER TABLE claims ADD COLUMN ${col.name} ${col.type}`); } catch (e) {}
     });
 
     this.db.exec(`
@@ -114,14 +114,14 @@ class ClaimDBService {
     `);
   }
 
-  createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null) {
+  createClaim(claim_id, image_id, cid, metadata_cid = null, device_id = null, camera_id = null, image_hash = null, signature = null, device_address = null, latitude = null, longitude = null, location_name = null) {
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO claims (claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        INSERT INTO claims (claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
       `);
 
-      stmt.run(claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address);
+      stmt.run(claim_id, image_id, cid, metadata_cid, device_id, camera_id, image_hash, signature, device_address, latitude, longitude, location_name);
       return this.getClaim(claim_id);
     } catch (error) {
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
