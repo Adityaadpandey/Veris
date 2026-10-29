@@ -1,7 +1,14 @@
 """
 multi_signal_verify.py - Multi-Signal Image Authenticity Verification
 ---------------------------------------------------------------------
-5-signal fusion pipeline for dual-camera (DSLR + ESP) verification.
+5-signal fusion pipeline that checks a companion photo (candidate, e.g. a
+phone photo submitted alongside a claim) against the hardware-verified
+device capture (source of truth, e.g. a signed Pi/ESP camera image).
+
+This mirrors the "device (source-of-truth) image vs. companion mobile
+photo" terminology used in public-server/companionCapture.js -- the device
+image is never the thing being verified, only the anchor everything else
+is checked against.
 
 Signals:
   1. ORB keypoint matching (geometric)
@@ -62,8 +69,14 @@ def load_image(path: str) -> Image.Image:
     return ImageOps.exif_transpose(Image.open(path)).convert("RGB")
 
 
-def preprocess_esp(img: Image.Image) -> Image.Image:
-    """Sharpen + auto-contrast the ESP image to reduce quality gap."""
+def preprocess_truth_image(img: Image.Image) -> Image.Image:
+    """Sharpen + auto-contrast the source-of-truth (hardware-verified)
+    image to reduce the quality gap with the companion photo -- the
+    hardware sensor is typically the weaker camera of the pair.
+
+    Named "truth" rather than "device" to avoid colliding with the
+    compute-device ("cpu"/"cuda") terminology used elsewhere in this file.
+    """
     img = img.filter(ImageFilter.SHARPEN)
     arr = np.array(img).astype(np.float32)
     for c in range(3):
@@ -73,19 +86,20 @@ def preprocess_esp(img: Image.Image) -> Image.Image:
     return Image.fromarray(arr.clip(0, 255).astype(np.uint8))
 
 
-def preprocess_pair(dslr: Image.Image, esp: Image.Image) -> dict:
+def preprocess_pair(companion: Image.Image, truth: Image.Image) -> dict:
     """
-    Prepare image pair at the sizes each signal needs.
-    Returns dict with resized PIL images ready for each signal.
+    Prepare the companion (candidate) / truth (source-of-truth, hardware
+    capture) pair at the sizes each signal needs. Returns dict with resized
+    PIL images ready for each signal.
     """
-    esp = preprocess_esp(esp)
+    truth = preprocess_truth_image(truth)
     return {
-        "orb_dslr": dslr.resize((512, 512), Image.LANCZOS),
-        "orb_esp": esp.resize((512, 512), Image.LANCZOS),
-        "small_dslr": dslr.resize((256, 256), Image.LANCZOS),
-        "small_esp": esp.resize((256, 256), Image.LANCZOS),
-        "clip_dslr": dslr,
-        "clip_esp": esp,
+        "orb_companion": companion.resize((512, 512), Image.LANCZOS),
+        "orb_truth": truth.resize((512, 512), Image.LANCZOS),
+        "small_companion": companion.resize((256, 256), Image.LANCZOS),
+        "small_truth": truth.resize((256, 256), Image.LANCZOS),
+        "clip_companion": companion,
+        "clip_truth": truth,
     }
 
 
@@ -240,12 +254,14 @@ def signal_phash(img1: Image.Image, img2: Image.Image,
 
 class OpenAIVisionSignal:
     """
-    Asks a GPT-4o-class vision model whether two photos show the same
-    physical scene, shot by different cameras (DSLR vs a cheap embedded
-    sensor). This catches cases the pixel-level signals miss -- e.g. a
-    reused/staged photo that happens to share color and edge statistics
-    with the real capture, or a genuine same-scene pair that pixel signals
-    undervalue because of exposure/lens differences.
+    Asks a GPT-4o-class vision model to forensically compare a candidate
+    (companion) photo against the hardware-verified source-of-truth
+    capture. This is the only signal in the pipeline that can catch
+    localized compositing -- a person or object inserted into an otherwise
+    real background -- because it was previously only asked "same scene?",
+    which a composite trivially passes: it reuses the real background on
+    purpose. It's now explicitly asked to look for tampering, not just
+    scene match.
     """
 
     def __init__(self, api_key: str = None, model: str = None):
@@ -266,40 +282,73 @@ class OpenAIVisionSignal:
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         return f"data:image/jpeg;base64,{b64}"
 
-    def score(self, img1: Image.Image, img2: Image.Image) -> float:
+    def score(self, companion_img: Image.Image, truth_img: Image.Image) -> float:
         prompt = (
-            "You are comparing two photos that may show the same physical scene, "
-            "captured moments apart by two different cameras (one a DSLR, one a "
-            "cheap embedded camera). Ignore differences in exposure, color grading, "
-            "sharpness, and sensor noise -- those are expected. Judge only whether "
-            "the underlying scene, subject, and framing match.\n\n"
+            "You are a forensic image analyst. Image 2 is a hardware-verified "
+            "camera capture -- ground truth, unedited. Image 1 is a candidate "
+            "photo submitted as allegedly showing the same real moment.\n\n"
+            "Determine whether Image 1 is an authentic, unedited photo of the "
+            "same real scene as Image 2, or whether it has been digitally "
+            "altered -- e.g. a person or object inserted/composited in, a face "
+            "swapped, or part of the image AI-generated. Differences in "
+            "exposure, color grading, sharpness, and sensor noise between the "
+            "two cameras are expected and NOT evidence of tampering on their "
+            "own. Look specifically for: mismatched lighting/shadows between "
+            "people or objects in the same frame, a rendering style or "
+            "sharpness on one subject that doesn't match the rest of the "
+            "scene, blending seams, or a person/object that could not "
+            "plausibly have been photographed in that moment (e.g. a public "
+            "figure appearing in an ordinary candid setting).\n\n"
             'Respond with ONLY a JSON object, no markdown fences: '
-            '{"same_scene": true|false, "confidence": 0.0-1.0, "reason": "<one sentence>"}'
+            '{"same_scene": true|false, "tampered": true|false, '
+            '"confidence": 0.0-1.0, "reason": "<one sentence>"}'
         )
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            max_completion_tokens=300,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": self._to_data_url(img1)}},
-                    {"type": "image_url", "image_url": {"url": self._to_data_url(img2)}},
-                ],
-            }],
-        )
-        raw = resp.choices[0].message.content.strip()
+        raw = self._complete(companion_img, truth_img, prompt)
+        data = json.loads(raw)
+
+        confidence = max(0.0, min(float(data.get("confidence", 0.0)), 1.0))
+        if data.get("tampered", False) or not data.get("same_scene", False):
+            confidence = min(confidence, 0.3)
+        return confidence
+
+    def _complete(self, img1: Image.Image, img2: Image.Image, prompt: str,
+                  max_completion_tokens: int = 600) -> str:
+        """
+        Reasoning models can spend the whole completion-token budget on
+        internal reasoning and return empty content (finish_reason="length",
+        reasoning_tokens == budget) with nothing left for the actual answer.
+        One retry at double the budget covers the cases that need more
+        headroom without paying that cost on every call.
+        """
+        for attempt_tokens in (max_completion_tokens, max_completion_tokens * 2):
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                max_completion_tokens=attempt_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": self._to_data_url(img1)}},
+                        {"type": "image_url", "image_url": {"url": self._to_data_url(img2)}},
+                    ],
+                }],
+            )
+            content = resp.choices[0].message.content
+            if content:
+                break
+        else:
+            raise RuntimeError(
+                f"OpenAI vision signal returned no content after retry "
+                f"(finish_reason={resp.choices[0].finish_reason})"
+            )
+
+        raw = content.strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
             if raw.startswith("json"):
                 raw = raw[4:]
             raw = raw.strip()
-        data = json.loads(raw)
-
-        confidence = max(0.0, min(float(data.get("confidence", 0.0)), 1.0))
-        if not data.get("same_scene", False):
-            confidence = min(confidence, 0.3)
-        return confidence
+        return raw
 
 
 # ------------------------------------------------------------------
@@ -321,6 +370,10 @@ class ImageVerifier:
     Multi-signal image authenticity verifier.
     Combines 6 independent signals with weighted fusion and per-signal floors:
     5 pixel/embedding-level signals plus a GPT-4o-class vision judgment.
+
+    Every check is directional: a companion (candidate) photo is scored
+    against a source-of-truth capture from verified hardware. The truth
+    image is always the anchor -- it's never the side being judged.
     """
 
     def __init__(self, device: str = "cpu", config: dict = None, use_openai: bool = True):
@@ -334,24 +387,29 @@ class ImageVerifier:
             except RuntimeError as e:
                 print(f"[ImageVerifier] OpenAI vision signal disabled: {e}")
 
-    def verify(self, dslr_path: str, esp_path: str,
+    def verify(self, companion_path: str, truth_path: str,
                threshold: float = 0.45) -> dict:
-        dslr_img = load_image(dslr_path)
-        esp_img = load_image(esp_path)
-        pair = preprocess_pair(dslr_img, esp_img)
+        """
+        Check a companion (candidate) photo against the hardware-verified
+        source-of-truth capture. truth_path is the anchor -- it's never the
+        thing being judged, only what companion_path is judged against.
+        """
+        companion_img = load_image(companion_path)
+        truth_img = load_image(truth_path)
+        pair = preprocess_pair(companion_img, truth_img)
 
         signals = {
-            "orb": signal_orb(pair["orb_dslr"], pair["orb_esp"]),
-            "ssim_edge": signal_ssim_edge(pair["small_dslr"], pair["small_esp"]),
-            "color_hist": signal_color_hist(pair["small_dslr"], pair["small_esp"]),
-            "clip": self.clip.score(pair["clip_dslr"], pair["clip_esp"]),
-            "phash": signal_phash(pair["small_dslr"], pair["small_esp"]),
+            "orb": signal_orb(pair["orb_companion"], pair["orb_truth"]),
+            "ssim_edge": signal_ssim_edge(pair["small_companion"], pair["small_truth"]),
+            "color_hist": signal_color_hist(pair["small_companion"], pair["small_truth"]),
+            "clip": self.clip.score(pair["clip_companion"], pair["clip_truth"]),
+            "phash": signal_phash(pair["small_companion"], pair["small_truth"]),
         }
 
         openai_error = None
         if self.openai is not None:
             try:
-                signals["openai_vision"] = self.openai.score(pair["clip_dslr"], pair["clip_esp"])
+                signals["openai_vision"] = self.openai.score(pair["clip_companion"], pair["clip_truth"])
             except Exception as e:
                 openai_error = str(e)
 
@@ -405,13 +463,13 @@ class ImageVerifier:
         print("-" * 80)
 
         for scene in scenes:
-            dslr_p = os.path.join(data_dir, scene, "dslr.jpg")
-            esp_p = os.path.join(data_dir, scene, "esp.jpg")
-            if not (os.path.exists(dslr_p) and os.path.exists(esp_p)):
+            companion_p = os.path.join(data_dir, scene, "dslr.jpg")
+            truth_p = os.path.join(data_dir, scene, "esp.jpg")
+            if not (os.path.exists(companion_p) and os.path.exists(truth_p)):
                 print(f"{scene:<16} {'MISSING':>6}")
                 continue
 
-            r = self.verify(dslr_p, esp_p, threshold=threshold)
+            r = self.verify(companion_p, truth_p, threshold=threshold)
             s = r["signals"]
             gpt = f"{s['openai_vision']:.3f}" if "openai_vision" in s else "  n/a"
             flag = "PASS" if r["authentic"] else f"FAIL({r['rejected_by'] or 'score'})"
@@ -441,10 +499,10 @@ class ImageVerifier:
 
         pos_scores = []
         for scene in scenes:
-            dslr_p = os.path.join(data_dir, scene, "dslr.jpg")
-            esp_p = os.path.join(data_dir, scene, "esp.jpg")
-            if os.path.exists(dslr_p) and os.path.exists(esp_p):
-                r = self.verify(dslr_p, esp_p, threshold=0.0)
+            companion_p = os.path.join(data_dir, scene, "dslr.jpg")
+            truth_p = os.path.join(data_dir, scene, "esp.jpg")
+            if os.path.exists(companion_p) and os.path.exists(truth_p):
+                r = self.verify(companion_p, truth_p, threshold=0.0)
                 pos_scores.append(r["score"])
 
         neg_scores = []
@@ -453,10 +511,10 @@ class ImageVerifier:
             s2 = scenes[(i + 1) % len(scenes)]
             if s1 == s2:
                 continue
-            dslr_p = os.path.join(data_dir, s1, "dslr.jpg")
-            esp_p = os.path.join(data_dir, s2, "esp.jpg")
-            if os.path.exists(dslr_p) and os.path.exists(esp_p):
-                r = self.verify(dslr_p, esp_p, threshold=0.0)
+            companion_p = os.path.join(data_dir, s1, "dslr.jpg")
+            truth_p = os.path.join(data_dir, s2, "esp.jpg")
+            if os.path.exists(companion_p) and os.path.exists(truth_p):
+                r = self.verify(companion_p, truth_p, threshold=0.0)
                 neg_scores.append(r["score"])
 
         print("\n-- Threshold Calibration --")
@@ -490,8 +548,8 @@ class ImageVerifier:
 if __name__ == "__main__":
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DATA_DIR = "./data"
-    DSLR = os.path.join(DATA_DIR, "scene_001", "dslr.jpg")
-    ESP = os.path.join(DATA_DIR, "scene_001", "esp.jpg")
+    COMPANION = os.path.join(DATA_DIR, "scene_001", "dslr.jpg")
+    TRUTH = os.path.join(DATA_DIR, "scene_001", "esp.jpg")
 
     print(f"Device: {DEVICE}\n")
 
@@ -505,6 +563,6 @@ if __name__ == "__main__":
 
     # Verify single pair
     print(f"\n-- Verify scene_001 (threshold={threshold}) --")
-    result = verifier.verify(DSLR, ESP, threshold=threshold)
+    result = verifier.verify(COMPANION, TRUTH, threshold=threshold)
     for k, v in result.items():
         print(f"  {k}: {v}")
