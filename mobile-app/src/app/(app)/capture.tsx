@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions, type CameraType, type FlashMode } from 'expo-camera';
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +18,7 @@ import { CaptureToast } from '@/components/capture-toast';
 import { GlassPanel } from '@/components/glass-panel';
 import { PillButton } from '@/components/pill-button';
 import { RadialGlow } from '@/components/radial-glow';
+import { CLAIM_SERVER_URL } from '@/constants/config';
 import { Border, Palette, Radius } from '@/constants/theme';
 import { body, display, mono } from '@/constants/typography';
 import { useBrutalPress } from '@/hooks/use-brutal-press';
@@ -44,7 +46,7 @@ export default function CaptureScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shutterPress = useBrutalPress(5);
 
-  const { connectionState, stage, failedStage, claimUrl, shutterDisabled, connect, sendCapture, registerCompanionPhoto } =
+  const { connectionState, stage, failedStage, claimUrl, shutterDisabled, connect, sendCapture, registerCompanionUpload } =
     usePiTrigger();
 
   // PiTriggerProvider connects once at app boot — often before pairing/permissions are even
@@ -75,6 +77,47 @@ export default function CaptureScreen() {
       runOnJS(setZoomDisplay)(next);
     });
 
+  // Fired the instant the phone's own frame is captured — not gated on the claim existing yet,
+  // since the Pi's own capture -> Filecoin -> ZK proof -> mint pipeline this pairs against can take
+  // far longer than a single image upload. Uploads straight to Cloudinary and hands the result to
+  // PiTriggerProvider (registerCompanionUpload), which links it to the real claim once that claim
+  // exists (see use-pi-trigger.tsx) — that hop survives navigation away from this screen, which a
+  // ref living here would not. Best-effort with a few retries: a paired companion photo is a demo
+  // enhancement layered on top of the real, hardware-minted claim, and must never block or fail
+  // that claim if the upload doesn't land. Logs (not silent) so a failed pairing is visible in
+  // Metro instead of just absent later.
+  const uploadCompanionPhoto = useCallback(
+    async (uri: string, capturedAt: string) => {
+      const attempts = 3;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          // Expo SDK 57's global fetch (the "winter" WinterCG-compliant runtime) has its own FormData
+          // encoder that doesn't understand React Native's classic { uri, name, type } file shape — it
+          // only accepts a real Blob-like value (an object with `.bytes()`), which is what expo-file-system's
+          // File class provides. The legacy shape throws "Unsupported FormDataPart implementation".
+          const form = new FormData();
+          form.append('mobile_image', new File(uri));
+          const res = await fetch(`${CLAIM_SERVER_URL}/api/companion/upload`, { method: 'POST', body: form });
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.success && data.mobile_image_url && data.mobile_public_id) {
+            registerCompanionUpload({
+              mobile_image_url: data.mobile_image_url,
+              mobile_public_id: data.mobile_public_id,
+              mobile_captured_at: capturedAt,
+            });
+            console.log('[companion] uploaded, awaiting claim to link');
+            return;
+          }
+          console.warn(`[companion] upload rejected (${res.status}):`, data);
+        } catch (err) {
+          console.warn(`[companion] upload attempt ${attempt} failed:`, (err as Error).message);
+        }
+        if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 800));
+      }
+      console.warn('[companion] giving up on upload after retries');
+    },
+    [registerCompanionUpload]
+  );
 
   useEffect(() => {
     if (!pendingRef.current) return;
@@ -147,7 +190,7 @@ export default function CaptureScreen() {
           // screen's lifecycle and of the (much slower) Pi mint pipeline sendCapture() kicks off
           // below — that's what makes the upload actually start "the second the image is clicked"
           // instead of only once the claim shows up.
-          registerCompanionPhoto(photo.uri, capturedAt);
+          uploadCompanionPhoto(photo.uri, capturedAt);
         } else {
           console.warn('[companion] takePictureAsync returned no uri');
         }
@@ -157,7 +200,7 @@ export default function CaptureScreen() {
         console.warn('[companion] takePictureAsync failed:', (err as Error).message);
       });
     await Promise.all([companionCapture, sendCapture()]);
-  }, [shutterDisabled, sendCapture, registerCompanionPhoto]);
+  }, [shutterDisabled, sendCapture, uploadCompanionPhoto]);
 
   const handleGallery = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
