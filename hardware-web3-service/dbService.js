@@ -189,6 +189,11 @@ class DBService {
     return stmt.get(image_hash) || null;
   }
 
+  getImageByClaimId(claim_id) {
+    const stmt = this.db.prepare('SELECT * FROM images WHERE claim_id = ?');
+    return stmt.get(claim_id) || null;
+  }
+
   updateImageStatus(id, status, additionalData = {}) {
     const updates = ['status = ?'];
     const values = [status];
