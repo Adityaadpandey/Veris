@@ -11,9 +11,13 @@ const CLAIM_API = import.meta.env.DEV
 
 function fmt(dateStr) {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleString(undefined, {
+  // SQLite stores UTC without 'Z' — append it so JS parses as UTC, not local
+  const iso = dateStr.includes('T') || dateStr.endsWith('Z') ? dateStr : dateStr.replace(' ', 'T') + 'Z'
+  return new Date(iso).toLocaleString('en-IN', {
     year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
   })
 }
 
