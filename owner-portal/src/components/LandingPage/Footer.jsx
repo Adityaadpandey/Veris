@@ -1,30 +1,23 @@
-export default function Footer() {
+import { Link } from 'react-router-dom'
+import Sprite, { PixelCat } from './Sprite'
+import { OWNER_PORTAL, VERIFY_PHOTO } from './links'
+
+// The only place the company name appears: a pixel wordmark with the cat sitting on top of it.
+export default function Footer({ onStory }) {
   return (
-    <footer style={{
-      padding: '28px 48px',
-      borderTop: '1px solid rgba(255,255,255,0.05)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      background: '#000',
-    }}>
-      <div style={{
-        fontSize: '18px',
-        fontWeight: 800,
-        letterSpacing: '6px',
-        color: '#fff',
-        fontFamily: 'var(--font-sans)',
-      }}>
-        VERI<span style={{ color: '#FF5500' }}>S</span>
-      </div>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: '9px',
-        color: 'rgba(255,255,255,0.18)',
-        letterSpacing: '2px',
-        textTransform: 'uppercase',
-      }}>
-        Decentralized Camera Protocol — 2024
+    <footer className="foot">
+      <div className="wrap">
+        <p className="hand madeby">made by</p>
+        <div className="stack" role="img" aria-label="mew, shown as a pixel wordmark with a pixel cat sitting on top">
+          <PixelCat u={8} />
+          <Sprite name="mew" u={8} className="wm" />
+        </div>
+        <nav className="flinks" aria-label="Footer">
+          <Link to={VERIFY_PHOTO}>Verify a photo</Link>
+          <Link to={OWNER_PORTAL}>Owner portal</Link>
+          <button type="button" onClick={onStory}>The story behind Veris</button>
+        </nav>
+        <p className="fine">Veris is a prototype and runs on the Ethereum Sepolia testnet.</p>
       </div>
     </footer>
   )
