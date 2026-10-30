@@ -44,6 +44,7 @@
   .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; background: var(--bg); --p: 0; }
   .grid { position: absolute; inset: -10% 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 64px 64px; opacity: .45; transform: translateY(calc(var(--p) * -320px)); -webkit-mask-image: radial-gradient(70% 60% at 65% 45%, #000, transparent); mask-image: radial-gradient(70% 60% at 65% 45%, #000, transparent); }
   .glow { position: absolute; width: 70vmax; height: 70vmax; left: 35%; top: -10%; background: radial-gradient(closest-side, rgba(255, 106, 26, .22), transparent); transform: translate(calc(var(--p) * -45vw), calc(var(--p) * 32vh)); pointer-events: none; }
+  .hexcol, .sf, .glow, .ghost-word, #feed .pxi { display: none !important; }
   .hexcol { position: absolute; top: 0; font: 400 11px/1.9 var(--f-mono); color: rgba(255, 248, 234, .07); white-space: pre; pointer-events: none; user-select: none; }
   .sf { position: absolute; z-index: 1; pointer-events: none; opacity: .9; }
   .copy { position: absolute; inset: 0; width: 100%; pointer-events: none; }
@@ -79,7 +80,7 @@
   #benefits { height: 340vh; position: relative; }
   .hstick { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: clamp(24px, 4vh, 48px); padding-top: 76px; background: var(--bg); }
   .hrow { display: flex; gap: 20px; padding-inline: var(--gut); will-change: transform; width: max-content; }
-  .hcard { width: min(440px, 82vw); min-height: clamp(330px, 50vh, 430px); border: 2px solid var(--line); background: var(--bg-2); padding: clamp(22px, 2.4vw, 32px); display: flex; flex-direction: column; gap: 14px; flex: none; }
+  .hcard { width: min(440px, 82vw); min-height: clamp(280px, 44vh, 360px); border: 2px solid var(--line); background: var(--bg-2); padding: clamp(22px, 2.4vw, 32px); display: flex; flex-direction: column; gap: 14px; flex: none; }
   .hcard .who { font: 500 11px/1 var(--f-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
   .hcard .big { font: 700 clamp(26px, 3vw, 40px)/1.05 var(--f-display); letter-spacing: -.01em; }
   .hcard .big small { font: 500 12px/1.4 var(--f-mono); letter-spacing: 0; color: var(--mute); display: block; margin-top: 8px; }
@@ -170,7 +171,7 @@
   .stp b { display: block; font-weight: 600; }
   .stp span { color: var(--mute); font-size: 13px; display: block; }
   .okt { display: inline !important; color: var(--accent) !important; font-weight: 600; }
-  .badt { display: inline !important; color: var(--paper) !important; text-decoration: line-through; text-decoration-color: var(--accent); }
+  .badt { display: inline !important; color: var(--paper) !important; font-weight: 600; }
   .arch-track { position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--line); }
   .arch-track i { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); }
   .tech2 { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 3vw, 40px); margin-top: clamp(28px, 4vw, 48px); }
