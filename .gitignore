@@ -110,6 +110,9 @@ uploads/
 !assets/**/*.png
 !assets/**/*.gif
 !assets/**/*.webp
+# Landing page images (logo, device photos)
+!owner-portal/src/assets/**/*.png
+!owner-portal/src/assets/**/*.webp
 
 # Coverage reports
 coverage/
