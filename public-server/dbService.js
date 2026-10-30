@@ -89,7 +89,8 @@ class ClaimDBService {
       { name: 'description', type: 'TEXT' },
       { name: 'tags', type: 'TEXT' },        // JSON array string
       { name: 'ai_status', type: 'TEXT' },   // 'pending' | 'done' | 'failed'
-      { name: 'ai_error', type: 'TEXT' }
+      { name: 'ai_error', type: 'TEXT' },
+      { name: 'phash', type: 'TEXT' }        // 64-bit perceptual hash (16 hex chars)
     ];
 
     columnsToAdd.forEach(col => {
@@ -128,6 +129,7 @@ class ClaimDBService {
       CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
       CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid);
       CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status);
+      CREATE INDEX IF NOT EXISTS idx_claims_image_hash ON claims(image_hash);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_claim ON edition_requests(claim_id);
       CREATE INDEX IF NOT EXISTS idx_edition_requests_status ON edition_requests(status);
     `);
@@ -316,7 +318,7 @@ class ClaimDBService {
 
   // ── AI enrichment (Gemini descriptions + embeddings) ──────────────────────
 
-  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null } = {}) {
+  setClaimAI(claim_id, { description = null, tags = null, ai_status = null, ai_error = null, phash = null } = {}) {
     const fields = [];
     const values = [];
 
@@ -327,6 +329,7 @@ class ClaimDBService {
     }
     if (ai_status !== null) { fields.push('ai_status = ?'); values.push(ai_status); }
     if (ai_error !== null) { fields.push('ai_error = ?'); values.push(ai_error); }
+    if (phash !== null) { fields.push('phash = ?'); values.push(phash); }
 
     if (fields.length === 0) return this.getClaim(claim_id);
 
@@ -368,11 +371,43 @@ class ClaimDBService {
     return stmt.all();
   }
 
+  // ── Verification (deterministic tamper check) ──────────────────────────────
+
+  /** Exact-match lookup: an on-chain image whose SHA-256 equals the upload's. */
+  getClaimByImageHash(image_hash) {
+    if (!image_hash) return null;
+    const stmt = this.db.prepare('SELECT * FROM claims WHERE image_hash = ?');
+    return stmt.get(image_hash) || null;
+  }
+
+  /** All claims that have a perceptual hash, for the tamper (Hamming) scan. */
+  getClaimsWithPhash() {
+    const stmt = this.db.prepare(`
+      SELECT claim_id, cid, token_id, image_hash, phash,
+             recipient_address, device_id, status, description, tags, created_at
+      FROM claims
+      WHERE phash IS NOT NULL AND phash != ''
+    `);
+    return stmt.all();
+  }
+
   /** Claims that still need enrichment (never processed or previously failed). */
   getClaimsMissingAI() {
     const stmt = this.db.prepare(`
       SELECT * FROM claims
       WHERE ai_status IS NULL OR ai_status = 'failed'
+      ORDER BY created_at ASC
+    `);
+    return stmt.all();
+  }
+
+  // Every claim with an image, regardless of ai_status — used by the backfill
+  // --force path when the embedding method changes and all vectors must be
+  // regenerated so query and stored embeddings stay consistent.
+  getAllClaimsWithCid() {
+    const stmt = this.db.prepare(`
+      SELECT * FROM claims
+      WHERE cid IS NOT NULL AND cid != ''
       ORDER BY created_at ASC
     `);
     return stmt.all();
