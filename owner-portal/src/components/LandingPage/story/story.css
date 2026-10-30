@@ -20,6 +20,11 @@
   .eyebrow::before { content: ""; width: 8px; height: 8px; background: var(--accent); flex: none; animation: vs-pulse 1.8s steps(2) infinite; }
   .h2 { font-family: var(--f-display); font-weight: 700; letter-spacing: -.01em; line-height: 1.04; text-wrap: balance; font-size: clamp(30px, 4.2vw, 60px); }
   .lede { color: var(--soft); font-size: clamp(17px, 1.5vw, 20px); max-width: 60ch; }
+  .bridge { font: 400 clamp(17px, 1.5vw, 21px)/1.4 var(--f-body); color: var(--soft); max-width: 46ch; margin-top: -6px; }
+  .next { align-self: flex-end; margin-top: clamp(40px, 5vw, 72px); background: none; border: 0; border-top: 2px solid var(--line); padding: 22px 0 0; width: 100%; text-align: right; cursor: pointer; font: 500 13px/1 var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); transition: color .2s; }
+  .next:hover { color: var(--accent); }
+  .next span { display: inline-block; margin-left: 8px; transition: transform .2s; } .next:hover span { transform: translateY(4px); }
+  .sec::before { content: ""; position: absolute; top: 0; left: var(--gut); width: 2px; height: clamp(40px, 6vw, 72px); background: linear-gradient(var(--accent), transparent); }
   h4 { margin: 0 0 14px; font: 500 11px/1 var(--f-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
 
   /* nav */
