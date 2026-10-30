@@ -91,3 +91,20 @@ def test_ssim_edge_random_image_scores_low(dslr_image, random_image):
     pair = preprocess_pair(dslr_image, random_image)
     score = signal_ssim_edge(pair["small_dslr"], pair["small_esp"])
     assert 0.0 <= score <= 1.0
+
+
+def test_color_hist_same_scene_above_floor():
+    from main import signal_color_hist, preprocess_pair
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    pair = preprocess_pair(dslr, esp)
+    score = signal_color_hist(pair["small_dslr"], pair["small_esp"])
+    assert 0.0 <= score <= 1.0
+    assert score > 0.10, f"Same scene color hist score {score} below floor"
+
+
+def test_color_hist_identical_image_scores_high(dslr_image):
+    from main import signal_color_hist
+    small = dslr_image.resize((256, 256), Image.LANCZOS)
+    score = signal_color_hist(small, small)
+    assert score > 0.99, f"Identical image color hist score {score} should be ~1.0"
