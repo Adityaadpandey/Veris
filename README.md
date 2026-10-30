@@ -239,7 +239,7 @@ Every photo captured solves real problems:
        ▼
 ┌──────────────────────────┐
 │  Veris Public Server │
-│ (veris-public-server) │
+│ (public-server) │
 └──────┬───────────────────┘
        │ Return QR Code URL
        ▼
@@ -498,7 +498,7 @@ Every photo captured solves real problems:
 │  ┌──────────────────────┐    ┌──────────────────────┐   │
 │  │ Veris Public      │    │ Filecoin Network     │   │
 │  │ Server               │    │ Decentralized       │   │
-│  │ (veris-public-    │    │ Storage              │   │
+│  │ (Veris-public-    │    │ Storage              │   │
 │  │  server)             │    └──────────────────────┘   │
 │  │ Node.js              │                                │
 │  └──────────┬───────────┘                                │
@@ -719,8 +719,8 @@ Every photo captured solves real problems:
 
 ```bash
 cd ~
-git clone <repository-url> veris
-cd veris
+git clone <repository-url> Veris
+cd Veris
 ```
 
 ### Step 2: Install System Dependencies
@@ -769,13 +769,13 @@ npm install
 ### Step 5: Install Public Server Dependencies
 
 ```bash
-cd ../veris-public-server
+cd ../public-server
 npm install
 ```
 
 ### Step 6: Configure Environment Variables
 
-Create `.env` files in `hardware-web3-service` and `veris-public-server` directories with your configuration settings.
+Create `.env` files in `hardware-web3-service` and `public-server` directories with your configuration settings.
 
 **For Privy Integration (Owner Portal):**
 
@@ -803,10 +803,10 @@ python3 hardware_identity.py
 sudo npm install -g pm2
 
 cd hardware-web3-service
-pm2 start server.js --name veris-hardware-web3-service
+pm2 start server.js --name Veris-hardware-web3-service
 
-cd ../veris-public-server
-pm2 start server.js --name veris-public-server
+cd ../public-server
+pm2 start server.js --name public-server
 
 pm2 save
 pm2 startup
@@ -844,7 +844,7 @@ Create a systemd service or add to autostart:
 
 ```bash
 # Create service file
-sudo nano /etc/systemd/system/veris.service
+sudo nano /etc/systemd/system/Veris.service
 ```
 
 ```ini
@@ -855,9 +855,9 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/veris/hardware-camera-app
-Environment="PATH=/home/pi/veris/hardware-camera-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/pi/veris/hardware-camera-app/venv/bin/python3 /home/pi/veris/hardware-camera-app/raspberry_pi_camera_app.py
+WorkingDirectory=/home/pi/Veris/hardware-camera-app
+Environment="PATH=/home/pi/Veris/hardware-camera-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/pi/Veris/hardware-camera-app/venv/bin/python3 /home/pi/Veris/hardware-camera-app/raspberry_pi_camera_app.py
 Restart=always
 RestartSec=10
 
@@ -868,8 +868,8 @@ WantedBy=multi-user.target
 Enable and start:
 
 ```bash
-sudo systemctl enable veris.service
-sudo systemctl start veris.service
+sudo systemctl enable Veris.service
+sudo systemctl start Veris.service
 ```
 
 ---
@@ -1145,6 +1145,6 @@ Built with:
 
 **Made with ❤️ for the Web3 community**
 
-[⬆ Back to Top](#-veris---decentralized-camera-system-for-web3)
+[⬆ Back to Top](#-Veris---decentralized-camera-system-for-web3)
 
 </div>
