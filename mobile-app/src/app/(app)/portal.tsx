@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrutalBlock } from '@/components/brutal-block';
 import { GlassPanel } from '@/components/glass-panel';
 import { PhotoThumb } from '@/components/photo-thumb';
+import { IPFS_GATEWAYS } from '@/constants/config';
 import { Border, Palette, Radius } from '@/constants/theme';
 import { body, display, mono } from '@/constants/typography';
 import { useConnection } from '@/hooks/use-connection';
@@ -29,15 +30,6 @@ const DEVICE_FILTER_NAME: Record<'CLIP' | 'HOTSHOE', string> = { CLIP: 'Clip', H
 const DEVICE_LABEL = { hotshoe: 'HOTSHOE PAIRED', clip: 'VERIS CLIP PAIRED' } as const;
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-// Lighthouse only serves an upload through the dedicated gateway tied to whichever API key
-// uploaded it — the public IPFS gateways (w3s.link, dweb.link, ipfs.io) never have these CIDs at
-// all. The account's dedicated gateway subdomain has changed over time (key rotations), so older
-// claims live behind older subdomains. Current one first, then the previous ones as fallback.
-const IPFS_GATEWAYS = [
-  'https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs',
-  'https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs',
-  'https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs',
-];
 
 function cleanCid(hash: string | null | undefined): string | null {
   if (!hash) return null;

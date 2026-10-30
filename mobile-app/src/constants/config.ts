@@ -39,6 +39,19 @@ export function publicRealClaimUrl(claimId: string): string {
 /** The hosted claim server backing real (Pi-sealed) captures — same one owner-portal talks to. */
 export const CLAIM_SERVER_URL = "https://api.veris.live";
 
+/**
+ * Lighthouse only serves an upload through the dedicated gateway tied to whichever API key
+ * uploaded it. The public IPFS gateways never have these CIDs at all. The subdomain changes
+ * whenever the key is rotated, so older claims live behind older subdomains. Try them in order.
+ * Add a new subdomain here (once) after rotating the key, every screen picks it up.
+ */
+export const IPFS_GATEWAYS = [
+  "https://equivalent-crayfish-qqblv.lighthouseweb3.xyz/ipfs",
+  "https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs",
+  "https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs",
+  "https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs",
+];
+
 /** Privy app id — same project hardware-web3-service already authenticates with server-side. */
 export const PRIVY_APP_ID = "cm6qrmvfp00z8uyepxhokh2mc";
 
