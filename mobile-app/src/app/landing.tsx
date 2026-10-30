@@ -26,7 +26,9 @@ export default function LandingScreen() {
   const searchPress = useBrutalPress(4);
 
   const goWallet = () => {
-    if (connected) return router.push(paired === 'hotshoe' ? '/monitor' : '/portal');
+    // The (app) layout bounces back here unless wallet AND identity are both set, so a
+    // connected-but-unverified user must not be sent straight to the portal.
+    if (connected && verified) return router.push(paired === 'hotshoe' ? '/monitor' : '/portal');
     // Identity check happens once, before the wallet connect step.
     if (verified) return router.push('/wallet');
     return router.push('/digilocker');
