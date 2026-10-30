@@ -1,16 +1,30 @@
 <header class="snav">
   <div class="wrap">
-    <a class="sbrand" href="#top" data-go="p:0" aria-label="Veris, back to the start of the story"><canvas class="px" data-spr="camera" style="--u:1.5"></canvas>VERIS</a>
+    <a
+      class="sbrand"
+      href="#top"
+      data-go="p:0"
+      aria-label="Veris, back to the start of the story"
+      ><canvas class="px" data-spr="camera" style="--u: 1.5"></canvas>VERIS</a
+    >
     <nav class="links" aria-label="Chapters">
       <a href="#problem" data-go="p:0.35" data-ch="problem">Problem</a>
       <a href="#solution" data-go="p:0.54" data-ch="solution">Solution</a>
       <a href="#impact" data-go="p:0.76" data-ch="impact">Impact</a>
       <a href="#benefits" data-go="#benefits" data-ch="benefits">Benefits</a>
-      <a href="#feasibility" data-go="#feasibility" data-ch="feasibility">Feasibility</a>
-      <a href="#viability" data-go="#viability" data-ch="viability">Viability</a>
-      <a href="#technical" data-go="#technical" data-ch="technical">Technical</a>
+      <a href="#feasibility" data-go="#feasibility" data-ch="feasibility"
+        >Feasibility</a
+      >
+      <a href="#technical" data-go="#technical" data-ch="technical"
+        >Technical</a
+      >
+      <a href="#viability" data-go="#viability" data-ch="viability"
+        >Viability</a
+      >
     </nav>
-    <button class="btn btn-ghost backbtn" type="button" data-back>← Back to Veris</button>
+    <button class="btn btn-ghost backbtn" type="button" data-back>
+      ← Back to Veris
+    </button>
   </div>
   <div class="bar" id="bar"></div>
 </header>
@@ -19,500 +33,1668 @@
   <a href="#solution" data-go="p:0.54" data-ch="solution">Solution</a>
   <a href="#impact" data-go="p:0.76" data-ch="impact">Impact</a>
   <a href="#benefits" data-go="#benefits" data-ch="benefits">Benefits</a>
-  <a href="#feasibility" data-go="#feasibility" data-ch="feasibility">Feasibility</a>
-  <a href="#viability" data-go="#viability" data-ch="viability">Viability</a>
+  <a href="#feasibility" data-go="#feasibility" data-ch="feasibility"
+    >Feasibility</a
+  >
   <a href="#technical" data-go="#technical" data-ch="technical">Technical</a>
+  <a href="#viability" data-go="#viability" data-ch="viability">Viability</a>
 </nav>
 <main id="top">
+  <!-- ============ PINNED STORY ============ -->
+  <section id="story" aria-label="Veris, told through a journalist's photo">
+    <div class="stage" id="stage">
+      <div class="grid" aria-hidden="true"></div>
+      <div class="glow" aria-hidden="true"></div>
+      <div class="hexcol" id="hx1" aria-hidden="true" style="left: 3%"></div>
+      <div class="hexcol" id="hx2" aria-hidden="true" style="left: 44%"></div>
+      <div class="hexcol" id="hx3" aria-hidden="true" style="right: 3%"></div>
+      <canvas
+        class="px sf"
+        data-spr="sparkle"
+        style="--u: 5; left: 6%; top: 16%"
+      ></canvas>
+      <canvas
+        class="px sf"
+        data-spr="sparkleW"
+        style="--u: 3; left: 38%; top: 10%"
+      ></canvas>
+      <canvas
+        class="px sf"
+        data-spr="heart"
+        style="--u: 3; left: 46%; top: 84%"
+      ></canvas>
+      <canvas
+        class="px sf"
+        data-spr="sparkle"
+        style="--u: 4; left: 90%; top: 76%"
+      ></canvas>
+      <canvas
+        class="px sf"
+        data-spr="happy"
+        style="--u: 3; left: 4%; top: 78%"
+      ></canvas>
+      <canvas
+        class="px sf"
+        data-spr="flower"
+        style="--u: 3; left: 52%; top: 30%"
+      ></canvas>
 
-<!-- ============ PINNED STORY ============ -->
-<section id="story" aria-label="Veris, told through a journalist's photo">
-  <div class="stage" id="stage">
-    <div class="grid" aria-hidden="true"></div>
-    <div class="glow" aria-hidden="true"></div>
-    <div class="hexcol" id="hx1" aria-hidden="true" style="left:3%"></div>
-    <div class="hexcol" id="hx2" aria-hidden="true" style="left:44%"></div>
-    <div class="hexcol" id="hx3" aria-hidden="true" style="right:3%"></div>
-    <canvas class="px sf" data-spr="sparkle" style="--u:5;left:6%;top:16%"></canvas>
-    <canvas class="px sf" data-spr="sparkleW" style="--u:3;left:38%;top:10%"></canvas>
-    <canvas class="px sf" data-spr="heart" style="--u:3;left:46%;top:84%"></canvas>
-    <canvas class="px sf" data-spr="sparkle" style="--u:4;left:90%;top:76%"></canvas>
-    <canvas class="px sf" data-spr="happy" style="--u:3;left:4%;top:78%"></canvas>
-    <canvas class="px sf" data-spr="flower" style="--u:3;left:52%;top:30%"></canvas>
+      <div class="viz" aria-hidden="true">
+        <svg viewBox="0 0 640 640" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="roomg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#4A3B2E" />
+              <stop offset="1" stop-color="#1B1612" />
+            </linearGradient>
+            <linearGradient id="winl" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#FFF8EA" stop-opacity=".0" />
+              <stop offset="1" stop-color="#FFF8EA" stop-opacity=".22" />
+            </linearGradient>
+            <clipPath id="phclip">
+              <rect x="-150" y="-100" width="300" height="200" rx="12" />
+            </clipPath>
+          </defs>
 
-    <div class="viz" aria-hidden="true">
-      <svg viewBox="0 0 640 640" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id="roomg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A3B2E"/><stop offset="1" stop-color="#1B1612"/></linearGradient>
-          <linearGradient id="winl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF8EA" stop-opacity=".0"/><stop offset="1" stop-color="#FFF8EA" stop-opacity=".22"/></linearGradient>
-          <clipPath id="phclip"><rect x="-150" y="-100" width="300" height="200" rx="12"/></clipPath>
-        </defs>
-
-        <!-- FEED (problem) -->
-        <g id="feed" opacity="0">
-          <rect x="120" y="26" width="400" height="596" rx="24" fill="#171310" stroke="rgba(255,248,234,.14)"/>
-          <image class="pxi" data-emo="happy" x="138" y="40" width="28" height="26"/>
-          <text x="176" y="52" fill="#FFF8EA" font-family="Hanken Grotesk,sans-serif" font-size="13" font-weight="600">Meera</text>
-          <text x="176" y="68" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="9.5">@meera.shoots · 2h</text>
-          <text x="496" y="58" text-anchor="end" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10" id="reposts">↻ 0</text>
-          <g class="row"><rect x="144" y="268" width="352" height="36" rx="18" fill="rgba(255,248,234,.06)"/><text x="162" y="290" fill="#E9E0D0" font-family="Hanken Grotesk,sans-serif" font-size="12.5">@user_8841  this is AI lol</text><image class="pxi" data-emo="meh" x="462" y="273" width="28" height="26"/></g>
-          <g class="row"><rect x="144" y="312" width="352" height="36" rx="18" fill="rgba(255,248,234,.06)"/><text x="162" y="334" fill="#E9E0D0" font-family="Hanken Grotesk,sans-serif" font-size="12.5">@lensnerd  look at the hand. fake.</text><image class="pxi" data-emo="meh" x="462" y="317" width="28" height="26"/></g>
-          <g class="row"><rect x="144" y="356" width="352" height="36" rx="18" fill="rgba(255,248,234,.06)"/><text x="162" y="378" fill="#E9E0D0" font-family="Hanken Grotesk,sans-serif" font-size="12.5">@truthpls  weird reflection in the window</text><image class="pxi" data-emo="shades" x="462" y="361" width="28" height="26"/></g>
-          <g class="row"><rect x="144" y="400" width="352" height="36" rx="18" fill="rgba(255,106,26,.16)"/><text x="162" y="422" fill="#FFC49C" font-family="Hanken Grotesk,sans-serif" font-size="12.5">@newsdesk_x  delete this, it's generated</text><image class="pxi" data-emo="meh" x="462" y="405" width="28" height="26"/></g>
-          <g class="row">
-            <rect x="144" y="454" width="352" height="96" rx="14" fill="none" stroke="rgba(255,248,234,.22)" stroke-dasharray="4 5"/>
-            <text x="162" y="478" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.4">AI DETECTOR SAYS</text>
-            <text x="162" y="504" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-size="22" font-weight="700">"Likely authentic"</text>
-            <text x="162" y="528" fill="#B3A999" font-family="Hanken Grotesk,sans-serif" font-size="12">A guess is not proof. Nobody believes it.</text>
+          <!-- FEED (problem) -->
+          <g id="feed" opacity="0">
+            <rect
+              x="120"
+              y="26"
+              width="400"
+              height="596"
+              rx="24"
+              fill="#171310"
+              stroke="rgba(255,248,234,.14)"
+            />
+            <image
+              class="pxi"
+              data-emo="happy"
+              x="138"
+              y="40"
+              width="28"
+              height="26"
+            />
+            <text
+              x="176"
+              y="52"
+              fill="#FFF8EA"
+              font-family="Hanken Grotesk,sans-serif"
+              font-size="13"
+              font-weight="600"
+            >
+              Meera
+            </text>
+            <text
+              x="176"
+              y="68"
+              fill="#B3A999"
+              font-family="JetBrains Mono,monospace"
+              font-size="9.5"
+            >
+              @meera.shoots · 2h
+            </text>
+            <text
+              x="496"
+              y="58"
+              text-anchor="end"
+              fill="#B3A999"
+              font-family="JetBrains Mono,monospace"
+              font-size="10"
+              id="reposts"
+            >
+              ↻ 0
+            </text>
+            <g class="row">
+              <rect
+                x="144"
+                y="268"
+                width="352"
+                height="36"
+                rx="18"
+                fill="rgba(255,248,234,.06)"
+              />
+              <text
+                x="162"
+                y="290"
+                fill="#E9E0D0"
+                font-family="Hanken Grotesk,sans-serif"
+                font-size="12.5"
+              >
+                @user_8841 this is AI lol
+              </text>
+              <image
+                class="pxi"
+                data-emo="meh"
+                x="462"
+                y="273"
+                width="28"
+                height="26"
+              />
+            </g>
+            <g class="row">
+              <rect
+                x="144"
+                y="312"
+                width="352"
+                height="36"
+                rx="18"
+                fill="rgba(255,248,234,.06)"
+              />
+              <text
+                x="162"
+                y="334"
+                fill="#E9E0D0"
+                font-family="Hanken Grotesk,sans-serif"
+                font-size="12.5"
+              >
+                @lensnerd look at the hand. fake.
+              </text>
+              <image
+                class="pxi"
+                data-emo="meh"
+                x="462"
+                y="317"
+                width="28"
+                height="26"
+              />
+            </g>
+            <g class="row">
+              <rect
+                x="144"
+                y="356"
+                width="352"
+                height="36"
+                rx="18"
+                fill="rgba(255,248,234,.06)"
+              />
+              <text
+                x="162"
+                y="378"
+                fill="#E9E0D0"
+                font-family="Hanken Grotesk,sans-serif"
+                font-size="12.5"
+              >
+                @truthpls weird reflection in the window
+              </text>
+              <image
+                class="pxi"
+                data-emo="shades"
+                x="462"
+                y="361"
+                width="28"
+                height="26"
+              />
+            </g>
+            <g class="row">
+              <rect
+                x="144"
+                y="400"
+                width="352"
+                height="36"
+                rx="18"
+                fill="rgba(255,106,26,.16)"
+              />
+              <text
+                x="162"
+                y="422"
+                fill="#FFC49C"
+                font-family="Hanken Grotesk,sans-serif"
+                font-size="12.5"
+              >
+                @newsdesk_x delete this, it's generated
+              </text>
+              <image
+                class="pxi"
+                data-emo="meh"
+                x="462"
+                y="405"
+                width="28"
+                height="26"
+              />
+            </g>
+            <g class="row">
+              <rect
+                x="144"
+                y="454"
+                width="352"
+                height="96"
+                rx="14"
+                fill="none"
+                stroke="rgba(255,248,234,.22)"
+                stroke-dasharray="4 5"
+              />
+              <text
+                x="162"
+                y="478"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10"
+                letter-spacing="1.4"
+              >
+                AI DETECTOR SAYS
+              </text>
+              <text
+                x="162"
+                y="504"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-size="22"
+                font-weight="700"
+              >
+                "Likely authentic"
+              </text>
+              <text
+                x="162"
+                y="528"
+                fill="#B3A999"
+                font-family="Hanken Grotesk,sans-serif"
+                font-size="12"
+              >
+                A guess is not proof. Nobody believes it.
+              </text>
+            </g>
+            <text
+              x="144"
+              y="598"
+              fill="#B3A999"
+              font-family="JetBrains Mono,monospace"
+              font-size="10"
+            >
+              metadata: editable · stripped on upload
+            </text>
           </g>
-          <text x="144" y="598" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10">metadata: editable · stripped on upload</text>
-        </g>
 
-        <!-- PIPELINE (solution) -->
-        <g id="pipe" opacity="0">
-          <text x="400" y="40" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="1.6">SHUTTER → CLAIM</text>
-          <text x="610" y="40" text-anchor="end" fill="#FFF8EA" font-family="JetBrains Mono,monospace" font-size="11" id="timer">+00s</text>
-          <path d="M400 90 V530" stroke="rgba(255,248,234,.18)" stroke-width="2" fill="none"/>
-          <path id="pline" d="M400 90 V530" stroke="#FF6A1A" stroke-width="2" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
-          <rect id="packet" x="395" y="85" width="10" height="10" fill="#FF6A1A"/>
-          <g class="node"><rect class="nc" x="386" y="76" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="86" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">CAPTURE</text><text x="436" y="103" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">Photo + Veris's own image</text></g>
-          <g class="node"><rect class="nc" x="386" y="164" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="174" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">ATTEST</text><text x="436" y="191" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">TPM signs. Key stays inside</text></g>
-          <g class="node"><rect class="nc" x="386" y="252" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="262" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">PROVE</text><text x="436" y="279" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">Proof without naming her</text></g>
-          <g class="node"><rect class="nc" x="386" y="340" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="350" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">STORE</text><text x="436" y="367" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">IPFS + Filecoin, permanent</text></g>
-          <g class="node"><rect class="nc" x="386" y="428" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="438" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">CERTIFY</text><text x="436" y="455" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">Certificate in her wallet</text></g>
-          <g class="node"><rect class="nc" x="386" y="516" width="28" height="28" fill="#FF6A1A" fill-opacity="0" stroke="#FF6A1A" stroke-width="2"/><text x="436" y="526" class="nt" fill="#FFF8EA" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="15" letter-spacing=".5">VERIFY</text><text x="436" y="543" class="ns" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="10.5">Anyone checks, no account</text></g>
-        </g>
-
-        <!-- WITNESS (second image) -->
-        <g id="witness" opacity="0">
-          <rect x="120" y="272" width="140" height="84" rx="8" fill="url(#roomg)" stroke="#FF6A1A" stroke-dasharray="4 4"/>
-          <circle cx="160" cy="318" r="7" fill="#6B5D4E"/><circle cx="190" cy="316" r="7" fill="#6B5D4E"/><circle cx="222" cy="318" r="7" fill="#6B5D4E"/>
-          <rect x="120" y="272" width="140" height="84" rx="8" fill="none" stroke="rgba(255,248,234,.15)"/>
-          <text x="120" y="372" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="9.5" letter-spacing="1.2">VERIS'S OWN SIGNED IMAGE</text>
-        </g>
-
-        <!-- CLAIM (impact) -->
-        <g id="claimurl" opacity="0">
-          <rect x="130" y="40" width="380" height="40" rx="20" fill="#171310" stroke="rgba(255,248,234,.18)"/>
-          <rect x="146" y="53" width="10" height="9" rx="2" fill="none" stroke="#FF6A1A" stroke-width="1.5"/><path d="M148 53v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#FF6A1A" stroke-width="1.5"/>
-          <text x="168" y="64" fill="#FFF8EA" font-family="JetBrains Mono,monospace" font-size="12">veris.live/claim/762dc7c6…</text>
-          <text x="496" y="64" text-anchor="end" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="9.5">example</text>
-        </g>
-        <g id="console" opacity="0">
-          <rect x="112" y="388" width="416" height="236" rx="14" fill="#100D0B" stroke="rgba(255,248,234,.16)"/>
-          <circle cx="132" cy="406" r="4" fill="#FF6A1A" opacity=".8"/><circle cx="146" cy="406" r="4" fill="#FFC49C" opacity=".8"/><circle cx="160" cy="406" r="4" fill="#FFF8EA" opacity=".8"/>
-          <g font-family="JetBrains Mono,monospace" font-size="11.5">
-            <text class="ln" x="132" y="436" fill="#FFF8EA">$ verify meera_photo.jpg</text>
-            <text class="ln" x="132" y="458" fill="#B3A999">hash 9f3a…c1b2 matches claim</text>
-            <text class="ln" x="132" y="478" fill="#B3A999">device key registered · proof valid</text>
-            <text class="ln" x="132" y="502" fill="#FF6A1A" font-weight="500">✓ VERIFIED · genuine Veris device</text>
-            <text class="ln" x="132" y="538" fill="#FFF8EA">$ verify meera_photo_edited.jpg</text>
-            <text class="ln" x="132" y="560" fill="#B3A999">hash 4be0…77d1 · one pixel differs</text>
-            <text class="ln" x="132" y="584" fill="#FFF8EA" font-weight="500">✕ NO RECORD · cannot be vouched for</text>
-            <text class="ln" x="132" y="608" fill="#B3A999" font-size="10">photographer's name and location: never revealed</text>
-          </g>
-        </g>
-
-        <!-- VIEWFINDER (the shot) -->
-        <g id="vf" opacity="0" stroke="#FFF8EA" stroke-width="2" fill="none" stroke-linecap="square">
-          <path d="M118 196V162H152"/><path d="M522 196V162H488"/><path d="M118 404V438H152"/><path d="M522 404V438H488"/>
-          <g stroke="#FF6A1A" id="vfguest" opacity="0"><path d="M470 168 L442 262" stroke-dasharray="3 4"/></g>
-          <text id="vfguesttxt" x="520" y="154" text-anchor="end" fill="#FF6A1A" stroke="none" font-family="JetBrains Mono,monospace" font-size="10.5" letter-spacing="1.4" opacity="0">UNEXPECTED GUEST</text>
-          <text x="320" y="470" text-anchor="middle" fill="#B3A999" stroke="none" font-family="JetBrains Mono,monospace" font-size="11" id="metatxt">Canon EOS · 1/250 · ISO 800 · 14:02</text>
-          <line id="strike" x1="196" y1="466" x2="196" y2="466" stroke="#FF6A1A" stroke-width="1.6"/>
-          <text x="320" y="492" text-anchor="middle" fill="#FF6A1A" stroke="none" font-family="JetBrains Mono,monospace" font-size="10" id="metanote" opacity="0">metadata can be rewritten in seconds</text>
-        </g>
-
-        <!-- DEVICES (hero + solution) -->
-        <g id="devs" opacity="1">
-          <g class="bob">
-            <g transform="translate(-130 0)">
-              <rect x="-82" y="-46" width="164" height="96" rx="12" fill="#2B241E" stroke="rgba(255,248,234,.2)"/>
-              <path d="M-34 -46 L-24 -66 H24 L34 -46Z" fill="#2B241E" stroke="rgba(255,248,234,.2)"/>
-              <rect x="-24" y="-86" width="48" height="22" rx="5" fill="#FF6A1A"/>
-              <circle cx="14" cy="-75" r="2.5" fill="#1A0B00"/><rect x="-16" y="-78" width="18" height="6" rx="2" fill="#1A0B00" opacity=".35"/>
-              <circle cx="0" cy="8" r="34" fill="#15110E" stroke="#3A3028" stroke-width="3"/><circle cx="0" cy="8" r="21" fill="#0B0908" stroke="#4A3F34"/><circle cx="-7" cy="1" r="5" fill="#FFF8EA" opacity=".25"/>
-              <rect x="56" y="-38" width="16" height="10" rx="3" fill="#15110E"/>
-              <text x="0" y="78" text-anchor="middle" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="10.5" letter-spacing="1.6">HOTSHOE</text>
-              <text x="0" y="93" text-anchor="middle" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="9" class="hero-devs">DSLR + mirrorless</text>
+          <!-- PIPELINE (solution) -->
+          <g id="pipe" opacity="0">
+            <text
+              x="400"
+              y="40"
+              fill="#FF6A1A"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+              letter-spacing="1.6"
+            >
+              SHUTTER → CLAIM
+            </text>
+            <text
+              x="610"
+              y="40"
+              text-anchor="end"
+              fill="#FFF8EA"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+              id="timer"
+            >
+              +00s
+            </text>
+            <path
+              d="M400 90 V530"
+              stroke="rgba(255,248,234,.18)"
+              stroke-width="2"
+              fill="none"
+            />
+            <path
+              id="pline"
+              d="M400 90 V530"
+              stroke="#FF6A1A"
+              stroke-width="2"
+              fill="none"
+              pathLength="1"
+              stroke-dasharray="1"
+              stroke-dashoffset="1"
+            />
+            <rect
+              id="packet"
+              x="395"
+              y="85"
+              width="10"
+              height="10"
+              fill="#FF6A1A"
+            />
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="76"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="86"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                CAPTURE
+              </text>
+              <text
+                x="436"
+                y="103"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                Photo + Veris's own image
+              </text>
+            </g>
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="164"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="174"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                ATTEST
+              </text>
+              <text
+                x="436"
+                y="191"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                TPM signs. Key stays inside
+              </text>
+            </g>
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="252"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="262"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                PROVE
+              </text>
+              <text
+                x="436"
+                y="279"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                Proof without naming her
+              </text>
+            </g>
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="340"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="350"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                STORE
+              </text>
+              <text
+                x="436"
+                y="367"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                IPFS + Filecoin, permanent
+              </text>
+            </g>
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="428"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="438"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                CERTIFY
+              </text>
+              <text
+                x="436"
+                y="455"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                Certificate in her wallet
+              </text>
+            </g>
+            <g class="node">
+              <rect
+                class="nc"
+                x="386"
+                y="516"
+                width="28"
+                height="28"
+                fill="#FF6A1A"
+                fill-opacity="0"
+                stroke="#FF6A1A"
+                stroke-width="2"
+              />
+              <text
+                x="436"
+                y="526"
+                class="nt"
+                fill="#FFF8EA"
+                font-family="Pixeloid Sans,sans-serif"
+                font-weight="700"
+                font-size="15"
+                letter-spacing=".5"
+              >
+                VERIFY
+              </text>
+              <text
+                x="436"
+                y="543"
+                class="ns"
+                fill="#B3A999"
+                font-family="JetBrains Mono,monospace"
+                font-size="10.5"
+              >
+                Anyone checks, no account
+              </text>
             </g>
           </g>
-          <g class="bob2">
-            <g transform="translate(130 -6)">
-              <rect x="-44" y="-86" width="88" height="172" rx="16" fill="#1A1613" stroke="rgba(255,248,234,.22)"/>
-              <rect x="-38" y="-62" width="76" height="132" rx="8" fill="#0F0C0A"/>
-              <circle cx="18" cy="-74" r="3" fill="#3A3028"/>
-              <rect x="-50" y="-96" width="100" height="24" rx="6" fill="#FF6A1A"/>
-              <rect x="-26" y="-90" width="52" height="4" rx="2" fill="#1A0B00" opacity=".35"/>
-              <rect x="-20" y="-30" width="40" height="40" rx="6" fill="none" stroke="rgba(255,248,234,.25)" stroke-dasharray="3 3"/>
-              <text x="0" y="104" text-anchor="middle" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="10.5" letter-spacing="1.6">CLIP</text>
-              <text x="0" y="119" text-anchor="middle" fill="#B3A999" font-family="JetBrains Mono,monospace" font-size="9" class="hero-devs">any phone</text>
-            </g>
-          </g>
-        </g>
 
-        <!-- THE PHOTO -->
-        <g id="photo">
-          <g class="bob2">
-            <ellipse cx="0" cy="0" rx="190" ry="146" fill="none" stroke="#FF6A1A" stroke-opacity=".28" class="dash" id="heroring"/>
-            <g clip-path="url(#phclip)">
-              <rect x="-150" y="-100" width="300" height="200" fill="url(#roomg)"/>
-              <rect x="40" y="-100" width="110" height="200" fill="url(#winl)"/>
-              <rect x="-150" y="38" width="300" height="62" fill="#2A221B"/>
-              <rect x="-110" y="46" width="34" height="22" fill="#D8CDBB" opacity=".55" transform="rotate(-4 -93 57)"/>
-              <rect x="-20" y="50" width="40" height="20" fill="#D8CDBB" opacity=".4"/>
-              <g fill="#6B5D4E">
-                <circle cx="-90" cy="-14" r="15"/><path d="M-118 38 q0-34 28-34 q28 0 28 34Z"/>
-                <circle cx="-30" cy="-18" r="15"/><path d="M-58 38 q0-34 28-34 q28 0 28 34Z"/>
-                <circle cx="30" cy="-16" r="15"/><path d="M2 38 q0-34 28-34 q28 0 28 34Z"/>
+          <!-- WITNESS (second image) -->
+          <g id="witness" opacity="0">
+            <rect
+              x="120"
+              y="272"
+              width="140"
+              height="84"
+              rx="8"
+              fill="#000"
+              stroke="#FF6A1A"
+              stroke-dasharray="4 4"
+            />
+            <image
+              href="{{img:companion}}"
+              x="120"
+              y="272"
+              width="140"
+              height="84"
+              preserveAspectRatio="xMidYMid slice"
+            />
+            <rect
+              x="120"
+              y="272"
+              width="140"
+              height="84"
+              rx="8"
+              fill="none"
+              stroke="rgba(255,248,234,.15)"
+            />
+            <text
+              x="120"
+              y="372"
+              fill="#FF6A1A"
+              font-family="JetBrains Mono,monospace"
+              font-size="9.5"
+              letter-spacing="1.2"
+            >
+              VERIS'S OWN SIGNED IMAGE
+            </text>
+          </g>
+
+          <!-- CLAIM (impact) -->
+          <g id="claimurl" opacity="0">
+            <rect
+              x="130"
+              y="40"
+              width="380"
+              height="40"
+              rx="20"
+              fill="#171310"
+              stroke="rgba(255,248,234,.18)"
+            />
+            <rect
+              x="146"
+              y="53"
+              width="10"
+              height="9"
+              rx="2"
+              fill="none"
+              stroke="#FF6A1A"
+              stroke-width="1.5"
+            />
+            <path
+              d="M148 53v-3a3 3 0 0 1 6 0v3"
+              fill="none"
+              stroke="#FF6A1A"
+              stroke-width="1.5"
+            />
+            <text
+              x="168"
+              y="64"
+              fill="#FFF8EA"
+              font-family="JetBrains Mono,monospace"
+              font-size="12"
+            >
+              veris.live/claim/762dc7c6…
+            </text>
+            <text
+              x="496"
+              y="64"
+              text-anchor="end"
+              fill="#B3A999"
+              font-family="JetBrains Mono,monospace"
+              font-size="9.5"
+            >
+              example
+            </text>
+          </g>
+          <g id="console" opacity="0">
+            <rect
+              x="112"
+              y="388"
+              width="416"
+              height="236"
+              rx="14"
+              fill="#100D0B"
+              stroke="rgba(255,248,234,.16)"
+            />
+            <circle cx="132" cy="406" r="4" fill="#FF6A1A" opacity=".8" />
+            <circle cx="146" cy="406" r="4" fill="#FFC49C" opacity=".8" />
+            <circle cx="160" cy="406" r="4" fill="#FFF8EA" opacity=".8" />
+            <image
+              class="ln"
+              href="{{img:shot-verified}}"
+              x="124"
+              y="418"
+              width="184"
+              height="130"
+              preserveAspectRatio="xMidYMid slice"
+            />
+            <text
+              class="ln"
+              x="124"
+              y="570"
+              fill="#FF6A1A"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+              font-weight="500"
+            >
+              ✓ VERIFIED
+            </text>
+            <image
+              class="ln"
+              href="{{img:shot-altered}}"
+              x="332"
+              y="440"
+              width="184"
+              height="89"
+              preserveAspectRatio="xMidYMid meet"
+            />
+            <text
+              class="ln"
+              x="332"
+              y="570"
+              fill="#FFF8EA"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+              font-weight="500"
+            >
+              ✕ ALTERED COPY
+            </text>
+            <text
+              class="ln"
+              x="124"
+              y="600"
+              fill="#B3A999"
+              font-family="JetBrains Mono,monospace"
+              font-size="10"
+            >
+              Name and location: never revealed
+            </text>
+          </g>
+
+          <!-- VIEWFINDER (the shot) -->
+          <g
+            id="vf"
+            opacity="0"
+            stroke="#FFF8EA"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="square"
+          >
+            <path d="M118 196V162H152" />
+            <path d="M522 196V162H488" />
+            <path d="M118 404V438H152" />
+            <path d="M522 404V438H488" />
+            <g stroke="#FF6A1A" id="vfguest" opacity="0"></g>
+            <text
+              id="vfguesttxt"
+              x="520"
+              y="154"
+              text-anchor="end"
+              fill="#FF6A1A"
+              stroke="none"
+              font-family="JetBrains Mono,monospace"
+              font-size="10.5"
+              letter-spacing="1.4"
+              opacity="0"
+            >
+              CAPTURED AT THE SHUTTER
+            </text>
+            <text
+              x="320"
+              y="470"
+              text-anchor="middle"
+              fill="#B3A999"
+              stroke="none"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+              id="metatxt"
+            >
+              Mapusa, Goa · 30 Oct 2026 · 14:44
+            </text>
+            <line
+              id="strike"
+              x1="196"
+              y1="466"
+              x2="196"
+              y2="466"
+              stroke="#FF6A1A"
+              stroke-width="1.6"
+            />
+            <text
+              x="320"
+              y="492"
+              text-anchor="middle"
+              fill="#FF6A1A"
+              stroke="none"
+              font-family="JetBrains Mono,monospace"
+              font-size="10"
+              id="metanote"
+              opacity="0"
+            >
+              metadata can be rewritten in seconds
+            </text>
+          </g>
+
+          <!-- DEVICES (hero + solution) -->
+          <g id="devs" opacity="1">
+            <g class="bob">
+              <g transform="translate(-130 0)">
+                <image
+                  href="{{img:hotshoe}}"
+                  x="-100"
+                  y="-70"
+                  width="200"
+                  height="150"
+                  preserveAspectRatio="xMidYMid meet"
+                />
+                <text
+                  x="0"
+                  y="104"
+                  text-anchor="middle"
+                  fill="#FF6A1A"
+                  font-family="JetBrains Mono,monospace"
+                  font-size="10.5"
+                  letter-spacing="1.6"
+                >
+                  HOTSHOE
+                </text>
+                <text
+                  x="0"
+                  y="119"
+                  text-anchor="middle"
+                  fill="#B3A999"
+                  font-family="JetBrains Mono,monospace"
+                  font-size="9"
+                  class="hero-devs"
+                >
+                  DSLR + mirrorless
+                </text>
               </g>
-              <g fill="#8A7762" stroke="#FF6A1A" stroke-width="1.6" stroke-dasharray="4 3">
-                <circle cx="96" cy="-12" r="15"/><path d="M68 38 q0-34 28-34 q28 0 28 34Z"/>
+            </g>
+            <g class="bob2">
+              <g transform="translate(130 -6)">
+                <image
+                  href="{{img:clip}}"
+                  x="-100"
+                  y="-52"
+                  width="200"
+                  height="119"
+                  preserveAspectRatio="xMidYMid meet"
+                />
+                <text
+                  x="0"
+                  y="104"
+                  text-anchor="middle"
+                  fill="#FF6A1A"
+                  font-family="JetBrains Mono,monospace"
+                  font-size="10.5"
+                  letter-spacing="1.6"
+                >
+                  CLIP
+                </text>
+                <text
+                  x="0"
+                  y="119"
+                  text-anchor="middle"
+                  fill="#B3A999"
+                  font-family="JetBrains Mono,monospace"
+                  font-size="9"
+                  class="hero-devs"
+                >
+                  any phone
+                </text>
               </g>
-              <rect id="ph-dim" x="-150" y="-100" width="300" height="200" fill="#0E0C0A" opacity="0"/>
-              <rect id="ph-flash" x="-150" y="-100" width="300" height="200" fill="#fff" opacity="0"/>
-              <rect id="ph-seal" x="-146" y="-96" width="292" height="192" rx="9" fill="none" stroke="#FF6A1A" stroke-width="3" opacity="0"/>
-            </g>
-            <rect x="-150" y="-100" width="300" height="200" rx="12" fill="none" stroke="rgba(255,248,234,.22)"/>
-            <g id="ph-sealchip" opacity="0">
-              <rect x="-138" y="70" width="86" height="22" rx="11" fill="#0E0C0A" stroke="#FF6A1A"/>
-              <rect x="-126" y="77" width="8" height="7" rx="1.5" fill="#FF6A1A"/><path d="M-124.5 77v-2.5a2.5 2.5 0 0 1 5 0V77" fill="none" stroke="#FF6A1A" stroke-width="1.3"/>
-              <text x="-111" y="85.5" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="9.5" letter-spacing="1.2">SEALED</text>
-            </g>
-            <g id="ph-stamp" opacity="0" transform="rotate(-12)">
-              <rect x="-70" y="-38" width="140" height="76" rx="8" fill="rgba(14,12,10,.55)" stroke="#FF6A1A" stroke-width="4"/>
-              <text x="0" y="18" text-anchor="middle" fill="#FF6A1A" font-family="Pixeloid Sans,sans-serif" font-weight="700" font-size="56">AI?</text>
-            </g>
-            <g id="ph-ver" opacity="0" transform="translate(148 -98)">
-              <image class="pxi" data-emo="check" x="-30" y="-30" width="60" height="60"/>
             </g>
           </g>
-        </g>
 
-        <!-- DOCK thread -->
-        <g id="dock" opacity="0">
-          <text x="150" y="58" fill="#FFF8EA" font-family="JetBrains Mono,monospace" font-size="11">meera_photo.jpg</text>
-          <text x="150" y="75" fill="#FF6A1A" font-family="JetBrains Mono,monospace" font-size="9.5" letter-spacing="1.2">SEALED · VERIFIED</text>
-          <path d="M110 100 V640" stroke="#FF6A1A" stroke-opacity=".6" stroke-width="2" fill="none" class="dash"/>
-        </g>
-      </svg>
-    </div>
+          <!-- THE PHOTO -->
+          <g id="photo">
+            <g class="bob2">
+              <ellipse
+                cx="0"
+                cy="0"
+                rx="190"
+                ry="146"
+                fill="none"
+                stroke="#FF6A1A"
+                stroke-opacity=".28"
+                class="dash"
+                id="heroring"
+              />
+              <g clip-path="url(#phclip)">
+                <image
+                  href="{{img:meera}}"
+                  x="-150"
+                  y="-100"
+                  width="300"
+                  height="200"
+                  preserveAspectRatio="xMidYMid slice"
+                />
+                <rect
+                  id="ph-dim"
+                  x="-150"
+                  y="-100"
+                  width="300"
+                  height="200"
+                  fill="#0E0C0A"
+                  opacity="0"
+                />
+                <rect
+                  id="ph-flash"
+                  x="-150"
+                  y="-100"
+                  width="300"
+                  height="200"
+                  fill="#fff"
+                  opacity="0"
+                />
+                <rect
+                  id="ph-seal"
+                  x="-146"
+                  y="-96"
+                  width="292"
+                  height="192"
+                  rx="9"
+                  fill="none"
+                  stroke="#FF6A1A"
+                  stroke-width="3"
+                  opacity="0"
+                />
+              </g>
+              <rect
+                x="-150"
+                y="-100"
+                width="300"
+                height="200"
+                rx="12"
+                fill="none"
+                stroke="rgba(255,248,234,.22)"
+              />
+              <g id="ph-sealchip" opacity="0">
+                <image
+                  href="{{img:tag-verified}}"
+                  x="-146"
+                  y="60"
+                  width="150"
+                  height="31"
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              </g>
+              <g id="ph-stamp" opacity="0" transform="rotate(-12)">
+                <image
+                  href="{{img:tag-altered}}"
+                  x="-90"
+                  y="-26"
+                  width="180"
+                  height="52"
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              </g>
+              <g id="ph-ver" opacity="0" transform="translate(148 -98)">
+                <image
+                  class="pxi"
+                  data-emo="check"
+                  x="-30"
+                  y="-30"
+                  width="60"
+                  height="60"
+                />
+              </g>
+            </g>
+          </g>
 
-    <div class="copy">
-      <div class="wrap">
+          <!-- DOCK thread -->
+          <g id="dock" opacity="0">
+            <text
+              x="256"
+              y="50"
+              fill="#FFF8EA"
+              font-family="JetBrains Mono,monospace"
+              font-size="11"
+            >
+              meera_photo.jpg
+            </text>
+            <text
+              x="256"
+              y="67"
+              fill="#FF6A1A"
+              font-family="JetBrains Mono,monospace"
+              font-size="9.5"
+              letter-spacing="1.2"
+            >
+              SEALED · VERIFIED
+            </text>
+            <path
+              d="M110 100 V640"
+              stroke="#FF6A1A"
+              stroke-opacity=".6"
+              stroke-width="2"
+              fill="none"
+              class="dash"
+            />
+          </g>
+        </svg>
+      </div>
 
-        <!-- ACT 0: INTRO -->
-        <div class="act" data-act="0">
-          <div class="eyebrow">The story behind Veris</div>
-          <h1>Proof, made at the shutter.</h1>
-          <p>Veris is a small device that clips onto the camera or phone you already own. Follow one journalist's photo to see what goes wrong without proof, and what changes with it.</p>
-          <div class="chips hero-devs">
-            <span class="chip"><b></b>Hotshoe for DSLR and mirrorless</span>
-            <span class="chip"><b></b>Clip for any phone</span>
+      <div class="copy">
+        <div class="wrap">
+          <!-- ACT 0: INTRO -->
+          <div class="act" data-act="0">
+            <div class="eyebrow">The story behind Veris</div>
+            <h1>Proof, made at the shutter.</h1>
+            <p>Proves your photo is real.</p>
+            <div class="cue"><i></i>Scroll</div>
           </div>
-          <div class="chapters" role="list" aria-label="Jump to a chapter">
-            <button class="chip" type="button" data-go="p:0.35">Problem</button>
-            <button class="chip" type="button" data-go="p:0.54">Solution</button>
-            <button class="chip" type="button" data-go="p:0.76">Impact</button>
-            <button class="chip" type="button" data-go="#benefits">Benefits</button>
-            <button class="chip" type="button" data-go="#feasibility">Feasibility</button>
-            <button class="chip" type="button" data-go="#viability">Viability</button>
-            <button class="chip" type="button" data-go="#technical">Technical</button>
+
+          <!-- ACT 1: THE SHOT -->
+          <div class="act" data-act="1">
+            <div class="eyebrow">01 · A Tuesday in a government office</div>
+            <h2>Aditya takes the shot.</h2>
+            <p>Aditya photographs something nobody expected.</p>
+            <p class="note">
+              An illustrative story, built from the kinds of cases Veris was
+              designed around.
+            </p>
           </div>
-          <div class="cue"><i></i>Scroll to follow one journalist's photo</div>
-        </div>
 
-        <!-- ACT 1: THE SHOT -->
-        <div class="act" data-act="1">
-          <div class="eyebrow">A Tuesday in a government office</div>
-          <h2>Meera takes the shot.</h2>
-          <p>Meera is a photojournalist. She photographs officials sitting with someone they were never supposed to meet. Nothing is edited. She was standing right there.</p>
-          <p class="note">An illustrative story, built from the kinds of cases Veris was designed around.</p>
-        </div>
+          <!-- ACT 2: PROBLEM -->
+          <div class="act" data-act="2">
+            <div class="eyebrow">02 · The problem</div>
+            <h2>By lunchtime, the comments say it's AI.</h2>
+            <p>"It's AI." Nothing can prove otherwise.</p>
+            <div class="stats">
+              <div class="stat">
+                <b>8M</b
+                ><span>deepfakes shared in 2025 (UK government estimate)</span>
+              </div>
+              <div class="stat">
+                <b>55.5%</b><span>of people correctly spot a deepfake</span>
+              </div>
+              <div class="stat">
+                <b>$40B</b
+                ><span
+                  >projected US gen-AI fraud losses by 2027 (Deloitte)</span
+                >
+              </div>
+            </div>
+          </div>
 
-        <!-- ACT 2: PROBLEM -->
-        <div class="act" data-act="2">
-          <div class="eyebrow">The problem</div>
-          <h2>By lunchtime, the comments say it's AI.</h2>
-          <p>Camera details can be rewritten with free tools, and most platforms strip them on upload. "I was there" is one person's word. A detector offers a guess, and a guess does not end an argument. The story stops being about what the photo shows.</p>
-          <div class="stats">
-            <div class="stat"><b>8M</b><span>deepfakes shared in 2025 (UK government estimate)</span></div>
-            <div class="stat"><b>55.5%</b><span>of people correctly spot a deepfake</span></div>
-            <div class="stat"><b>$40B</b><span>projected US gen-AI fraud losses by 2027 (Deloitte)</span></div>
+          <!-- ACT 3: SOLUTION -->
+          <div class="act" data-act="3">
+            <div class="eyebrow">03 · The solution</div>
+            <h2>Now give her Veris.</h2>
+            <p>A clip-on chip signs the shot as she takes it.</p>
+            <div class="chips">
+              <span class="chip"><b></b>Hotshoe</span
+              ><span class="chip"><b></b>Clip</span
+              ><span class="chip"
+                ><b></b>Under 60 seconds, shutter to proof</span
+              >
+            </div>
+          </div>
+
+          <!-- ACT 4: IMPACT -->
+          <div class="act" data-act="4">
+            <div class="eyebrow">04 · The impact</div>
+            <h2>She answers with a link.</h2>
+            <p>One link. Match or no match.</p>
+            <img
+              class="act-shot"
+              src="{{img:home}}"
+              alt="The Veris app"
+              loading="lazy"
+            />
+          </div>
+
+          <!-- ACT 5: HANDOFF -->
+          <div class="act" data-act="5">
+            <div class="eyebrow">Her editor has questions</div>
+            <h2>Four questions.</h2>
+            <p>
+              Who needs this, can it be built, how does it work, will it pay?
+            </p>
+            <div class="pcards">
+              <button class="pcard" type="button" data-go="#benefits">
+                <img
+                  src="{{img:archive}}"
+                  style="object-position: top"
+                  alt=""
+                  loading="lazy"
+                /><span class="pnum">05</span><b>Who benefits?</b
+                ><span class="pl"
+                  >Journalists, courts, insurers, photographers.</span
+                >
+              </button>
+              <button class="pcard" type="button" data-go="#feasibility">
+                <img src="{{img:hotshoe}}" alt="" loading="lazy" /><span
+                  class="pnum"
+                  >06</span
+                ><b>Can it be built?</b
+                ><span class="pl"
+                  >Prototypes run today, for about ₹10,000.</span
+                >
+              </button>
+              <button class="pcard" type="button" data-go="#technical">
+                <img
+                  src="{{img:proof}}"
+                  style="object-position: top"
+                  alt=""
+                  loading="lazy"
+                /><span class="pnum">07</span><b>How does it work?</b
+                ><span class="pl">Six steps, one chip, one public record.</span>
+              </button>
+              <button class="pcard" type="button" data-go="#viability">
+                <img src="{{img:standalone}}" alt="" loading="lazy" /><span
+                  class="pnum"
+                  >08</span
+                ><b>Will it pay?</b
+                ><span class="pl"
+                  >One device sale, then pennies per photo.</span
+                >
+              </button>
+            </div>
+            <div class="chips chips-m">
+              <button class="chip" type="button" data-go="#benefits">
+                Who benefits?
+              </button>
+              <button class="chip" type="button" data-go="#feasibility">
+                Can it be built?
+              </button>
+              <button class="chip" type="button" data-go="#technical">
+                How does it work?
+              </button>
+              <button class="chip" type="button" data-go="#viability">
+                Will it pay?
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
 
-        <!-- ACT 3: SOLUTION -->
-        <div class="act" data-act="3">
-          <div class="eyebrow">The solution</div>
-          <h2>Now give her Veris.</h2>
-          <p>Same office, same Tuesday. Veris clips onto her camera's hot shoe or onto her phone. When the shutter fires, it takes its own signed picture, seals the moment inside a chip and files a permanent public record. She shoots exactly as before.</p>
-          <div class="chips">
-            <span class="chip"><b></b>Hotshoe</span><span class="chip"><b></b>Clip</span><span class="chip"><b></b>Under 60 seconds, shutter to proof</span>
+  <!-- ============ BENEFITS (horizontal scrub) ============ -->
+  <section id="benefits" aria-label="Benefits">
+    <div class="hstick">
+      <div
+        class="wrap"
+        style="display: flex; flex-direction: column; gap: 16px"
+      >
+        <div class="eyebrow">05 · Beyond Meera</div>
+        <h2 class="h2" style="max-width: 20ch">She is not the only one.</h2>
+        <p class="bridge">
+          Anyone whose work depends on a photo being believed.
+        </p>
+      </div>
+      <div class="hrow" id="hrow">
+        <article class="hcard lead">
+          <div class="who">Journalists and fact-checkers</div>
+          <div class="big">
+            64.4%<small>of BOOM's May 2025 fact-checks</small>
+          </div>
+          <p class="fix">were old footage. Veris shows when.</p>
+        </article>
+        <article class="hcard">
+          <div class="who">Courts, police and forensics</div>
+          <div class="big">
+            Section 63<small>Bharatiya Sakshya Adhiniyam</small>
+          </div>
+          <p class="fix">Hash made at capture.</p>
+        </article>
+        <article class="hcard">
+          <div class="who">Insurers, banks and platforms</div>
+          <div class="big">
+            ₹8,000–10,000 cr<small>health-insurance fraud a year (BCG)</small>
+          </div>
+          <p class="fix">Fewer disputes.</p>
+        </article>
+        <article class="hcard">
+          <div class="who">Photographers</div>
+          <div class="big">
+            Own it<small>ERC-1155 certificate, in your wallet</small>
+          </div>
+          <p class="fix">Proof of authorship.</p>
+        </article>
+        <article class="hcard">
+          <div class="who">Everyone else</div>
+          <div class="big">
+            Check, don't guess<small
+              >replace judging by eye with a record</small
+            >
+          </div>
+          <p class="fix">Check, on gear you own.</p>
+          <div class="sdg">
+            <span>SDG 16 · justice and institutions</span
+            ><span>SDG 9 · ₹0.5–3 per certificate</span
+            ><span>SDG 13 · small footprint</span>
+          </div>
+        </article>
+      </div>
+      <div class="hprog" aria-hidden="true"><i id="hbar"></i></div>
+    </div>
+  </section>
+
+  <!-- ============ FEASIBILITY ============ -->
+  <section class="sec" id="feasibility" aria-label="Feasibility">
+    <div class="ghost-word" aria-hidden="true" data-par="-0.25">BUILT</div>
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="eyebrow">06 · Is it real?</div>
+        <h2 class="h2" style="max-width: 18ch">
+          Can it be built? It already is.
+        </h2>
+        <p class="bridge">Her editor's first question.</p>
+      </div>
+      <div class="two">
+        <div>
+          <h4 class="rv">Build status</h4>
+          <div class="build">
+            <div class="brow rv">
+              <div class="bt">
+                <img
+                  class="bimg"
+                  src="{{img:standalone}}"
+                  alt="Standalone unit prototype"
+                  loading="lazy"
+                />
+                <div>
+                  <h3>Standalone unit</h3>
+                  <p>Works today. Under 60s.</p>
+                </div>
+              </div>
+              <div class="steps">
+                <div><i class="f" style="--k: 0"></i><span>Concept</span></div>
+                <div>
+                  <i class="f" style="--k: 1"></i><span>Prototype</span>
+                </div>
+                <div><i style="--k: 2"></i><span>Pilot</span></div>
+                <div><i style="--k: 3"></i><span>Product</span></div>
+              </div>
+            </div>
+            <div class="brow rv">
+              <div class="bt">
+                <img
+                  class="bimg"
+                  src="{{img:clip}}"
+                  alt="VERIS Clip prototype"
+                  loading="lazy"
+                />
+                <div>
+                  <h3>VERIS Clip</h3>
+                  <p>Clips on any phone.</p>
+                </div>
+              </div>
+              <div class="steps">
+                <div><i class="f" style="--k: 0"></i><span>Concept</span></div>
+                <div>
+                  <i class="f" style="--k: 1"></i><span>Prototype</span>
+                </div>
+                <div><i style="--k: 2"></i><span>Pilot</span></div>
+                <div><i style="--k: 3"></i><span>Product</span></div>
+              </div>
+            </div>
+            <div class="brow rv">
+              <div class="bt">
+                <img
+                  class="bimg"
+                  src="{{img:hotshoe}}"
+                  alt="VERIS Hotshoe prototype"
+                  loading="lazy"
+                />
+                <div>
+                  <h3>VERIS Hotshoe</h3>
+                  <p>Fits any hot shoe.</p>
+                </div>
+              </div>
+              <div class="steps">
+                <div><i class="f" style="--k: 0"></i><span>Concept</span></div>
+                <div>
+                  <i class="f" style="--k: 1"></i><span>Prototype</span>
+                </div>
+                <div><i style="--k: 2"></i><span>Pilot</span></div>
+                <div><i style="--k: 3"></i><span>Product</span></div>
+              </div>
+            </div>
+            <div class="brow rv">
+              <div>
+                <h3>Custom board</h3>
+                <p>Smaller, cheaper.</p>
+              </div>
+              <div class="steps">
+                <div><i class="f" style="--k: 0"></i><span>Concept</span></div>
+                <div><i style="--k: 1"></i><span>Prototype</span></div>
+                <div><i style="--k: 2"></i><span>Pilot</span></div>
+                <div><i style="--k: 3"></i><span>Product</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="risks rv">
+            <h4 style="margin: 22px 0 0">Risks we planned for</h4>
+            <div class="risk">
+              <b>Phones and cameras vary</b><span>Standard ports only.</span>
+            </div>
+            <div class="risk">
+              <b>No signal in the field</b><span>Works offline.</span>
+            </div>
+            <div class="risk">
+              <b>A device is lost or stolen</b
+              ><span>Keys stay in the chip.</span>
+            </div>
+            <div class="risk">
+              <b>Will courts accept it?</b><span>Pilots underway.</span>
+            </div>
           </div>
         </div>
-
-        <!-- ACT 4: IMPACT -->
-        <div class="act" data-act="4">
-          <div class="eyebrow">The impact</div>
-          <h2>She answers with a link.</h2>
-          <p>Anyone opens veris.live/claim and drops in the photo. If it is the file that left the camera, it matches its record. Change one pixel and it fails. Thanks to the zero-knowledge proof, she never reveals her name or where she stood. In court, the Section 63 certificate starts with the hash already in place.</p>
+        <div class="rv" style="--d: 0.1s">
+          <h4>Proven parts, new combination</h4>
+          <div class="parts">
+            <div class="part">
+              <b>TPM 2.0</b><span>Holds the signing key.</span>
+            </div>
+            <div class="part"><b>Ethereum</b><span>Public ledger.</span></div>
+            <div class="part">
+              <b>IPFS + Filecoin</b><span>Long-term storage.</span>
+            </div>
+            <div class="part">
+              <b>RISC Zero</b><span>On-chain zero-knowledge proofs.</span>
+            </div>
+            <div class="part">
+              <b>Hot shoe mount</b><span>On most DSLRs and mirrorless.</span>
+            </div>
+            <div class="part"><b>USB-C</b><span>Powers the Clip.</span></div>
+          </div>
+          <p class="lede" style="margin-top: 22px; font-size: 16px">
+            Live today: veris.live/claim
+          </p>
         </div>
+      </div>
+      <button class="next rv" type="button" data-go="#technical">
+        Next · How does it work? <span aria-hidden="true">↓</span>
+      </button>
+    </div>
+  </section>
 
-        <!-- ACT 5: HANDOFF -->
-        <div class="act" data-act="5">
-          <div class="eyebrow">What her editor asks next</div>
-          <h2>Four questions.</h2>
-          <p>Who else needs this? Can it really be built? Will it pay for itself? And how does it work, exactly?</p>
-          <div class="chips">
-            <button class="chip" type="button" data-go="#benefits">Who benefits?</button>
-            <button class="chip" type="button" data-go="#feasibility">Can it be built?</button>
-            <button class="chip" type="button" data-go="#viability">Will it pay?</button>
-            <button class="chip" type="button" data-go="#technical">How does it work?</button>
+  <!-- ============ TECHNICAL ============ -->
+  <section class="sec alt" id="technical" aria-label="Technical">
+    <div class="ghost-word" aria-hidden="true" data-par="-0.25">PROOF</div>
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="eyebrow">07 · Under the hood</div>
+        <h2 class="h2" style="max-width: 18ch">Six steps, one chip.</h2>
+        <p class="bridge">
+          What happens between the shutter and the claim page.
+        </p>
+      </div>
+
+      <div class="arch rv" id="arch">
+        <div class="arch-track"><i id="archbar"></i></div>
+        <div class="stg">
+          <div class="tag">STAGE 1</div>
+          <h3>Physical capture</h3>
+          <div class="stp">
+            <i>1</i>
+            <div><b>Capture</b><span>Shoot as usual.</span></div>
+          </div>
+          <div class="stp">
+            <i>2</i>
+            <div><b>Attest in hardware</b><span>TPM chip signs it.</span></div>
+          </div>
+        </div>
+        <div class="stg">
+          <div class="tag">STAGE 2</div>
+          <h3>Cryptographic proof</h3>
+          <div class="stp">
+            <i>3</i>
+            <div><b>Prove</b><span>Zero-knowledge proof.</span></div>
+          </div>
+          <div class="stp">
+            <i>4</i>
+            <div><b>Store</b><span>IPFS + Filecoin.</span></div>
+          </div>
+          <div class="stp">
+            <i>5</i>
+            <div><b>Certify</b><span>Minted on-chain.</span></div>
+          </div>
+        </div>
+        <div class="stg">
+          <div class="tag">STAGE 3</div>
+          <h3>Public verification</h3>
+          <div class="stp">
+            <i>6</i>
+            <div>
+              <b>Verify</b
+              ><span
+                >Drop it on the claim page: <span class="okt">VERIFIED</span> or
+                <span class="badt">NO RECORD</span>.</span
+              >
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-</section>
 
-<!-- ============ BENEFITS (horizontal scrub) ============ -->
-<section id="benefits" aria-label="Benefits">
-  <div class="hstick">
-    <div class="wrap" style="display:flex;flex-direction:column;gap:16px">
-      <div class="eyebrow">Benefits</div>
-      <h2 class="h2" style="max-width:20ch">Meera is one of many people whose photos have to be believed.</h2>
-    </div>
-    <div class="hrow" id="hrow">
-      <article class="hcard lead">
-        <div class="who">Journalists and fact-checkers</div>
-        <div class="big">64.4%<small>of BOOM's May 2025 fact-checks</small></div>
-        <p>were old or unrelated footage passed off as new. Verification is slow and tiring.</p>
-        <p class="fix">Every photo carries a record of when it was really taken. A claim link answers in seconds, without revealing who she is or where she stood.</p>
-      </article>
-      <article class="hcard">
-        <div class="who">Courts, police and forensics</div>
-        <div class="big">Section 63<small>Bharatiya Sakshya Adhiniyam, 2023</small></div>
-        <p>Electronic records need a certificate with the file's hash, usually calculated long after the photo was taken.</p>
-        <p class="fix">The SHA-256 hash is made at capture, anchored with the device signature and time. The hashes either match or they do not.</p>
-      </article>
-      <article class="hcard">
-        <div class="who">Insurers, banks and platforms</div>
-        <div class="big">₹8,000–10,000 cr<small>health-insurance fraud and leakage a year (BCG, Medi Assist)</small></div>
-        <p>Edited photos of damaged goods and property are already used to push refunds and false claims.</p>
-        <p class="fix">Field photos are signed when taken, so fewer manual reviews, faster decisions and fewer disputes.</p>
-      </article>
-      <article class="hcard">
-        <div class="who">Photographers</div>
-        <div class="big">Own it<small>ERC-1155 certificate, in your wallet</small></div>
-        <p>Metadata gets stripped and files get copied without credit.</p>
-        <p class="fix">The certificate stays tied to the photographer's record. Proof of authorship when a photo is reused, licensed or disputed, even for freelancers no editor has met.</p>
-      </article>
-      <article class="hcard">
-        <div class="who">Everyone else</div>
-        <div class="big">Check, don't guess<small>replace judging by eye with a record</small></div>
-        <p>Veris answers with a lookup anyone can repeat. It runs on hashes and content IDs, and clips onto equipment people already own, so nothing gets thrown away.</p>
-        <div class="sdg"><span>SDG 16 · justice and institutions</span><span>SDG 9 · ₹0.5–3 per certificate</span><span>SDG 13 · small footprint</span></div>
-      </article>
-    </div>
-    <div class="hprog" aria-hidden="true"><i id="hbar"></i></div>
-  </div>
-</section>
+      <div class="shots rv">
+        <figure>
+          <img src="{{img:verify}}" alt="Verify page" loading="lazy" />
+          <figcaption>Drop a photo</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="{{img:verify-result}}"
+            alt="Verification result"
+            loading="lazy"
+          />
+          <figcaption>Match or no match</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="{{img:claim}}"
+            alt="Claim page, hardware verified"
+            loading="lazy"
+          />
+          <figcaption>Hardware verified</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="{{img:proof}}"
+            alt="Signed, minted and stored"
+            loading="lazy"
+          />
+          <figcaption>Signed, minted, stored</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="{{img:archive}}"
+            alt="Owner portal archive"
+            loading="lazy"
+          />
+          <figcaption>Your archive</figcaption>
+        </figure>
+      </div>
 
-<!-- ============ FEASIBILITY ============ -->
-<section class="sec" id="feasibility" aria-label="Feasibility">
-  <div class="ghost-word" aria-hidden="true" data-par="-0.25">BUILT</div>
-  <div class="wrap">
-    <div class="sec-head rv">
-      <div class="eyebrow">Feasibility</div>
-      <h2 class="h2" style="max-width:18ch">Can it be built? It already is.</h2>
-      <p class="lede">Veris runs on off-the-shelf parts and networks that already exist. The standalone prototype cost about ₹10,000 and runs the full pipeline today.</p>
-    </div>
-    <div class="two">
-      <div>
-        <h4 class="rv">Build status</h4>
-        <div class="build">
-          <div class="brow rv"><div><h3>Standalone unit</h3><p>Raspberry Pi 4 + camera + TPM. Shutter to minted claim in under 60 seconds, on Ethereum Sepolia.</p></div>
-            <div class="steps"><div><i class="f" style="--k:0"></i><span>Concept</span></div><div><i class="f" style="--k:1"></i><span>Prototype</span></div><div><i style="--k:2"></i><span>Pilot</span></div><div><i style="--k:3"></i><span>Product</span></div></div></div>
-          <div class="brow rv"><div><h3>VERIS Clip</h3><p>Spring-loaded, powered by the phone's USB-C, paired by Bluetooth. Captures a second verified image beside the phone's own.</p></div>
-            <div class="steps"><div><i class="f" style="--k:0"></i><span>Concept</span></div><div><i class="f" style="--k:1"></i><span>Prototype</span></div><div><i style="--k:2"></i><span>Pilot</span></div><div><i style="--k:3"></i><span>Product</span></div></div></div>
-          <div class="brow rv"><div><h3>VERIS Hotshoe</h3><p>Runs on a Raspberry Pi Zero, triggered from the hot shoe's centre pin. Carrier PCB designed and made as a two-layer board.</p></div>
-            <div class="steps"><div><i class="f" style="--k:0"></i><span>Concept</span></div><div><i class="f" style="--k:1"></i><span>Prototype</span></div><div><i style="--k:2"></i><span>Pilot</span></div><div><i style="--k:3"></i><span>Product</span></div></div></div>
-          <div class="brow rv"><div><h3>Custom board</h3><p>Rockchip RK3566 module, Infineon OPTIGA TPM and Sony IMX219 sensor, to make both units smaller and cheaper.</p></div>
-            <div class="steps"><div><i class="f" style="--k:0"></i><span>Concept</span></div><div><i style="--k:1"></i><span>Prototype</span></div><div><i style="--k:2"></i><span>Pilot</span></div><div><i style="--k:3"></i><span>Product</span></div></div></div>
+      <div class="tech2">
+        <div class="box rv">
+          <h4>The proof, in four lines</h4>
+          <div class="eq">
+            <div class="eqr">
+              <code><em>h</em> = H(I)</code><span>Hash the image.</span>
+            </div>
+            <div class="eqr">
+              <code><em>σ</em> = Sign(sk<sub>D</sub>, h ‖ H(μ))</code
+              ><span>The chip signs it.</span>
+            </div>
+            <div class="eqr">
+              <code
+                ><em>π</em> ← Prove{(pk<sub>D</sub>, σ, μ): Verify = 1 ∧ pk<sub
+                  >D</sub
+                >
+                ∈ R}</code
+              ><span>Prove it, reveal nothing.</span>
+            </div>
+            <div class="eqr">
+              <code
+                >Accept(I′) ⇔ H(I′) = <em>h</em> ∧ VerifyZK(<em>π</em>) =
+                1</code
+              ><span>Photo plus public record.</span>
+            </div>
+          </div>
         </div>
-        <div class="risks rv">
-          <h4 style="margin:22px 0 0">Risks we planned for</h4>
-          <div class="risk"><b>Phones and cameras vary</b><span>Standard interfaces only: the hot shoe, a universal spring clip, USB-C.</span></div>
-          <div class="risk"><b>No signal in the field</b><span>Offline-first. It signs locally, then syncs. A late upload does not weaken the proof.</span></div>
-          <div class="risk"><b>A device is lost or stolen</b><span>Keys live in secure hardware. A revocation registry is planned.</span></div>
-          <div class="risk"><b>Will courts accept it?</b><span>Pilots with legal experts and institutions, aligned with Section 63.</span></div>
-        </div>
-      </div>
-      <div class="rv" style="--d:.1s">
-        <h4>Proven parts, new combination</h4>
-        <div class="parts">
-          <div class="part"><b>TPM 2.0</b><span>Already in millions of laptops and servers. Holds the signing key.</span></div>
-          <div class="part"><b>Ethereum</b><span>Public ledger. Verifier and certificate contracts.</span></div>
-          <div class="part"><b>IPFS + Filecoin</b><span>Content-addressed, long-term storage.</span></div>
-          <div class="part"><b>RISC Zero</b><span>Zero-knowledge proofs checked on-chain.</span></div>
-          <div class="part"><b>Hot shoe mount</b><span>Standard on DSLR and mirrorless bodies.</span></div>
-          <div class="part"><b>USB-C</b><span>Powers the Clip from the phone itself.</span></div>
-        </div>
-        <p class="lede" style="margin-top:22px;font-size:16px">Live today: claim pages at veris.live/claim. Adoption goes pilot, then institutions, then scale.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ VIABILITY ============ -->
-<section class="sec alt" id="viability" aria-label="Viability">
-  <div class="ghost-word" aria-hidden="true" data-par="-0.25">PAYS</div>
-  <div class="wrap">
-    <div class="sec-head rv">
-      <div class="eyebrow">Viability</div>
-      <h2 class="h2" style="max-width:20ch">Will it pay for itself? Three ways, starting small.</h2>
-      <p class="lede">Newsrooms, courts and police, insurers, forensic labs and camera makers all need a photo they can defend. Veris charges once for the device and a few rupees per photo.</p>
-    </div>
-    <div class="streams">
-      <div class="stream rv"><div class="n">₹2k–8k</div><h3>The device</h3><p>Estimated build cost per unit: Clip ₹2–4k, Hotshoe ₹3–5k, Standalone ₹5–8k. One-time sale that gets Veris into the workflow.</p></div>
-      <div class="stream rv" style="--d:.08s"><div class="n">₹0.5–3</div><h3>Every photo</h3><p>A small minting and verification fee, kept low on purpose so freelancers can seal every shot, not only the big ones.</p></div>
-      <div class="stream rv" style="--d:.16s"><div class="n">API + SaaS</div><h3>Institutions</h3><p>Verification at scale for newsrooms, insurers and platforms, plus enterprise licences and camera-maker integrations.</p></div>
-    </div>
-
-    <div class="path rv" id="path">
-      <div class="path-line"><i></i></div>
-      <div class="path-nodes">
-        <div class="pn"><small>First</small><h3>Journalists and conflict photographers</h3><p>The highest cost of disbelief, fast feedback from daily publishing, and a privacy need the zero-knowledge proof meets.</p></div>
-        <div class="pn"><small>Then</small><h3>Forensics and courts</h3><p>Capture-time hash and signature for case files, mapped to Section 63.</p></div>
-        <div class="pn"><small>Then</small><h3>Insurance and platforms</h3><p>Proof of time and place for every claim photo.</p></div>
-      </div>
-    </div>
-
-    <div class="rv tablewrap">
-      <table>
-        <thead><tr><th>Capability</th><th class="v">Veris</th><th>C2PA cameras</th><th>AI detectors</th></tr></thead>
-        <tbody>
-          <tr><td>Signs in hardware at capture</td><td class="v y">Yes, TPM 2.0</td><td class="y">Yes, on supported bodies</td><td class="n">No</td></tr>
-          <tr><td>Works with the phone or camera you own</td><td class="v y">Yes, Clip and Hotshoe</td><td class="n">No, needs a new body or firmware</td><td class="y">Yes</td></tr>
-          <tr><td>Record survives stripped metadata</td><td class="v y">Yes, on-chain and IPFS</td><td class="m">Partly</td><td class="m">n/a</td></tr>
-          <tr><td>Hides who took it and where</td><td class="v y">Yes, zero-knowledge</td><td class="n">No</td><td class="m">n/a</td></tr>
-          <tr><td>Public, permanent record</td><td class="v y">Yes</td><td class="n">No</td><td class="n">No</td></tr>
-          <tr><td>Independent second witness</td><td class="v y">Yes, dual capture</td><td class="n">No</td><td class="n">No</td></tr>
-          <tr><td>Entry price</td><td class="v">₹2k–8k per unit (build cost)</td><td>From US$9,195 (Leica M11-P)</td><td>Software</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mk">
-      <div class="mkc rv"><b>900% a year</b><span>growth in synthetic media, which may reach 90% of online content by 2027. Detection keeps falling behind.</span></div>
-      <div class="mkc rv" style="--d:.08s"><b>$71.5M → $1.12B</b><span>India's deepfake-AI market, 2025 to 2033, 48.2% a year (IMARC). The need for proof grows with it.</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ TECHNICAL ============ -->
-<section class="sec" id="technical" aria-label="Technical">
-  <div class="ghost-word" aria-hidden="true" data-par="-0.25">PROOF</div>
-  <div class="wrap">
-    <div class="sec-head rv">
-      <div class="eyebrow">Technical</div>
-      <h2 class="h2" style="max-width:18ch">How it works, exactly.</h2>
-      <p class="lede">For engineers, newsroom IT and anyone who wants to check our work. Three stages, six steps, one root of trust: the chip.</p>
-    </div>
-
-    <div class="arch rv" id="arch">
-      <div class="arch-track"><i id="archbar"></i></div>
-      <div class="stg"><div class="tag">STAGE 1</div><h3>Physical capture</h3><p>The photo is secured at the source.</p>
-        <div class="stp"><i>1</i><div><b>Capture</b><span>Take the photo as usual with the Clip or Hotshoe attached. Veris takes its own image at the same instant.</span></div></div>
-        <div class="stp"><i>2</i><div><b>Attest in hardware</b><span>A TPM 2.0 chip signs the image digest. Its key was fused in at manufacture and never leaves the chip.</span></div></div>
-      </div>
-      <div class="stg"><div class="tag">STAGE 2</div><h3>Cryptographic proof</h3><p>Automatic, private and tamper-evident.</p>
-        <div class="stp"><i>3</i><div><b>Prove</b><span>A zero-knowledge proof (vlayer) shows the signature is genuine without exposing identity, GPS or device serial.</span></div></div>
-        <div class="stp"><i>4</i><div><b>Store</b><span>Image, metadata and proof go to IPFS and Filecoin, addressed by their own hash.</span></div></div>
-        <div class="stp"><i>5</i><div><b>Certify</b><span>A RISC Zero verifier checks the proof on-chain; an ERC-1155 token is minted to the photographer's wallet.</span></div></div>
-      </div>
-      <div class="stg"><div class="tag">STAGE 3</div><h3>Public verification</h3><p>Anyone, anywhere, no account.</p>
-        <div class="stp"><i>6</i><div><b>Verify</b><span>Upload a photo at veris.live/claim. Match plus valid proof gives <span class="okt">VERIFIED</span>. No match gives <span class="badt">NO RECORD</span>, which means Veris cannot vouch for it, not that it is fake.</span></div></div>
-      </div>
-    </div>
-
-    <div class="tech2">
-      <div class="box rv">
-        <h4>The proof, in four lines</h4>
-        <div class="eq">
-          <div class="eqr"><code><em>h</em> = H(I)</code><span>Hash the image. Change one pixel and the hash changes completely.</span></div>
-          <div class="eqr"><code><em>σ</em> = Sign(sk<sub>D</sub>, h ‖ H(μ))</code><span>The chip signs the hash and capture metadata. Only a real device can.</span></div>
-          <div class="eqr"><code><em>π</em> ← Prove{(pk<sub>D</sub>, σ, μ): Verify = 1 ∧ pk<sub>D</sub> ∈ R}</code><span>Prove a registered device signed it, revealing nothing else.</span></div>
-          <div class="eqr"><code>Accept(I′) ⇔ H(I′) = <em>h</em> ∧ VerifyZK(<em>π</em>) = 1</code><span>A checker needs only the photo and the public record.</span></div>
+        <div class="box rv" style="--d: 0.1s">
+          <h4>Stack</h4>
+          <table class="kv">
+            <tr>
+              <td>Capture</td>
+              <td>
+                Raspberry Pi 4 and camera module (standalone); Pi Zero (Hotshoe)
+              </td>
+            </tr>
+            <tr>
+              <td>Signing</td>
+              <td>Hardware Identity Module, TPM 2.0</td>
+            </tr>
+            <tr>
+              <td>Storage</td>
+              <td>Filecoin via Synapse SDK, IPFS CIDs</td>
+            </tr>
+            <tr>
+              <td>Proof</td>
+              <td>vlayer; VerisVerifier.sol on RISC Zero</td>
+            </tr>
+            <tr>
+              <td>Ownership</td>
+              <td>VerisERC1155.sol, claimed by QR code</td>
+            </tr>
+            <tr>
+              <td>Network</td>
+              <td>Ethereum Sepolia (testnet)</td>
+            </tr>
+            <tr>
+              <td>App</td>
+              <td>VERIS app over Bluetooth for the Clip</td>
+            </tr>
+          </table>
         </div>
       </div>
-      <div class="box rv" style="--d:.1s">
-        <h4>Stack</h4>
-        <table class="kv">
-          <tr><td>Capture</td><td>Raspberry Pi 4 and camera module (standalone); Pi Zero (Hotshoe)</td></tr>
-          <tr><td>Signing</td><td>Hardware Identity Module, TPM 2.0</td></tr>
-          <tr><td>Storage</td><td>Filecoin via Synapse SDK, IPFS CIDs</td></tr>
-          <tr><td>Proof</td><td>vlayer; VerisVerifier.sol on RISC Zero</td></tr>
-          <tr><td>Ownership</td><td>VerisERC1155.sol, claimed by QR code</td></tr>
-          <tr><td>Network</td><td>Ethereum Sepolia (testnet)</td></tr>
-          <tr><td>App</td><td>VERIS app over Bluetooth for the Clip</td></tr>
-        </table>
-      </div>
-    </div>
 
-    <div class="tech2">
-      <div class="box rv">
-        <h4>Dual capture</h4>
-        <p style="color:#D8CFBF;font-size:15px">A phone's or DSLR's firmware is outside our control. So Veris takes a second, independently signed image at the same instant. The Clip is triggered by the app over Bluetooth, the Hotshoe by the camera's X-sync centre pin. A scene-matching model and a forensic check confirm both frames show the same scene. The main photo inherits the proof only if they match.</p>
-      </div>
-      <div class="box rv" style="--d:.1s">
-        <h4>A claim record, abridged</h4>
-        <div class="claim">
-<b>claim_id</b>  762dc7c6-08c0-45ee-8400-453ea9dec149<br>
-<b>status</b>    <span class="ok">claimed</span> · token 148<br>
-<b>image_hash</b>  SHA-256 · image CID · metadata CID<br>
-<b>device</b>   device_id · camera_id · device_address<br>
-<b>companion_capture</b>  SSIM · consistency score · AI hint<br>
-<b>ai_assessment</b>  informative only, not part of the proof
+      <div class="tech2">
+        <div class="box rv">
+          <h4>Dual capture</h4>
+          <p style="color: #d8cfbf; font-size: 15px">
+            A second signed image backs up the first.
+          </p>
+        </div>
+        <div class="box rv" style="--d: 0.1s">
+          <h4>A claim record, abridged</h4>
+          <div class="claim">
+            <b>claim_id</b> 762dc7c6-08c0-45ee-8400-453ea9dec149<br />
+            <b>status</b> <span class="ok">claimed</span> · token 148<br />
+            <b>image_hash</b> SHA-256 · image CID · metadata CID<br />
+            <b>device</b> device_id · camera_id · device_address<br />
+            <b>companion_capture</b> SSIM · consistency score · AI hint<br />
+            <b>ai_assessment</b> informative only, not part of the proof
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="box rv" style="margin-top:clamp(20px,3vw,40px)">
-      <h4>Threat model</h4>
-      <div class="tablewrap bare">
-        <table style="min-width:620px">
-          <thead><tr><th>Attack</th><th>What stops it</th><th>What remains</th></tr></thead>
+      <div class="box rv" style="margin-top: clamp(20px, 3vw, 40px)">
+        <h4>Threat model</h4>
+        <div class="tablewrap bare">
+          <table style="min-width: 620px">
+            <thead>
+              <tr>
+                <th>Attack</th>
+                <th>What stops it</th>
+                <th>What remains</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Edit pixels after capture</td>
+                <td>Digest on-chain; any change fails the match</td>
+                <td class="m">Edits become new, unverified images</td>
+              </tr>
+              <tr>
+                <td>Forge a signature</td>
+                <td>Key generated and held inside the TPM</td>
+                <td class="m">Depends on the chip's tamper resistance</td>
+              </tr>
+              <tr>
+                <td>Compromise Veris servers</td>
+                <td>
+                  Servers cannot forge a signature or proof; verification is
+                  on-chain
+                </td>
+                <td class="m">Availability, not authenticity</td>
+              </tr>
+              <tr>
+                <td>Link a photo to its photographer</td>
+                <td>Zero-knowledge proof hides key, signature and metadata</td>
+                <td class="m">
+                  Prototype claim pages still show GPS and device ID; opt-in is
+                  planned
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h4 style="margin-top: 28px">Open problems</h4>
+        <div class="open">
+          <div>
+            <b>The analog hole</b>A photo of a screen showing a fake. Dual
+            capture reduces it.
+          </div>
+          <div><b>Testnet only</b>Mainnet cost and speed are unmeasured.</div>
+          <div>
+            <b>Key provisioning</b>Factory process and device registry not
+            specified yet.
+          </div>
+          <div>
+            <b>Legal acceptance</b>No court has ruled on a Veris claim yet.
+          </div>
+        </div>
+      </div>
+      <button class="next rv" type="button" data-go="#viability">
+        Next · Will it pay? <span aria-hidden="true">↓</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ VIABILITY ============ -->
+  <section class="sec" id="viability" aria-label="Viability">
+    <div class="ghost-word" aria-hidden="true" data-par="-0.25">PAYS</div>
+    <div class="wrap">
+      <div class="sec-head rv">
+        <div class="eyebrow">08 · Who pays?</div>
+        <h2 class="h2" style="max-width: 20ch">Will it pay for itself?</h2>
+        <p class="bridge">
+          The last question, and the one that keeps it alive.
+        </p>
+      </div>
+      <div class="streams">
+        <div class="stream rv">
+          <div class="n">₹2k–8k</div>
+          <h3>The device</h3>
+          <p>One-time sale.</p>
+        </div>
+        <div class="stream rv" style="--d: 0.08s">
+          <div class="n">₹0.5–3</div>
+          <h3>Every photo</h3>
+          <p>Cheap on purpose.</p>
+        </div>
+        <div class="stream rv" style="--d: 0.16s">
+          <div class="n">API + SaaS</div>
+          <h3>Institutions</h3>
+          <p>Newsrooms, insurers, platforms.</p>
+        </div>
+      </div>
+
+      <div class="path rv" id="path">
+        <div class="path-line"><i></i></div>
+        <div class="path-nodes">
+          <div class="pn">
+            <small>First</small>
+            <h3>Journalists and conflict photographers</h3>
+            <p>Where doubt costs the most.</p>
+          </div>
+          <div class="pn">
+            <small>Then</small>
+            <h3>Forensics and courts</h3>
+            <p>Capture-time hash for case files.</p>
+          </div>
+          <div class="pn">
+            <small>Then</small>
+            <h3>Insurance and platforms</h3>
+            <p>Proof for every claim photo.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="rv tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th class="v">Veris</th>
+              <th>C2PA cameras</th>
+              <th>AI detectors</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><td>Edit pixels after capture</td><td>Digest on-chain; any change fails the match</td><td class="m">Edits become new, unverified images</td></tr>
-            <tr><td>Forge a signature</td><td>Key generated and held inside the TPM</td><td class="m">Depends on the chip's tamper resistance</td></tr>
-            <tr><td>Compromise Veris servers</td><td>Servers cannot forge a signature or proof; verification is on-chain</td><td class="m">Availability, not authenticity</td></tr>
-            <tr><td>Link a photo to its photographer</td><td>Zero-knowledge proof hides key, signature and metadata</td><td class="m">Prototype claim pages still show GPS and device ID; opt-in is planned</td></tr>
+            <tr>
+              <td>Signs in hardware at capture</td>
+              <td class="v y">Yes, TPM 2.0</td>
+              <td class="y">Yes, on supported bodies</td>
+              <td class="n">No</td>
+            </tr>
+            <tr>
+              <td>Works with the phone or camera you own</td>
+              <td class="v y">Yes, Clip and Hotshoe</td>
+              <td class="n">No, needs a new body or firmware</td>
+              <td class="y">Yes</td>
+            </tr>
+            <tr>
+              <td>Record survives stripped metadata</td>
+              <td class="v y">Yes, on-chain and IPFS</td>
+              <td class="m">Partly</td>
+              <td class="m">n/a</td>
+            </tr>
+            <tr>
+              <td>Hides who took it and where</td>
+              <td class="v y">Yes, zero-knowledge</td>
+              <td class="n">No</td>
+              <td class="m">n/a</td>
+            </tr>
+            <tr>
+              <td>Public, permanent record</td>
+              <td class="v y">Yes</td>
+              <td class="n">No</td>
+              <td class="n">No</td>
+            </tr>
+            <tr>
+              <td>Independent second witness</td>
+              <td class="v y">Yes, dual capture</td>
+              <td class="n">No</td>
+              <td class="n">No</td>
+            </tr>
+            <tr>
+              <td>Entry price</td>
+              <td class="v">₹2k–8k per unit (build cost)</td>
+              <td>From US$9,195 (Leica M11-P)</td>
+              <td>Software</td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <h4 style="margin-top:28px">Open problems, stated plainly</h4>
-      <div class="open">
-        <div><b>The analog hole</b>Photographing a screen that shows a fake is open for every capture-side system. Dual capture mitigates it, not closes it.</div>
-        <div><b>Testnet only</b>Everything runs on Ethereum Sepolia. Mainnet or layer-2 cost and finality are still to be measured.</div>
-        <div><b>Key provisioning</b>The factory process, the device registry and the revocation path are not yet specified.</div>
-        <div><b>Legal acceptance</b>No court has yet ruled on a Veris claim under Section 63.</div>
+
+      <div class="mk">
+        <div class="mkc rv">
+          <b>900% a year</b><span>synthetic media growth.</span>
+        </div>
+        <div class="mkc rv" style="--d: 0.08s">
+          <b>$71.5M → $1.12B</b><span>India deepfake-AI, 2025 to 2033.</span>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ============ FINAL ============ -->
-<section class="final" aria-label="Get started">
-  <div class="wrap">
-    <canvas class="px bob" data-spr="heart" style="--u:6"></canvas>
-    <h2 class="h2">A photo that carries <em>its own proof.</em></h2>
-    <div class="ctas">
-      <a class="btn btn-primary" href="/dashboard" data-nav>Owner portal →</a>
-      <a class="btn btn-ghost" href="/search" data-nav>Verify a photo</a>
-      <button class="btn btn-ghost" type="button" data-back>← Back to Veris</button>
+  <!-- ============ FINAL ============ -->
+  <section class="final" aria-label="Get started">
+    <div class="wrap">
+      <canvas class="px bob" data-spr="heart" style="--u: 6"></canvas>
+      <div class="eyebrow">Back to Meera</div>
+      <h2 class="h2">A photo that carries <em>its own proof.</em></h2>
+      <p class="bridge">She answered with a link. So can you.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="/dashboard" data-nav>Owner portal →</a>
+        <a class="btn btn-ghost" href="/search" data-nav>Verify a photo</a>
+        <button class="btn btn-ghost" type="button" data-back>
+          ← Back to Veris
+        </button>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 </main>
