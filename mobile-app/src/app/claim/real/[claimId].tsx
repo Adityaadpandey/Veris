@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -25,6 +26,7 @@ import { PillButton } from "@/components/pill-button";
 import {
   CHAIN_NAME,
   CLAIM_SERVER_URL,
+  IPFS_GATEWAYS,
   publicRealClaimUrl,
   VERIS_CONTRACT_ADDRESS,
 } from "@/constants/config";
@@ -44,17 +46,6 @@ const mintedStorage = {
     return SecureStore.setItemAsync(key, value);
   },
 };
-
-// Lighthouse only serves an upload through the dedicated gateway tied to whichever API key
-// uploaded it — the public IPFS gateways (w3s.link, dweb.link, ipfs.io) never have these CIDs at
-// all. The account's dedicated gateway subdomain has changed over time (key rotations), so older
-// claims live behind older subdomains. Current one first, then the previous ones as fallback.
-const IPFS_GATEWAYS = [
-  "https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs",
-  "https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs",
-  "https://flexible-toucan-z8dgh.lighthouseweb3.xyz/ipfs",
-  "https://equivalent-crayfish-qqblv.lighthouseweb3.xyz/ipfs",
-];
 
 const MONTHS = [
   "JAN",
@@ -795,6 +786,10 @@ function ProofAccordion({
   claimId: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Opens through the first gateway; if that one lacks the file the browser shows it, and the
+  // in-app image already walked the fallbacks, so this is the best single link to share.
+  const cid = cleanCid(claim.cid);
+  const ipfsUrl = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null;
   const rows: [string, string][] = [
     ["Claim ID", short(claimId, 8)],
     ["Device Address", short(claim.device_address, 8)],
@@ -830,6 +825,25 @@ function ProofAccordion({
           {open ? "−" : "+"}
         </Text>
       </Pressable>
+      {open && ipfsUrl && (
+        <Pressable
+          onPress={() => Linking.openURL(ipfsUrl)}
+          style={styles.accordionCell}
+        >
+          <Text
+            style={mono(8.5, { spacing: 0.14, color: "rgba(16,14,12,.45)" })}
+          >
+            IPFS LINK
+          </Text>
+          <Text
+            style={[mono(10.5, { color: Palette.orange }), { marginTop: 3 }]}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
+            {ipfsUrl}
+          </Text>
+        </Pressable>
+      )}
       {open && (
         <View style={styles.accordionGrid}>
           {rows.map(([k, v]) => (
