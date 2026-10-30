@@ -30,6 +30,7 @@ require('dotenv').config();
 
 const dbService = require('../dbService');
 const openaiService = require('../openaiService');
+const clipService = require('../clipService');
 const { enrichClaim, backfillForensics } = require('../enrichService');
 
 const DELAY_MS = parseInt(process.env.BACKFILL_DELAY_MS || '1500', 10);
@@ -51,7 +52,7 @@ async function main() {
 
   const pending = force
     ? await dbService.getAllClaimsWithCid()
-    : await dbService.getClaimsNeedingBackfill();
+    : await dbService.getClaimsNeedingBackfill({ includeClip: clipService.isAvailable() });
   console.log(`🔎 Found ${pending.length} claim(s) ${force ? 'to re-enrich (--force)' : 'needing backfill'}.`);
 
   let done = 0, failed = 0, forensicsOnly = 0;
