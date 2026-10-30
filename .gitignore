@@ -97,11 +97,6 @@ deployment.json
 # Captures / uploads
 captures/
 uploads/
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.webp
 
 # Allow assets folder images
 !assets/
