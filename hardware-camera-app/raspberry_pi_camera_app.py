@@ -1159,6 +1159,19 @@ class CameraApp(App):
 
         threading.Thread(target=capture_thread, daemon=True).start()
     
+    def _get_location(self):
+        """Fetch approximate location via IP geolocation. Returns dict or None."""
+        try:
+            resp = requests.get('http://ip-api.com/json?fields=lat,lon,city,regionName,country', timeout=4)
+            if resp.status_code == 200:
+                d = resp.json()
+                parts = [d.get('city'), d.get('regionName'), d.get('country')]
+                name = ', '.join(p for p in parts if p)
+                return {'lat': d.get('lat'), 'lon': d.get('lon'), 'name': name}
+        except Exception as e:
+            print(f'⚠️ Could not get location: {e}')
+        return None
+
     def _upload_and_create_claim(self, filename, signature_info):
         """Upload image to backend and create claim."""
         # Check if offline - save to queue
@@ -1205,13 +1218,19 @@ class CameraApp(App):
             device_address = signature_info['address']
             camera_id = self.camera.get_camera_id() if self.camera.initialized else 'unknown'
             
+            # Get location via IP geolocation (best-effort)
+            location = self._get_location()
+
             # Prepare multipart form data
             files = {'image': (os.path.basename(filename), image_data, 'image/jpeg')}
             data = {
                 'imageHash': image_hash,
                 'signature': signature_info['signature'],
                 'cameraId': camera_id,
-                'deviceAddress': device_address
+                'deviceAddress': device_address,
+                'latitude': str(location['lat']) if location else '',
+                'longitude': str(location['lon']) if location else '',
+                'locationName': location['name'] if location else ''
             }
             
             # Upload to backend
@@ -1285,50 +1304,51 @@ class CameraApp(App):
                 3
             )
     
-    def _show_qr_code(self, claim_url, claim_id):
-        """Display QR code overlay."""
-        if not QRCODE_AVAILABLE:
-            # Fallback: show URL as text
-            self.qr_status.text = f"URL: {claim_url}"
-            self.qr_overlay.opacity = 1
-            return
-        
-        try:
-            # Generate QR code
+    def _generate_qr_image(self, data, out_path):
+        """Generate QR code PNG to out_path. Tries local library first, then online API."""
+        if QRCODE_AVAILABLE:
             qr = qrcode.QRCode(
                 version=1,
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
                 box_size=10,
                 border=4,
             )
-            qr.add_data(claim_url)
+            qr.add_data(data)
             qr.make(fit=True)
-            
-            # Create image
             img = qr.make_image(fill_color="black", back_color="white")
-            
-            # Convert to bytes
             img_bytes = BytesIO()
             img.save(img_bytes, format='PNG')
-            img_bytes.seek(0)
-            
-            # Save to temp file for Kivy
+            with open(out_path, 'wb') as f:
+                f.write(img_bytes.getvalue())
+            return True
+
+        # Fallback: download from free QR API (no extra library needed)
+        try:
+            import urllib.request
+            api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.request.quote(data, safe='')}"
+            urllib.request.urlretrieve(api_url, out_path)
+            return True
+        except Exception as e:
+            print(f"Online QR fallback failed: {e}")
+            return False
+
+    def _show_qr_code(self, claim_url, claim_id):
+        """Display QR code overlay."""
+        try:
             temp_path = Path(CAPTURE_DIR) / f"qr_{claim_id}.png"
-            with open(temp_path, 'wb') as f:
-                f.write(img_bytes.read())
-            
-            # Load in Kivy
-            self.qr_image.source = str(temp_path)
-            self.qr_image.reload()
-            
-            # Update title and status
+            ok = self._generate_qr_image(claim_url, str(temp_path))
+
+            if ok and temp_path.exists():
+                self.qr_image.source = str(temp_path)
+                self.qr_image.reload()
+            else:
+                self.qr_image.source = ''
+
             self.qr_title.text = '📱 Scan to Claim NFT'
-            self.qr_status.text = 'Waiting for wallet address...'
-            self.qr_status.color = (1, 1, 1, 1)  # White
-            
-            # Show overlay
+            self.qr_status.text = claim_url if not ok else 'Waiting for wallet address...'
+            self.qr_status.color = (1, 1, 1, 1)
             self.qr_overlay.opacity = 1
-            
+
         except Exception as e:
             print(f"Error generating QR code: {e}")
             self.qr_status.text = f"URL: {claim_url}"
