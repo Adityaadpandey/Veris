@@ -20,6 +20,8 @@ import {
   Star,
   WifiOff,
   ShieldCheck,
+  Sparkles,
+  Images,
 } from 'lucide-react'
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
@@ -224,6 +226,72 @@ function ProofItem({ label, value, full, link, mono }) {
   )
 }
 
+/* ── AI description + tag chips ── */
+function AiDescription({ description, tags, pending }) {
+  if (!description && !pending) return null
+  return (
+    <div className="bg-brand/[0.04] border border-brand/15 rounded-xl p-3.5 space-y-2.5">
+      <div className="flex items-center gap-1.5">
+        <Sparkles size={12} className="text-brand" />
+        <span className="text-[10px] font-semibold text-brand uppercase tracking-wider">AI Description</span>
+      </div>
+      {description ? (
+        <p className="text-[11px] leading-relaxed text-text-secondary">{description}</p>
+      ) : (
+        <p className="text-[11px] text-text-muted italic">Generating description…</p>
+      )}
+      {tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {tags.slice(0, 12).map((tag, i) => (
+            <span key={i}
+              className="text-[9px] font-medium text-text-secondary bg-white/[0.04] border border-white/[0.07] rounded-full px-2 py-0.5">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Similar verified photos ── */
+function SimilarPhotos({ results }) {
+  if (!results || results.length === 0) return null
+  return (
+    <div className="border-t border-white/[0.06] px-6 py-5">
+      <div className="flex items-center gap-1.5 mb-3">
+        <Images size={13} className="text-brand" />
+        <span className="text-[10px] text-text-muted uppercase tracking-widest font-semibold">
+          Similar Verified Photos
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {results.map((r) => {
+          const cid = cleanCid(r.cid)
+          const url = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
+          return (
+            <a key={r.claim_id} href={`/claim/${r.claim_id}`}
+              className="group block rounded-lg overflow-hidden border border-white/[0.07] bg-[#141414] hover:border-brand/40 transition-colors">
+              <div className="relative aspect-square bg-[#141414]">
+                {url && (
+                  <img src={url} alt={r.description || 'Similar photo'}
+                    className="w-full h-full object-cover" onError={ipfsOnError(cid)} />
+                )}
+                <div className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-sm border border-brand/25 rounded px-1.5 py-0.5">
+                  <span className="text-[8px] font-bold text-brand">{Math.round(r.similarity * 100)}%</span>
+                </div>
+              </div>
+              {r.description && (
+                <p className="text-[9px] text-text-muted leading-snug p-1.5 line-clamp-2">{r.description}</p>
+              )}
+            </a>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ── Skeleton ── */
 function ClaimPageSkeleton() {
   return (
@@ -291,6 +359,7 @@ export default function ClaimPage() {
   const [mintedEdition, setMintedEdition] = useState(null)
   const [accordionOpen, setAccordionOpen] = useState(false)
   const [claimServerOffline, setClaimServerOffline] = useState(false)
+  const [similar, setSimilar] = useState([])
 
   const walletAddress = address || wallets[0]?.address
 
@@ -374,6 +443,15 @@ export default function ClaimPage() {
     const interval = setInterval(fetchClaim, 6000)
     return () => clearInterval(interval)
   }, [fetchClaim])
+
+  // Fetch semantically-similar verified photos (best-effort; ignore failures)
+  useEffect(() => {
+    let cancelled = false
+    axios.get(`${CLAIM_API}/api/similar/${claimId}?limit=4`, { timeout: 8000 })
+      .then(res => { if (!cancelled && res.data?.success) setSimilar(res.data.results || []) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [claimId, claim?.ai_status])
 
   const submit = async () => {
     const recipient = useManual ? manualAddress.trim() : walletAddress
@@ -535,6 +613,12 @@ export default function ClaimPage() {
                 </div>
               </div>
             </div>
+
+            <AiDescription
+              description={claim?.description}
+              tags={claim?.tags}
+              pending={claim?.ai_status === 'pending' || claim?.ai_status == null}
+            />
           </div>
 
           {/* Right: Stats + CTA */}
@@ -698,6 +782,9 @@ export default function ClaimPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Similar verified photos ── */}
+        <SimilarPhotos results={similar} />
 
         {/* ── Proof accordion ── */}
         <div className="border-t border-white/[0.06]">
