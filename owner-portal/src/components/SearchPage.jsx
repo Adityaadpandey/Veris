@@ -1,7 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
-import { Palette, Brutal, Pill } from '@/components/brutal'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import './LandingPage/landing.css'
+import './authenticity.css'
+import './search.css'
+import Sprite from './LandingPage/Sprite'
+import { OWNER_PORTAL } from './LandingPage/links'
 
 const CLAIM_API = import.meta.env.VITE_CLAIM_SERVER_URL
   || (import.meta.env.DEV ? 'http://localhost:5001' : '/api/claim-server')
@@ -27,81 +30,71 @@ const ipfsOnError = (cid) => (e) => {
   else e.target.style.display = 'none'
 }
 
-/** Photos come in every aspect ratio a camera can shoot — clamp so a panorama or a tall portrait never blows up the card. */
-function clampAspect(aspect) {
-  return Math.min(1.9, Math.max(0.55, aspect))
+const CELLS = 10
+
+const VERDICTS = {
+  authentic_original: { cls: 'ok', title: 'Authentic original', sprite: 'check' },
+  altered_copy: { cls: 'alt', title: 'Altered copy', sprite: 'meh' },
+  no_match: { cls: 'none', title: 'No match on the chain', sprite: 'cloud' },
 }
 
-const VERDICT_TONE = {
-  authentic_original: { border: Palette.green, badgeBg: Palette.green, badgeText: Palette.bone, label: 'AUTHENTIC ORIGINAL', glyph: '✓' },
-  altered_copy:        { border: Palette.orange, badgeBg: Palette.orange, badgeText: Palette.espresso, label: 'ALTERED COPY', glyph: '⚠' },
-  no_match:            { border: 'rgba(237,231,218,.3)', badgeBg: 'rgba(237,231,218,.14)', badgeText: Palette.bone, label: 'NO MATCH ON CHAIN', glyph: '◌' },
-}
+const fmtDate = (s) => (s ? new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`).toLocaleDateString() : '')
 
-/** >=80 reads as a strong match, >=55 a soft one, below that no color claims confidence. */
-function matchColor(pct) {
-  if (pct >= 80) return Palette.green
-  if (pct >= 55) return Palette.orange
-  return 'rgba(237,231,218,.4)'
+function MatchCells({ pct }) {
+  const on = Math.round((pct / 100) * CELLS)
+  return (
+    <span className="cells hi" role="img" aria-label={`${pct} percent visual match`}>
+      {Array.from({ length: CELLS }, (_, i) => <i key={i} className={i < on ? 'on' : ''} />)}
+    </span>
+  )
 }
 
 function VerdictCard({ verdict, onOpenClaim }) {
-  const tone = VERDICT_TONE[verdict.type] || VERDICT_TONE.no_match
+  const tone = VERDICTS[verdict.type] || VERDICTS.no_match
   return (
-    <Brutal bg={Palette.espresso} border={tone.border} borderWidth={2.5} offset={3} radius={12} contentClassName="p-4">
-      <Brutal bg={tone.badgeBg} border={Palette.ink} offset={2} radius={999} contentClassName="inline-flex px-3 py-1.5 w-fit">
-        <span className="font-brutal-mono font-semibold text-[10px] tracking-[0.12em]" style={{ color: tone.badgeText }}>
-          {tone.glyph} {tone.label}
-        </span>
-      </Brutal>
-
-      <p className="font-brutal-body text-[12.5px] leading-relaxed mt-2.5" style={{ color: 'rgba(237,231,218,.8)' }}>{verdict.message}</p>
+    <section className={`verdict ${tone.cls}`} aria-labelledby="verdict-h">
+      <div className="verdict-top">
+        <span className="verdict-icon"><Sprite name={tone.sprite} u={5} /></span>
+        <div>
+          <h2 id="verdict-h">{tone.title}</h2>
+          <p>{verdict.message}</p>
+        </div>
+      </div>
 
       {(verdict.token_id != null || verdict.visual_match != null) && (
-        <div className="flex flex-wrap gap-4 mt-2.5">
-          {verdict.token_id != null && (
-            <span className="font-brutal-mono text-[10.5px]" style={{ color: 'rgba(237,231,218,.6)' }}>
-              TOKEN <span style={{ color: tone.border }}>#{verdict.token_id}</span>
-            </span>
-          )}
+        <dl className="stats two">
+          {verdict.token_id != null && <div><dt>Token</dt><dd>#{verdict.token_id}</dd></div>}
           {verdict.visual_match != null && (
-            <span className="font-brutal-mono text-[10.5px]" style={{ color: 'rgba(237,231,218,.6)' }}>
-              VISUAL MATCH <span style={{ color: tone.border }}>{verdict.visual_match}%</span>
-            </span>
+            <div>
+              <dt>Visual match</dt>
+              <dd>{verdict.visual_match}%</dd>
+              <MatchCells pct={verdict.visual_match} />
+            </div>
           )}
-        </div>
+        </dl>
       )}
 
-      {verdict.hash_decode_failed && verdict.hash_warning && (
-        <p className="font-brutal-mono text-[9.5px] leading-snug mt-2" style={{ color: Palette.orange }}>{verdict.hash_warning}</p>
-      )}
+      {verdict.hash_decode_failed && verdict.hash_warning && <p className="reject">{verdict.hash_warning}</p>}
 
       {verdict.changes && (
-        <div className="mt-3 pt-2.5 space-y-1" style={{ borderTop: '1px solid rgba(237,231,218,.14)' }}>
-          <p className="font-brutal-mono text-[9px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.45)' }}>
-            WHAT CHANGED VS THE ORIGINAL · NON-AUTHORITATIVE
-          </p>
-          {verdict.changes.summary && (
-            <p className="font-brutal-body text-[11.5px] leading-snug" style={{ color: 'rgba(237,231,218,.75)' }}>{verdict.changes.summary}</p>
-          )}
+        <div className="changes">
+          <h3 className="sig-h">What changed from the original</h3>
+          {verdict.changes.summary && <p>{verdict.changes.summary}</p>}
           {verdict.changes.items?.length > 0 ? (
-            verdict.changes.items.map((c, i) => (
-              <p key={i} className="font-brutal-body text-[11.5px] leading-snug" style={{ color: Palette.orange }}>• {c}</p>
-            ))
+            <ul>{verdict.changes.items.map((c, i) => <li key={i}>{c}</li>)}</ul>
           ) : (
-            <p className="font-brutal-body text-[11.5px] leading-snug" style={{ color: 'rgba(237,231,218,.5)' }}>
-              No visible content changes detected — likely just re-saved or compressed.
-            </p>
+            <p className="dim">No visible content changes found. It was likely re-saved or compressed.</p>
           )}
+          <p className="dim">This comparison is a guide and does not decide authenticity.</p>
         </div>
       )}
 
       {verdict.claim_id && (
-        <button onClick={() => onOpenClaim(verdict.claim_id)} className="mt-3">
-          <span className="font-brutal-mono font-semibold text-[10.5px]" style={{ color: tone.border }}>VIEW ON-CHAIN CLAIM →</span>
+        <button type="button" className="btn btn-primary view" onClick={() => onOpenClaim(verdict.claim_id)}>
+          View the on-chain claim →
         </button>
       )}
-    </Brutal>
+    </section>
   )
 }
 
@@ -109,63 +102,50 @@ function SimilarThumb({ cid }) {
   const [gatewayIndex, setGatewayIndex] = useState(0)
   const clean = cleanCid(cid)
   const uri = clean && gatewayIndex < IPFS_GATEWAYS.length ? `${IPFS_GATEWAYS[gatewayIndex]}/${clean}` : null
-  if (!uri) return <div className="w-[52px] h-[52px] rounded-lg shrink-0" style={{ background: 'rgba(237,231,218,.08)' }} />
-  return (
-    <img
-      src={uri}
-      alt=""
-      className="w-[52px] h-[52px] rounded-lg shrink-0 object-cover"
-      onError={() => setGatewayIndex(i => i + 1)}
-    />
-  )
+  if (!uri) return <span className="thumb blank"><Sprite name="camera" u={2} /></span>
+  return <img className="thumb" src={uri} alt="" onError={() => setGatewayIndex((i) => i + 1)} />
 }
 
 function SimilarRow({ result, onPress }) {
   const pct = Math.round(result.similarity * 100)
+  const meta = [result.token_id ? `Token #${result.token_id}` : null, fmtDate(result.created_at)].filter(Boolean).join(', ')
   return (
-    <button onClick={onPress} className="w-full text-left">
-      <Brutal bg="rgba(237,231,218,.05)" border="rgba(237,231,218,.28)" borderWidth={1.5} offset={3} radius={16} contentClassName="flex items-center gap-3 p-2.5">
+    <li>
+      <button type="button" className="sim" onClick={onPress}>
         <SimilarThumb cid={result.cid} />
-        <div className="flex-1 min-w-0">
-          {result.description && (
-            <p className="font-brutal-body text-[11.5px] leading-snug overflow-hidden" style={{ color: 'rgba(237,231,218,.7)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-              {result.description}
-            </p>
-          )}
-          <p className="font-brutal-mono text-[9px] mt-1" style={{ color: 'rgba(237,231,218,.4)' }}>
-            {result.token_id ? `#${result.token_id}` : '—'}
-            {result.created_at ? ` · ${new Date(result.created_at.includes('T') ? result.created_at : `${result.created_at.replace(' ', 'T')}Z`).toLocaleDateString()}` : ''}
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="font-brutal-mono font-semibold text-sm" style={{ color: matchColor(pct) }}>{pct}%</p>
-          <p className="font-brutal-mono text-[8px]" style={{ color: 'rgba(237,231,218,.4)' }}>MATCH</p>
-        </div>
-      </Brutal>
-    </button>
+        <span className="sim-text">
+          {result.description && <span className="sim-desc">{result.description}</span>}
+          {meta && <span className="sim-meta">{meta}</span>}
+        </span>
+        <span className="sim-pct">{pct}%<small>match</small></span>
+      </button>
+    </li>
   )
 }
 
-/** The web equivalent of mobile-app's VerifyPanel: pick a photo, hash it against the chain. */
+/** Pick a photo, hash it, and look for it on the chain. */
 function VerifyPanel({ onOpenClaim }) {
   const [state, setState] = useState({ phase: 'idle' })
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef()
   const cameraInputRef = useRef()
-  const hasPreview = state.phase === 'running' || state.phase === 'done' || state.phase === 'error'
+  const outRef = useRef()
+  const previewRef = useRef(null)
+  const hasPreview = state.phase !== 'idle'
+
+  useEffect(() => () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current) }, [])
+  useEffect(() => {
+    if (state.phase === 'done') outRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' })
+  }, [state.phase])
 
   const reset = () => setState({ phase: 'idle' })
 
   const runVerify = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current)
     const previewUri = URL.createObjectURL(file)
-    const previewAspect = await new Promise((resolve) => {
-      const img = new Image()
-      img.onload = () => resolve(img.naturalWidth / img.naturalHeight || 1)
-      img.onerror = () => resolve(1)
-      img.src = previewUri
-    })
-    setState({ phase: 'running', previewUri, previewAspect })
+    previewRef.current = previewUri
+    setState({ phase: 'running', previewUri, fileName: file.name })
 
     try {
       const form = new FormData()
@@ -176,122 +156,111 @@ function VerifyPanel({ onOpenClaim }) {
       setState({
         phase: 'done',
         previewUri,
-        previewAspect,
+        fileName: file.name,
         verdict: data.verdict,
         aiHint: data.ai_hint ?? null,
         queryDescription: data.query_description ?? null,
         similar: data.similar ?? data.results ?? [],
       })
     } catch (err) {
-      setState({ phase: 'error', previewUri, previewAspect, message: err.message || 'Verification failed' })
+      setState({ phase: 'error', previewUri, fileName: file.name, message: err.message || 'Verification failed' })
     }
   }, [])
 
+  const pick = (e) => { const f = e.target.files[0]; if (f) runVerify(f); e.target.value = '' }
+
   return (
-    <Brutal
-      bg="rgba(237,231,218,.06)"
-      border={dragging ? Palette.orange : 'rgba(237,231,218,.4)'}
-      shadowColor="rgba(231,88,28,.4)"
-      offset={4}
-      radius={22}
-      className="mt-6"
-      contentClassName="p-5"
-    >
-      <div
-        onDragOver={e => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) runVerify(f) }}
-      >
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && runVerify(e.target.files[0])} />
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => e.target.files[0] && runVerify(e.target.files[0])} />
+    <div className={`vp${hasPreview ? ' has' : ''}`}>
+      <input ref={inputRef} type="file" accept="image/*" className="sr" tabIndex={-1} onChange={pick} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr" tabIndex={-1} onChange={pick} />
 
-        <span className="font-brutal-mono text-[10px] tracking-[0.2em]" style={{ color: Palette.orange }}>REVERSE CHECK</span>
-        <p className="font-brutal-body font-semibold text-[15px] leading-snug mt-1" style={{ color: Palette.bone }}>
-          Pick or shoot a photo — we'll tell you if it was ever sealed
-        </p>
-
-        {!hasPreview && (
-          <div className="flex justify-center mt-4 mb-1">
-            <Brutal bg={Palette.cream} border={Palette.ink} offset={3} radius={999} contentClassName="w-14 h-14 flex items-center justify-center">
-              <span className="text-2xl" style={{ color: Palette.espresso }}>◎</span>
-            </Brutal>
-          </div>
-        )}
-
-        {hasPreview && (
-          <Brutal bg={Palette.ink} border={Palette.ink} offset={4} radius={12} className="mt-4">
-            <div style={{ aspectRatio: clampAspect(state.previewAspect) }}>
-              <img src={state.previewUri} alt="preview" className="w-full h-full object-cover" />
-            </div>
-          </Brutal>
-        )}
+      <div className="vp-photo">
+        <div
+          className={`slot vp-slot${dragging ? ' drag' : ''}${hasPreview ? ' filled' : ''}`}
+          role={hasPreview ? undefined : 'button'}
+          tabIndex={hasPreview ? undefined : 0}
+          aria-label={hasPreview ? undefined : 'Choose a photo to verify'}
+          onClick={() => !hasPreview && inputRef.current.click()}
+          onKeyDown={(e) => { if (!hasPreview && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); inputRef.current.click() } }}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) runVerify(f) }}
+        >
+          {hasPreview ? (
+            <img src={state.previewUri} alt={`Photo being checked: ${state.fileName}`} />
+          ) : (
+            <span className="empty">
+              <Sprite name="scan" u={7} />
+              <span className="empty-main">Drop a photo here</span>
+              <span className="empty-sub">or pick one below</span>
+            </span>
+          )}
+        </div>
 
         {state.phase === 'idle' && (
-          <div className="flex gap-2.5 mt-4">
-            <Pill label="CHOOSE PHOTO" onPress={() => inputRef.current.click()} bg={Palette.cream} color={Palette.espresso} className="flex-1" />
-            <Pill label="USE CAMERA" onPress={() => cameraInputRef.current.click()} bg="rgba(237,231,218,.1)" border="rgba(237,231,218,.4)" color={Palette.bone} className="flex-1" />
+          <div className="vp-btns">
+            <button type="button" className="btn btn-primary" onClick={() => inputRef.current.click()}>Choose a photo</button>
+            <button type="button" className="btn btn-ghost" onClick={() => cameraInputRef.current.click()}><Sprite name="camera" u={1.5} />Use the camera</button>
           </div>
         )}
+        {hasPreview && state.phase !== 'running' && (
+          <div className="vp-btns">
+            <button type="button" className="btn btn-ghost" onClick={reset}>{state.phase === 'error' ? 'Try again' : 'Check another photo'}</button>
+          </div>
+        )}
+      </div>
 
+      <div className="vp-out" ref={outRef} aria-live="polite">
         {state.phase === 'running' && (
-          <div className="flex items-center gap-2.5 mt-4">
-            <Loader2 size={16} className="animate-spin" style={{ color: Palette.orange }} />
-            <span className="font-brutal-mono text-[11px] tracking-[0.12em]" style={{ color: 'rgba(237,231,218,.55)' }}>
-              HASHING &amp; SEARCHING THE CHAIN…
-            </span>
+          <div className="busy" role="status">
+            <span className="cells run" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <i key={i} style={{ '--i': i }} />)}</span>
+            <p>Hashing the photo and searching the chain…</p>
           </div>
         )}
 
         {state.phase === 'error' && (
-          <>
-            <Brutal bg="rgba(231,88,28,.1)" border={Palette.orange} offset={0} radius={12} className="mt-3.5" contentClassName="p-3.5">
-              <p className="font-brutal-body text-xs leading-snug" style={{ color: Palette.bone }}>{state.message}</p>
-            </Brutal>
-            <div className="mt-3.5">
-              <Pill label="TRY AGAIN" onPress={reset} bg={Palette.cream} color={Palette.espresso} fullWidth />
+          <div className="err" role="alert">
+            <Sprite name="meh" u={3} />
+            <div>
+              <b>The check didn't finish</b>
+              <p>{state.message}. Check your connection and try again.</p>
             </div>
-          </>
+          </div>
         )}
 
         {state.phase === 'done' && (
           <>
-            <div className="mt-3.5">
-              <VerdictCard verdict={state.verdict} onOpenClaim={onOpenClaim} />
-            </div>
+            <VerdictCard verdict={state.verdict} onOpenClaim={onOpenClaim} />
 
             {state.queryDescription && (
-              <Brutal bg="rgba(231,88,28,.06)" border="rgba(231,88,28,.3)" offset={0} radius={12} className="mt-3" contentClassName="p-3">
-                <span className="font-brutal-mono text-[9.5px] tracking-[0.16em]" style={{ color: Palette.orange }}>WE DETECTED</span>
-                <p className="font-brutal-body text-xs leading-snug mt-1" style={{ color: 'rgba(237,231,218,.75)' }}>{state.queryDescription}</p>
-              </Brutal>
+              <aside className="note">
+                <h3>What we see in your photo</h3>
+                <p>{state.queryDescription}</p>
+              </aside>
             )}
 
             {state.aiHint && (
-              <p className="font-brutal-mono text-[9.5px] leading-snug mt-2.5" style={{ color: 'rgba(237,231,218,.45)' }}>
-                {state.aiHint.likely_ai_generated ? '⚠ MAY BE AI-GENERATED / MANIPULATED' : 'NO OBVIOUS AI-GENERATION ARTIFACTS'}
-                {state.aiHint.note ? ` — ${state.aiHint.note}` : ''}
+              <p className="aihint">
+                <b>{state.aiHint.likely_ai_generated ? 'This photo may be AI-generated or manipulated.' : 'No obvious signs of AI generation.'}</b>
+                {state.aiHint.note ? ` ${state.aiHint.note}` : ''}
               </p>
             )}
 
             {state.similar.length > 0 && (
-              <div className="mt-4.5">
-                <p className="font-brutal-mono text-[9.5px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.5)' }}>VISUALLY SIMILAR VERIFIED PHOTOS</p>
-                <p className="font-brutal-mono text-[8.5px] mt-0.5" style={{ color: 'rgba(237,231,218,.35)' }}>For discovery, not an authenticity check.</p>
-                <div className="mt-2.5 space-y-2.5">
-                  {state.similar.map(r => (
+              <section className="similar" aria-labelledby="sim-h">
+                <h3 id="sim-h">Verified photos that look similar</h3>
+                <p className="dim">For browsing only. This does not check authenticity.</p>
+                <ul>
+                  {state.similar.map((r) => (
                     <SimilarRow key={r.claim_id} result={r} onPress={() => onOpenClaim(r.claim_id)} />
                   ))}
-                </div>
-              </div>
+                </ul>
+              </section>
             )}
-
-            <div className="mt-3.5">
-              <Pill label="RUN ANOTHER" onPress={reset} bg={Palette.cream} color={Palette.espresso} fullWidth />
-            </div>
           </>
         )}
       </div>
-    </Brutal>
+    </div>
   )
 }
 
@@ -299,30 +268,27 @@ export default function SearchPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen relative" style={{ background: Palette.espresso }}>
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 24% 0%, rgba(231,88,28,.4) 0%, rgba(231,88,28,0) 68%)' }}
-      />
-      <div className="relative max-w-[440px] mx-auto px-5 pt-6 pb-32">
-        <div className="flex items-center justify-between">
-          <button onClick={() => navigate(-1)}>
-            <Brutal bg="rgba(237,231,218,.1)" border="rgba(237,231,218,.55)" borderWidth={2.5} offset={3} radius={999} contentClassName="w-[42px] h-[42px] flex items-center justify-center">
-              <span className="text-lg font-semibold" style={{ color: Palette.bone }}>←</span>
-            </Brutal>
-          </button>
-          <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(237,231,218,.1)', border: '1px solid rgba(237,231,218,.3)', backdropFilter: 'blur(12px)' }}>
-            <span className="font-brutal-mono text-[10px] tracking-[0.18em]" style={{ color: 'rgba(237,231,218,.55)' }}>REGISTRY / PUBLIC</span>
-          </div>
+    <div className="vl va va-fit">
+      <header className="va-nav">
+        <div className="wrap">
+          <Link className="brand" to="/" aria-label="Veris home"><Sprite name="camera" u={1.7} />VERIS</Link>
+          <Link className="btn btn-ghost" to={OWNER_PORTAL}>Owner portal →</Link>
+        </div>
+      </header>
+
+      <main className="wrap va-main">
+        <div className="va-head">
+          <h1>Was this photo ever sealed?</h1>
+          <p>Every photo captured with a Veris device is recorded on the chain. Add a file and we'll check it against the public registry.</p>
         </div>
 
-        <h1 className="font-brutal-display text-[36px] leading-[33px] mt-5" style={{ color: Palette.bone }}>Verify a<br />frame.</h1>
-        <p className="font-brutal-body text-[13px] leading-relaxed mt-2.5 max-w-[270px]" style={{ color: 'rgba(237,231,218,.55)' }}>
-          Every sealed photo lives on-chain. Drop a file below to check it against the registry.
-        </p>
-
         <VerifyPanel onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
-      </div>
+      </main>
+
+      <footer className="va-foot">
+        <Link to="/">Back to home</Link>
+        <span>Veris is a prototype and runs on the Ethereum Sepolia testnet.</span>
+      </footer>
     </div>
   )
 }
