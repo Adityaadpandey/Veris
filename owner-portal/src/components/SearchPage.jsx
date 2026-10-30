@@ -25,6 +25,59 @@ function SimilarityBar({ score }) {
   );
 }
 
+const VERDICT_STYLES = {
+  authentic_original: { bg: "#0a1f12", border: "#15803d", accent: "#22c55e", icon: "✅", title: "Authentic Original" },
+  altered_copy:       { bg: "#241605", border: "#b45309", accent: "#f59e0b", icon: "⚠️", title: "Altered Copy — Not the Verified Original" },
+  no_match:           { bg: "#151515", border: "#374151", accent: "#9ca3af", icon: "❔", title: "No Match On-Chain" },
+}
+
+function VerdictBanner({ verdict, aiHint }) {
+  if (!verdict) return null
+  const s = VERDICT_STYLES[verdict.type] || VERDICT_STYLES.no_match
+  return (
+    <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <span style={{ fontSize: 22 }}>{s.icon}</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: s.accent }}>{s.title}</span>
+      </div>
+      <p style={{ fontSize: 13, color: "#d1d5db", lineHeight: 1.55, margin: 0 }}>{verdict.message}</p>
+
+      {(verdict.token_id || verdict.bit_distance != null) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 12 }}>
+          {verdict.token_id != null && (
+            <span style={{ fontSize: 12, color: "#e5e7eb" }}>
+              Matched token <b style={{ color: s.accent }}>#{verdict.token_id}</b>
+            </span>
+          )}
+          {verdict.visual_match != null && (
+            <span style={{ fontSize: 12, color: "#e5e7eb" }}>
+              Visual match <b style={{ color: s.accent }}>{verdict.visual_match}%</b>
+              <span style={{ color: "#6b7280" }}> ({verdict.bit_distance}/64 bits differ)</span>
+            </span>
+          )}
+          {verdict.claim_url && verdict.claim_id && (
+            <a href={`/claim/${verdict.claim_id}`} style={{ fontSize: 12, color: s.accent, textDecoration: "none" }}>
+              View on-chain claim →
+            </a>
+          )}
+        </div>
+      )}
+
+      {aiHint && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 10, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+            AI-generation hint · non-authoritative
+          </div>
+          <div style={{ fontSize: 12, color: aiHint.likely_ai_generated ? "#f59e0b" : "#9ca3af" }}>
+            {aiHint.likely_ai_generated ? "⚠︎ May be AI-generated / manipulated" : "No obvious AI-generation artifacts"}
+            {aiHint.note ? ` — ${aiHint.note}` : ""}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResultCard({ result }) {
   const shortWallet = result.recipient_address
     ? `${result.recipient_address.slice(0, 6)}...${result.recipient_address.slice(-4)}`
@@ -104,6 +157,8 @@ export default function SearchPage() {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
+  const [verdict, setVerdict] = useState(null);
+  const [aiHint, setAiHint] = useState(null);
   const [queryDescription, setQueryDescription] = useState(null);
   const [error, setError] = useState(null);
   const inputRef = useRef();
@@ -115,6 +170,8 @@ export default function SearchPage() {
     }
     setPreview(URL.createObjectURL(file));
     setResults(null);
+    setVerdict(null);
+    setAiHint(null);
     setQueryDescription(null);
     setError(null);
     setLoading(true);
@@ -125,7 +182,9 @@ export default function SearchPage() {
       const res = await fetch(`${API_URL}/api/search`, { method: "POST", body: form });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Search failed");
-      setResults(data.results);
+      setResults(data.similar || data.results || []);
+      setVerdict(data.verdict || null);
+      setAiHint(data.ai_hint || null);
       setQueryDescription(data.query_description || null);
     } catch (err) {
       setError(err.message);
@@ -153,10 +212,10 @@ export default function SearchPage() {
         {/* Header */}
         <div style={{ marginBottom: 32, textAlign: "center" }}>
           <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-            Find Image Owner
+            Verify &amp; Search
           </div>
           <div style={{ fontSize: 14, color: "#6b7280" }}>
-            Upload any photo to find its verified owner on the blockchain
+            Upload a photo to check it against on-chain originals — is it authentic, altered, or unknown?
           </div>
         </div>
 
@@ -220,6 +279,9 @@ export default function SearchPage() {
         {/* Results */}
         {results !== null && !loading && (
           <div>
+            {/* Authoritative verdict first */}
+            <VerdictBanner verdict={verdict} aiHint={aiHint} />
+
             {queryDescription && (
               <div style={{
                 background: "rgba(232,80,2,0.05)",
@@ -234,12 +296,19 @@ export default function SearchPage() {
                 <div style={{ fontSize: 13, color: "#d1d5db", lineHeight: 1.5 }}>{queryDescription}</div>
               </div>
             )}
-            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-              {results.length === 0
-                ? "No matching verified photos found (score < 60%)"
-                : `${results.length} match${results.length > 1 ? "es" : ""} found`}
+
+            {/* Similar content — explicitly NOT an authenticity check */}
+            <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, marginTop: 8 }}>
+              Visually similar verified photos
             </div>
-            {results.map((r, i) => <ResultCard key={i} result={r} />)}
+            <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 12 }}>
+              Content similarity for discovery — not an authenticity check.
+            </div>
+            {results.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>No visually similar verified photos found.</div>
+            ) : (
+              results.map((r, i) => <ResultCard key={i} result={r} />)
+            )}
           </div>
         )}
 
