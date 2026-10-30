@@ -266,6 +266,8 @@ class Web3Service {
 
     try {
       const deviceInfo = await this.deviceRegistry.getDevice(deviceAddress);
+      // getDevice returns an all-zero struct for unknown devices, not a revert
+      if (deviceInfo.deviceAddress === ethers.ZeroAddress) return null;
       return {
         deviceAddress: deviceInfo.deviceAddress,
         publicKey: deviceInfo.publicKey,
