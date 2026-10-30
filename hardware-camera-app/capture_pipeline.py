@@ -30,6 +30,12 @@ try:
 except ImportError:
     CAMERA_AVAILABLE = False
 
+try:
+    import piexif
+    PIEXIF_AVAILABLE = True
+except ImportError:
+    PIEXIF_AVAILABLE = False
+
 CAPTURE_DIR = Path(os.getenv('CAPTURE_DIR', str(Path.home() / "captures")))
 CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -52,6 +58,38 @@ CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '-90'))
 
 def _noop_callback(message, level='info', duration=3):
     pass
+
+
+def _current_utc_offset_str():
+    """Pi's current local UTC offset, EXIF format ("+05:30"). Reflects whatever timezone the
+    system clock is actually set to right now (DST-aware), not a hardcoded assumption."""
+    offset = datetime.now().astimezone().utcoffset()
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = '+' if total_minutes >= 0 else '-'
+    total_minutes = abs(total_minutes)
+    return f"{sign}{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+
+
+def _stamp_capture_offset(filename):
+    """Adds OffsetTime/OffsetTimeOriginal/OffsetTimeDigitized to a just-saved JPEG so its
+    DateTimeOriginal (already written by libcamera as naive local wall-clock time, no timezone
+    marker) is no longer ambiguous to any downstream reader — a UTC-timezone server previously had
+    no way to tell that timestamp apart from a genuine UTC one, and silently misread it as UTC,
+    producing a false multi-hour gap equal to the Pi's real UTC offset. Best-effort: a stamping
+    failure shouldn't fail the capture, since the fallback logic on the server side still handles
+    an unstamped photo correctly for every device deployed today.
+    """
+    if not PIEXIF_AVAILABLE:
+        return
+    try:
+        offset_str = _current_utc_offset_str().encode()
+        exif_dict = piexif.load(str(filename))
+        exif_dict['Exif'][piexif.ExifIFD.OffsetTimeOriginal] = offset_str
+        exif_dict['Exif'][piexif.ExifIFD.OffsetTime] = offset_str
+        exif_dict['Exif'][piexif.ExifIFD.OffsetTimeDigitized] = offset_str
+        piexif.insert(piexif.dump(exif_dict), str(filename))
+    except Exception as e:
+        print(f"Warning: could not stamp EXIF timezone offset: {e}")
 
 
 class CameraController:
@@ -228,8 +266,10 @@ class CameraController:
                                 [int(cv2.IMWRITE_JPEG_QUALITY), 95])
                 else:
                     request.save("main", str(filename))
+                    _stamp_capture_offset(filename)
             else:
                 request.save("main", str(filename))
+                _stamp_capture_offset(filename)
 
             request.release()
 
