@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import markup from './story/story.html?raw'
+import raw from './story/story.html?raw'
 import { initStory } from './story/engine'
 import './story/story.css'
+
+const imgs = import.meta.glob('../../assets/story/web/*.webp', { eager: true, import: 'default' })
+const markup = raw.replace(/\{\{img:([\w-]+)\}\}/g, (_, k) => Object.entries(imgs).find(([p]) => p.endsWith(`/${k}.webp`))?.[1] ?? '')
 
 // "The story behind Veris": a pinned, scroll-driven sequence. The markup lives in story.html and
 // the scroll engine in story/engine.js, which animates it imperatively.
