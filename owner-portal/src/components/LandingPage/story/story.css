@@ -62,6 +62,14 @@
   .act p { color: var(--soft); font-size: clamp(15.5px, 1.25vw, 18px); max-width: 52ch; }
   .act .note { font: 400 12px/1.5 var(--f-mono); color: var(--mute); max-width: 46ch; }
   .act-shot { width: 150px; border: 2px solid var(--line); box-shadow: 6px 6px 0 var(--accent); }
+  .pcards { position: absolute; left: calc(100% + 56px); top: 50%; transform: translateY(-38%); width: min(600px, calc(100vw - 100% - 150px)); display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pcard { position: relative; text-align: left; cursor: pointer; font: inherit; color: var(--paper); background: var(--bg-2); border: 2px solid var(--line); padding: 0 0 16px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; transition: border-color .2s, transform .2s; }
+  .pcard:hover { border-color: var(--accent); transform: translateY(-3px); }
+  .pcard img { width: 100%; height: 120px; object-fit: cover; object-position: center; background: #000; border-bottom: 2px solid var(--line); margin-bottom: 8px; }
+  .pcard .pnum { position: absolute; top: 10px; left: 10px; font: 500 11px/1 var(--f-mono); letter-spacing: .14em; color: var(--bg); background: var(--accent); padding: 5px 7px; }
+  .pcard b { font: 700 19px/1.1 var(--f-display); padding-inline: 16px; }
+  .pcard .pl { font-size: 13.5px; color: var(--mute); padding-inline: 16px; line-height: 1.4; }
+  .chips.chips-m { display: none; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { font: 500 12px/1 var(--f-mono); min-height: 40px; padding: 0 13px; border: 2px solid var(--line); color: var(--soft); display: inline-flex; align-items: center; gap: 8px; background: rgba(14, 12, 10, .6); cursor: default; }
   button.chip { cursor: pointer; }
@@ -214,7 +222,8 @@
     .act h2 { font-size: clamp(24px, 7.2vw, 34px); }
     .act p { font-size: 14.5px; line-height: 1.45; }
     .stats { gap: 8px; } .stat b { font-size: 20px; } .stat span { font-size: 9.5px; }
-    .cue, .act .note, .hero-devs, .act-shot { display: none; }
+    .cue, .act .note, .hero-devs, .act-shot, .pcards { display: none; }
+    .chips.chips-m { display: flex; }
     .chapters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .chapters::-webkit-scrollbar { display: none; }
     .chapters .chip { flex: none; }
