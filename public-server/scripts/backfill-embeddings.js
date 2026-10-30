@@ -10,6 +10,10 @@
  *   npm run backfill
  *
  * Skips claims already marked ai_status = 'done'. Safe to re-run.
+ *
+ * Pass --force (or BACKFILL_FORCE=1) to re-enrich EVERY claim, including ones
+ * already 'done'. Use this after changing the embedding method (task type,
+ * model, or input text) so all stored vectors are regenerated consistently.
  */
 
 require('dotenv').config();
@@ -30,8 +34,11 @@ async function main() {
 
   dbService.initialize();
 
-  const pending = dbService.getClaimsMissingAI();
-  console.log(`🔎 Found ${pending.length} claim(s) needing enrichment.`);
+  const force = process.argv.includes('--force') || process.env.BACKFILL_FORCE === '1';
+  const pending = force
+    ? dbService.getAllClaimsWithCid()
+    : dbService.getClaimsMissingAI();
+  console.log(`🔎 Found ${pending.length} claim(s) ${force ? 'to re-enrich (--force)' : 'needing enrichment'}.`);
 
   let done = 0, failed = 0;
   for (let i = 0; i < pending.length; i++) {
