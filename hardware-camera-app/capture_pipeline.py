@@ -54,6 +54,8 @@ MAX_ZOOM = float(os.getenv('MAX_ZOOM', '4.0'))
 ZOOM_STEP = float(os.getenv('ZOOM_STEP', '0.5'))
 
 CAMERA_ROTATION = int(os.getenv('CAMERA_ROTATION', '-90'))
+# Which camera to open: 0 is the first one, 1 the second (e.g. CAMERA_INDEX=1 on a Pi 5 with two ports)
+CAMERA_INDEX = int(os.getenv('CAMERA_INDEX', '0'))
 
 
 def _noop_callback(message, level='info', duration=3):
@@ -121,7 +123,7 @@ class CameraController:
         try:
             time.sleep(0.5)
 
-            self.camera = Picamera2()
+            self.camera = Picamera2(CAMERA_INDEX)
             try:
                 config = self.camera.create_video_configuration(
                     main={"size": PREVIEW_SIZE},
