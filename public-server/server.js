@@ -13,12 +13,14 @@ const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
+const { parseSignup, createRateLimiter } = require('./waitlist');
 const { processCompanionLink, uploadCompanionImage } = require('./companionCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middleware setup
+app.set('trust proxy', 1); // behind Render's proxy, so req.ip is the visitor (used by the waitlist rate limit)
 app.use(express.json());
 
 const CLAIM_SERVER_URL = process.env.CLAIM_SERVER_URL || 'https://api.veris.live';
@@ -1634,6 +1636,34 @@ app.get('/api/similar/:claim_id', async (req, res) => {
   }
 });
 
+// Landing-page waitlist. Public sign-up; reading the list needs WAITLIST_ADMIN_TOKEN (and is off without it).
+const waitlistAllow = createRateLimiter();
+app.post('/api/waitlist', async (req, res) => {
+  try {
+    if (req.body?.website) return res.json({ success: true }); // honeypot filled in: pretend it worked
+    if (!waitlistAllow(req.ip)) return res.status(429).json({ success: false, error: 'Too many sign-ups from this connection. Try again in a few minutes.' });
+    const parsed = parseSignup(req.body);
+    if (!parsed.ok) return res.status(400).json({ success: false, error: parsed.error });
+    const { created } = await dbService.addWaitlistEntry(parsed.value);
+    res.json({ success: true, created });
+  } catch (error) {
+    console.error('Waitlist sign-up failed:', error.message);
+    res.status(500).json({ success: false, error: 'Could not save your email. Please try again.' });
+  }
+});
+
+app.get('/api/waitlist', async (req, res) => {
+  const token = process.env.WAITLIST_ADMIN_TOKEN;
+  if (!token || req.get('Authorization') !== `Bearer ${token}`) return res.status(404).json({ error: 'Not found' });
+  try {
+    const entries = await dbService.listWaitlist();
+    res.json({ count: entries.length, entries });
+  } catch (error) {
+    console.error('Waitlist read failed:', error.message);
+    res.status(500).json({ error: 'Could not read the waitlist.' });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'Veris Claim Server', openai: openaiService.isAvailable() });
 });
@@ -1698,6 +1728,7 @@ app.listen(PORT, async () => {
   console.log(`   - POST /complete-claim`);
   console.log(`   - GET  /api/metadata/:claim_id`);
   console.log(`   - POST /api/search  (semantic image search)`);
+  console.log(`   - POST /api/waitlist`);
   console.log(`   - GET  /api/similar/:claim_id`);
   console.log(`   - POST /api/enrich/:claim_id`);
   console.log(`   - POST /api/enrich/backfill?force=1  (requires X-Admin-Token)`);

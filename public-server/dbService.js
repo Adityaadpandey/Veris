@@ -133,6 +133,18 @@ class ClaimDBService {
       )
     `);
 
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        role TEXT,
+        device TEXT,
+        source TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await this.pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email)`);
+
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status)`);
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_cid ON claims(cid)`);
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_claims_ai_status ON claims(ai_status)`);
@@ -536,6 +548,21 @@ class ClaimDBService {
       WHERE cid IS NOT NULL AND cid != ''
       ORDER BY created_at ASC
     `);
+    return rows;
+  }
+
+  // Adds a sign-up. A repeat email keeps its original row but takes any role/device it did not have before.
+  async addWaitlistEntry({ email, role, device, source }) {
+    const { rows } = await this.pool.query(`
+      INSERT INTO waitlist (email, role, device, source) VALUES ($1, $2, $3, $4)
+      ON CONFLICT (email) DO UPDATE SET role = COALESCE(waitlist.role, EXCLUDED.role), device = COALESCE(waitlist.device, EXCLUDED.device)
+      RETURNING (xmax = 0) AS inserted
+    `, [email, role, device, source]);
+    return { created: rows[0].inserted };
+  }
+
+  async listWaitlist() {
+    const { rows } = await this.pool.query('SELECT id, email, role, device, source, created_at FROM waitlist ORDER BY id');
     return rows;
   }
 
