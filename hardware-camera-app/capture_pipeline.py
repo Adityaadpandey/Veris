@@ -237,6 +237,10 @@ class CameraController:
             frame = self.camera.capture_array()
             return frame
         except Exception as e:
+            # Runs ~30x a second, so only log each distinct error once
+            if str(e) != getattr(self, "_last_frame_error", None):
+                self._last_frame_error = str(e)
+                print(f"get_frame failed: {e}")
             return None
 
     def take_photo(self):
