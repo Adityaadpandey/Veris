@@ -1,0 +1,73 @@
+/* Search (reverse check) page. Builds on authenticity.css and landing.css. */
+
+.vl.va {
+  /* ---------- picker + result layout ---------- */
+  .vp { max-width: 560px; margin-inline: auto; display: flex; flex-direction: column; gap: clamp(28px, 3.5vw, 44px); }
+  .vp.has { max-width: 1040px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; gap: clamp(24px, 3.5vw, 48px); }
+  .vp-photo { display: flex; flex-direction: column; gap: 22px; }
+  .vp.has .vp-photo { position: sticky; top: 24px; }
+  .vp-slot { aspect-ratio: auto; height: clamp(180px, 36svh, 340px); }
+  .vp.has .vp-slot { cursor: default; height: auto; min-height: 200px; max-height: 46svh; }
+  .vp.has .vp-slot:hover { transform: none; box-shadow: 4px 4px 0 var(--ink); background: var(--ink); }
+  .vp-btns { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .vp.has .vp-btns { justify-content: flex-start; }
+  .vp-out { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+  .vp-out:empty { display: none; }
+
+  /* ---------- verdict variants (base .verdict lives in authenticity.css) ---------- */
+  .verdict.alt .verdict-icon { background: var(--peach); }
+  .verdict.none .verdict-icon { background: var(--cream); }
+  .verdict.ok { box-shadow: 6px 6px 0 var(--orange); }
+  .stats.two { grid-template-columns: repeat(2, 1fr); }
+  .stats .cells { margin-top: 12px; display: flex; max-width: 220px; }
+  .verdict .view { margin-top: 24px; background: var(--orange); color: var(--ink); border-color: var(--cream); box-shadow: 4px 4px 0 var(--orange-d); }
+  .verdict .view:hover { background: #FF7F3A; box-shadow: 2px 2px 0 var(--orange-d); }
+
+  .changes { margin-top: 4px; }
+  .changes p, .changes li { font: 400 14px/1.6 var(--f-mono); }
+  .changes ul { margin: 8px 0 0; padding-left: 20px; }
+  .changes li { color: var(--peach); }
+  .dim { color: #8F8575; font: 400 13px/1.5 var(--f-mono); }
+  .verdict .dim { color: #B9AD97; }
+  .changes .dim { margin-top: 10px; }
+
+  /* ---------- side notes ---------- */
+  .note { background: var(--peach-2); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 16px 18px; }
+  .note h3, .similar h3 { font: 700 20px/1.1 var(--f-pixel); }
+  .note p { font: 400 14px/1.6 var(--f-mono); margin-top: 8px; }
+  .aihint { font: 400 13px/1.6 var(--f-mono); color: #2A241E; }
+  .aihint b { font-weight: 500; }
+
+  /* ---------- similar photos ---------- */
+  .similar .dim { margin-top: 4px; }
+  .similar ul { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .sim {
+    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer; color: var(--ink); font: inherit;
+    background: #fff; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 10px;
+    transition: transform .12s steps(2), box-shadow .12s steps(2), background-color .12s;
+  }
+  .sim:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); background: var(--peach-2); }
+  .sim:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+  .thumb { width: 64px; height: 64px; flex: none; object-fit: cover; border: 2px solid var(--ink); background: var(--grey); }
+  .thumb.blank { display: grid; place-items: center; }
+  .sim-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .sim-desc { font: 400 14px/1.4 var(--f-nav); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sim-meta { font: 400 12px/1.3 var(--f-mono); color: #4A433B; }
+  .sim-pct { flex: none; text-align: right; font: 700 22px/1 var(--f-pixel); }
+  .sim-pct small { display: block; margin-top: 4px; font: 400 11px/1 var(--f-mono); color: #4A433B; }
+
+  /* desktop: the page is exactly one screen tall; a long result scrolls inside its own pane, so nothing is cut off */
+  @media (min-width: 861px) and (min-height: 560px) {
+    &.va-fit { height: 100svh; overflow: hidden; }
+    &.va-fit .va-main { min-height: 0; }
+    &.va-fit .vp.has { flex: 1; min-height: 0; align-items: stretch; }
+    &.va-fit .vp.has .vp-photo { position: static; justify-content: flex-start; }
+    &.va-fit .vp-out { overflow-y: auto; min-height: 0; padding: 0 10px 10px 0; }
+  }
+
+  @media (max-width: 860px) {
+    .vp.has { grid-template-columns: 1fr; }
+    .vp.has .vp-photo { position: static; }
+    .vp.has .vp-slot { max-height: 360px; }
+  }
+}
