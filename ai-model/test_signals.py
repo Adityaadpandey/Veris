@@ -218,6 +218,58 @@ def test_calibrate_returns_threshold(verifier):
     threshold = verifier.calibrate(DATA_DIR)
     assert isinstance(threshold, float)
     assert 0.0 < threshold < 1.0
+
+
+# ------------------------------------------------------------------
+#  OPENAI VISION SIGNAL
+# ------------------------------------------------------------------
+
+def test_openai_vision_requires_api_key(monkeypatch):
+    from main import OpenAIVisionSignal
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError):
+        OpenAIVisionSignal()
+
+
+def test_verifier_without_openai_key_falls_back_gracefully(monkeypatch):
+    """No API key -> verifier should disable the signal and renormalize
+    weights across the rest, not crash or silently zero it out."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from main import ImageVerifier
+    v = ImageVerifier(device="cpu", use_openai=True)
+    assert v.openai is None
+
+    result = v.verify(DSLR_PATH, ESP_PATH)
+    assert "openai_vision" not in result["signals"]
+    assert 0.0 <= result["score"] <= 1.0
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set -- skipping live OpenAI vision call",
+)
+def test_openai_vision_same_scene_scores_above_floor():
+    from main import OpenAIVisionSignal
+    dslr = Image.open(DSLR_PATH).convert("RGB")
+    esp = Image.open(ESP_PATH).convert("RGB")
+    signal = OpenAIVisionSignal()
+    score = signal.score(dslr, esp)
+    assert 0.0 <= score <= 1.0
+    assert score > 0.35, f"Same scene OpenAI vision score {score} below floor"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set -- skipping live OpenAI vision call",
+)
+def test_openai_vision_random_image_scores_low(dslr_image, random_image):
+    from main import OpenAIVisionSignal
+    signal = OpenAIVisionSignal()
+    score = signal.score(dslr_image, random_image)
+    assert 0.0 <= score <= 1.0
+    assert score < 0.5, f"Unrelated image OpenAI vision score {score} unexpectedly high"
+
+
 # ------------------------------------------------------------------
 #  REGRESSION: EXIF orientation + ORB normalization
 # ------------------------------------------------------------------
