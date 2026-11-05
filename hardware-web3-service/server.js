@@ -30,7 +30,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Enable CORS for all routes
-app.use(cors());
+// Only the portal and app may call this from a browser. Pi apps and curl send no Origin header, so they are unaffected.
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://veris.live,https://www.veris.live,http://localhost:3000,http://localhost:5173').split(',').map((o) => o.trim());
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)) }));
 
 function ensureCapturesDirectory() {
   let capturesPath = process.env.CAPTURES_PATH;
