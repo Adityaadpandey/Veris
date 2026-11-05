@@ -60,9 +60,9 @@ class DeploymentService {
     this._chains[chainId] = found && {
       deployment: found,
       deviceRegistryAddress: found.contracts?.DeviceRegistry?.address || null,
-      verisAddress: found.contracts?.CandidERC1155?.address || null,
+      verisAddress: (found.contracts?.VerisERC1155 || found.contracts?.CandidERC1155)?.address || null,
       deviceRegistryABI: found.contracts?.DeviceRegistry?.abi || null,
-      verisABI: found.contracts?.CandidERC1155?.abi || null,
+      verisABI: (found.contracts?.VerisERC1155 || found.contracts?.CandidERC1155)?.abi || null,
     };
     return this._chains[chainId];
   }
@@ -121,7 +121,8 @@ class DeploymentService {
   }
 
   getVerisAddress() {
-    return this.getContractAddress('CandidERC1155');
+    // files written before the rename still use the old key
+    return this.getContractAddress('VerisERC1155') || this.getContractAddress('CandidERC1155');
   }
 
   getDeviceRegistryABI() {
@@ -129,7 +130,7 @@ class DeploymentService {
   }
 
   getVerisABI() {
-    return this.getContractABI('CandidERC1155');
+    return this.getContractABI('VerisERC1155') || this.getContractABI('CandidERC1155');
   }
 }
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {DeviceRegistry} from "../src/DeviceRegistry.sol";
-import {CandidERC1155} from "../src/CandidERC1155.sol";
+import {VerisERC1155} from "../src/VerisERC1155.sol";
 import {VerisLicense} from "../src/VerisLicense.sol";
 
 contract FakeUSDC is ERC20 {
@@ -15,7 +15,7 @@ contract FakeUSDC is ERC20 {
 
 contract VerisLicenseTest is Test {
     FakeUSDC usdc;
-    CandidERC1155 photos;
+    VerisERC1155 photos;
     VerisLicense license;
     address device = address(0xD1);
     address photographer = address(0xA11CE);
@@ -25,7 +25,7 @@ contract VerisLicenseTest is Test {
     function setUp() public {
         DeviceRegistry registry = new DeviceRegistry();
         registry.registerDevice(device, "0xabc", "pi-1", "cam-1", "Pi", "1.0");
-        photos = new CandidERC1155(address(registry), "https://x/");
+        photos = new VerisERC1155(address(registry), "https://x/");
         vm.prank(device);
         tokenId = photos.mintOriginal(photographer, keccak256("meta"), 0);
 

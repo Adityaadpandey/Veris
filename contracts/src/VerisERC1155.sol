@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./DeviceRegistry.sol";
 
-contract CandidERC1155 is ERC1155, Ownable {
+contract VerisERC1155 is ERC1155, Ownable {
     using Strings for uint256;
 
     // Reference to device registry for validation
