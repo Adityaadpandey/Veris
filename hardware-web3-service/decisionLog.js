@@ -1,3 +1,4 @@
+import { publishProvenance } from './provenance.js';
 import dbService from './dbService.js';
 import storageService from './storageService.js';
 import zerogStorageService from './zerogStorageService.js';
@@ -31,6 +32,7 @@ export async function storeDecisionLog(image) {
     // the log is meant to live on 0G; only fall back to the normal storage order if 0G fails
     const ref = await zerogStorageService.uploadMetadata(log).catch(() => storageService.uploadMetadata(log));
     dbService.setDecisionLogRef(image.id, ref);
+    publishProvenance(image.id);
     return ref;
   } catch (e) {
     console.warn(`   ⚠️ Decision log for image ${image.id} not stored yet: ${e.message}`);

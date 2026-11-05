@@ -22,6 +22,7 @@ import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
 import { checkPacket, buildPacketMessage } from './packet.js';
 import { initChains, mintEverywhere, retrySecondaryMints, explorerTxUrl } from './chains.js';
+import { publishProvenance } from './provenance.js';
 import { buildDecisionLog, storeDecisionLog, retryDecisionLogs } from './decisionLog.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -873,6 +874,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
                 tx_hash: mintResult.txHash,
                 recipient_address: ownerWallet
               });
+              publishProvenance(image.id);
 
               dbService.updateClaim(claimId, {
                 token_id: mintResult.tokenId,
@@ -1133,6 +1135,7 @@ app.post('/api/mint-pending', async (req, res) => {
           tx_hash: mintResult.txHash,
           recipient_address: ownerWallet
         });
+              publishProvenance(image.id);
 
         dbService.updateClaim(image.claim_id, {
           token_id: mintResult.tokenId,
@@ -1262,6 +1265,7 @@ async function retryPendingUploads() {
           tx_hash: mintResult.txHash,
           recipient_address: ownerWallet
         });
+              publishProvenance(image.id);
         dbService.updateClaim(image.claim_id, {
           token_id: mintResult.tokenId,
           tx_hash: mintResult.txHash,
