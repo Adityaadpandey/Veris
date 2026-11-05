@@ -23,6 +23,12 @@ try:
         except:
             pass
     
+    if not camera_id and os.getenv('FORCE_EXPORT') != '1':
+        # the key is derived from the camera's id; without it you'd export a different key
+        print("❌ No camera id. Start the camera app once (it exports the right key itself),"
+              " or pass the id: python3 export_key.py <camera_id>", file=sys.stderr)
+        sys.exit(1)
+
     hw_id = get_hardware_identity(camera_id=camera_id)
     private_key_hex = hw_id.private_key.to_string().hex()
     
