@@ -11,6 +11,7 @@ const { enrichClaim, fetchImageBuffer, backfillForensics } = require('./enrichSe
 const { sha256Hex, computeHashes, bestCombinedHashDistance, transformForOrientation } = require('./imageHash');
 const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
+const { isZerogRef } = require('./zerogRead');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
 const { parseSignup, createRateLimiter } = require('./waitlist');
@@ -1689,6 +1690,14 @@ app.get('/api/image/:cid', async (req, res) => {
     return res.status(400).json({ error: 'Invalid CID' });
   }
   try {
+    // 0G refs have no HTTP gateway, so fetch through the SDK; everything else streams from Lighthouse
+    if (isZerogRef(cid)) {
+      const { buffer, mimeType } = await fetchImageBuffer(cid);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.end(buffer);
+    }
     const upstream = await fetch(`${LIGHTHOUSE_GATEWAY}/${cid}`);
     if (!upstream.ok) {
       return res.status(upstream.status).json({ error: 'Image not available' });

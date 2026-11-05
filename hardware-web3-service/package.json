@@ -23,6 +23,7 @@
     "form-data": "^4.0.0",
     "@filoz/synapse-sdk": "0.35.3",
     "@lighthouse-web3/sdk": "^0.4.3",
+    "@0gfoundation/0g-storage-ts-sdk": "1.2.13",
     "viem": "^2.0.0",
     "@privy-io/server-auth": "^1.0.0"
   },

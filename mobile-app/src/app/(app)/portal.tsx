@@ -34,6 +34,7 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 function cleanCid(hash: string | null | undefined): string | null {
   if (!hash) return null;
   if (hash.startsWith('ipfs://')) return hash.slice(7);
+  if (hash.startsWith('0g://')) return '0g' + hash.slice(5).replace(/^0x/, '');
   if (hash.startsWith('http://') || hash.startsWith('https://')) return null;
   return hash;
 }
