@@ -44,7 +44,7 @@ import threading
 from capture_pipeline import (
     CameraController,
     CAMERA_AVAILABLE,
-    sign_image,
+    check_and_sign,
     upload_and_create_claim,
     retry_pending_uploads,
 )
@@ -59,7 +59,7 @@ except ImportError:
 
 PHONE_MAC = os.getenv('PHONE_MAC')
 TETHER_TIMEOUT = int(os.getenv('TETHER_TIMEOUT', '10'))
-RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', '300'))
+RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', '30'))
 
 
 class HeadlessCameraApp:
@@ -90,7 +90,7 @@ class HeadlessCameraApp:
         # Drain any backlog from a previous offline period, then keep
         # retrying on a timer in case the phone reconnects with tethering
         # on without a new CAPTURE happening.
-        retry_pending_uploads(status_callback=self._status)
+        retry_pending_uploads(status_callback=self._status, hardware_identity=self.hardware_identity)
         self._start_retry_timer()
 
         print("Headless camera app ready, waiting for phone connections")
@@ -101,7 +101,7 @@ class HeadlessCameraApp:
         def loop():
             while True:
                 time.sleep(RETRY_INTERVAL)
-                retry_pending_uploads(status_callback=self._status)
+                retry_pending_uploads(status_callback=self._status, hardware_identity=self.hardware_identity)
         threading.Thread(target=loop, daemon=True).start()
 
     def _status(self, message, level='info', duration=3):
@@ -124,7 +124,7 @@ class HeadlessCameraApp:
             return
         self.server.send_status("CAPTURED")
 
-        signature_info = sign_image(self.hardware_identity, filename)
+        signature_info = check_and_sign(self.hardware_identity, filename, status_callback=self._status)
         if not signature_info:
             self.server.send_status("FAILED:signing")
             return
@@ -145,6 +145,8 @@ class HeadlessCameraApp:
             self.server.send_status("UPLOADED:")
         elif status == 'queued':
             self.server.send_status("QUEUED:offline")
+        elif status == 'pending':
+            self.server.send_status("QUEUED:pending")
         else:
             self.server.send_status("FAILED:upload")
 
