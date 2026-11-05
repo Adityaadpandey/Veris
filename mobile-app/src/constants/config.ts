@@ -72,4 +72,4 @@ export const CHAIN_LABEL = "SEPOLIA";
 export const CHAIN_NAME = "Sepolia Testnet";
 
 /** The deployed Veris ERC-1155 contract (same address owner-portal reads, and the Pi mints to). */
-export const VERIS_CONTRACT_ADDRESS = "0x4d6de10212f375ae896B22dC8Fc73F6F6bf2DE9f";
+export const VERIS_CONTRACT_ADDRESS = "0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9";

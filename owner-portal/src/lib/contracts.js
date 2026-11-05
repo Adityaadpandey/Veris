@@ -1,6 +1,6 @@
-// Sepolia deployment (CandidERC1155 + DeviceRegistry). Keep in sync with deployment.json.
-export const VERIS_ADDRESS = '0x4d6de10212f375ae896B22dC8Fc73F6F6bf2DE9f'
-export const DEVICE_REGISTRY_ADDRESS = '0x16dA5f3b55FB02665075531cC9b1E5901D36A0C5'
+// Sepolia deployment (VerisERC1155 + DeviceRegistry). Keep in sync with contracts/deployment-11155111.json.
+export const VERIS_ADDRESS = '0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9'
+export const DEVICE_REGISTRY_ADDRESS = '0x7e6bd8193E9762430ff6E494764D74036E333c14'
 
 // Only the bits the portal uses. The CID, image hash and signature are no longer
 // stored on-chain: the contract keeps a metadataHash, and the full document lives
