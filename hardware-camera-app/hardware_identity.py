@@ -14,39 +14,71 @@ except ImportError:
     print("Warning: ecdsa library not available. Install with: pip3 install ecdsa")
     print("   Hardware signing features will be disabled")
 
-# Try to import keccak256 for Ethereum address calculation
-KECCAK_AVAILABLE = False
-try:
-    # Try pysha3 first (most common)
-    import sha3
-    KECCAK_AVAILABLE = True
-except ImportError:
-    try:
-        # Try pycryptodome
-        from Crypto.Hash import keccak
-        KECCAK_AVAILABLE = True
-    except ImportError:
-        KECCAK_AVAILABLE = False
-        print("Warning: keccak256 not available. Install with: pip3 install pysha3")
-        print("   Address calculation will use SHA256 (won't match Ethereum addresses)")
+# Pure Python Keccak-256 (the Ethereum hash, not NIST SHA3). It is slow, but we only hash a few
+# hundred bytes per photo, and it means a broken pycryptodome/cffi install on the Pi can't stop signing.
+_KECCAK_RC = [
+    0x0000000000000001, 0x0000000000008082, 0x800000000000808A, 0x8000000080008000,
+    0x000000000000808B, 0x0000000080000001, 0x8000000080008081, 0x8000000000008009,
+    0x000000000000008A, 0x0000000000000088, 0x0000000080008009, 0x000000008000000A,
+    0x000000008000808B, 0x800000000000008B, 0x8000000000008089, 0x8000000000008003,
+    0x8000000000008002, 0x8000000000000080, 0x000000000000800A, 0x800000008000000A,
+    0x8000000080008081, 0x8000000000008080, 0x0000000080000001, 0x8000000080008008,
+]
+_KECCAK_ROT = [
+    [0, 36, 3, 41, 18], [1, 44, 10, 45, 2], [62, 6, 43, 15, 61],
+    [28, 55, 25, 21, 56], [27, 20, 39, 8, 14],
+]
+_MASK64 = (1 << 64) - 1
+
+
+def _rol64(v, n):
+    n %= 64
+    return ((v << n) | (v >> (64 - n))) & _MASK64 if n else v
+
+
+def _keccak_f(a):
+    for rc in _KECCAK_RC:
+        c = [a[x] ^ a[x + 5] ^ a[x + 10] ^ a[x + 15] ^ a[x + 20] for x in range(5)]
+        d = [c[(x - 1) % 5] ^ _rol64(c[(x + 1) % 5], 1) for x in range(5)]
+        a = [a[i] ^ d[i % 5] for i in range(25)]
+        b = [0] * 25
+        for x in range(5):
+            for y in range(5):
+                b[y + 5 * ((2 * x + 3 * y) % 5)] = _rol64(a[x + 5 * y], _KECCAK_ROT[x][y])
+        a = [b[i] ^ ((~b[(i % 5 + 1) % 5 + 5 * (i // 5)]) & b[(i % 5 + 2) % 5 + 5 * (i // 5)]) for i in range(25)]
+        a[0] ^= rc
+    return a
+
+
+def _keccak256_pure(data):
+    rate = 136
+    pad_len = rate - (len(data) % rate)
+    padded = data + (b"\x81" if pad_len == 1 else b"\x01" + b"\x00" * (pad_len - 2) + b"\x80")
+    state = [0] * 25
+    for off in range(0, len(padded), rate):
+        block = padded[off:off + rate]
+        for i in range(rate // 8):
+            state[i] ^= int.from_bytes(block[i * 8:(i + 1) * 8], "little")
+        state = _keccak_f(state)
+    return b"".join(state[i].to_bytes(8, "little") for i in range(4))
+
 
 def _keccak256(data):
-    # hashlib.sha3_256 is NIST SHA3, not the keccak Ethereum uses, so it needs one of these libs
     try:
         import sha3
         k = sha3.keccak_256()
         k.update(data)
         return k.digest()
-    except ImportError:
+    except Exception:
+        pass
+    try:
         from Crypto.Hash import keccak
         k = keccak.new(digest_bits=256)
         k.update(data)
         return k.digest()
-
-
-def ellipticcurve_point(curve, x, y, order):
-    from ecdsa.ellipticcurve import PointJacobi
-    return PointJacobi(curve, x, y, 1, order)
+    except Exception:
+        # also catches the cffi "Version mismatch" error, which is not an ImportError
+        return _keccak256_pure(data)
 
 
 SALT_PATH = os.getenv('SALT_PATH', '/boot/.device_salt')
@@ -181,31 +213,9 @@ class HardwareIdentity:
         return private_key, public_key
     
     def _get_address(self):
-        pub_key_bytes = self.public_key.to_string()
-        
-        if KECCAK_AVAILABLE:
-            try:
-                # Try pysha3
-                try:
-                    import sha3
-                    k = sha3.keccak_256()
-                    k.update(pub_key_bytes)
-                    hash_bytes = k.digest()
-                except:
-                    from Crypto.Hash import keccak
-                    k = keccak.new(digest_bits=256)
-                    k.update(pub_key_bytes)
-                    hash_bytes = k.digest()
-                
-                address = hash_bytes[-20:].hex()
-                return f"0x{address}"
-            except Exception as e:
-                print(f"Warning: keccak256 calculation failed: {e}, using SHA256 fallback")
-        
-        address_hash = hashlib.sha256(pub_key_bytes).hexdigest()[:40]
-        print("⚠️ Using SHA256 for address (install pysha3 for keccak256)")
-        return f"0x{address_hash}"
-    
+        # Ethereum address = last 20 bytes of keccak256(uncompressed public key without the 04 prefix)
+        return "0x" + _keccak256(self.public_key.to_string())[-20:].hex()
+
     def sign_data(self, data):
         if not self.initialized:
             raise RuntimeError("Hardware identity not initialized")
