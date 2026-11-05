@@ -7,8 +7,8 @@ import {CandidERC1155} from "../src/CandidERC1155.sol";
 
 contract DeployAndVerifyScript is Script {
     function run() external {
-        // Free testnets only (Base Sepolia, Sepolia): never deploy to a mainnet by accident.
-        require(block.chainid == 84532 || block.chainid == 11155111, "Testnet only");
+        // Free testnets only (Base Sepolia, Sepolia, Arc testnet): never deploy to a mainnet by accident.
+        require(block.chainid == 84532 || block.chainid == 11155111 || block.chainid == 5042002, "Testnet only");
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
