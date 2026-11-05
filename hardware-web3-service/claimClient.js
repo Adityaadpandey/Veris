@@ -39,7 +39,9 @@ class ClaimClient {
       baseURL: this.baseURL,
       timeout: timeout,
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        // the public server only accepts device writes carrying this secret (when it has one set)
+        ...(process.env.DEVICE_API_SECRET ? { 'x-device-secret': process.env.DEVICE_API_SECRET } : {})
       }
     });
   }

@@ -113,7 +113,7 @@ async function initializeServices() {
 
 initializeServices();
 
-app.post('/create-claim', async (req, res) => {
+app.post('/create-claim', requireDeviceSecret, async (req, res) => {
   try {
     const {
       claim_id, cid, metadata_cid,
@@ -1051,7 +1051,7 @@ app.post('/claim/:claim_id/submit', async (req, res) => {
   }
 });
 
-app.post('/update-claim-status', async (req, res) => {
+app.post('/update-claim-status', requireDeviceSecret, async (req, res) => {
   try {
     const { claim_id, status, token_id, tx_hash } = req.body;
 

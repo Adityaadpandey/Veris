@@ -1110,6 +1110,21 @@ sudo systemctl start Veris.service
 - **Private Key Protection**: Keys stored securely, never exposed
 - **Tamper-Proof Metadata**: Immutable metadata on blockchain
 
+### What a capture proves, and what it does not
+
+Each capture is signed as one packet: image hash, phone-photo hash, AI verdict, timestamp, a random nonce and the device address. The backend recovers the signer, checks it is a registered and active device, and refuses stale or reused nonces, so a signed upload cannot be replayed or re-attributed. A device is only "registered" if the registry owner added it (`registerDevice` is owner-only on new deployments).
+
+Known gaps, stated plainly:
+
+- **The device key is software.** It is derived from the CPU serial, MAC, machine-id and a salt stored on the SD card. Someone who copies the card can sign as that device. There is no TPM or secure element in this build.
+- **The exported key file** (`.device_key_export`) is `chmod 600` but still plaintext on the card.
+- **Pointing a lens at a screen or print still passes the signature.** The defence is the liveness check: a vision model (0G Router, or GPT as fallback) judges whether the scene is real and, when a phone photo exists, whether both photos show the same scene. It is a model's opinion, not a depth sensor. If no model can answer, the capture is held as `pending`; it is never given a guessed verdict.
+- **The 0G key lives on the device.** It is a low-credit key, rotate it after the event.
+- **No on-chain proof verifier yet.** The backend verifies the signature and the verdict, and the packet hash is committed on-chain with the mint. A RISC Zero verifier contract would be the next step.
+- **The phone photo does not reach the Pi.** Bluetooth carries commands only, so the on-device check currently sees the camera photo alone. The same-scene comparison still runs server-side in `companionCapture.js`.
+
+Optional services (all off by default, all fall back to the original stack): 0G liveness (`ZEROG_ENABLED`), 0G storage (`STORAGE_PROVIDER=0g`), Arc minting next to Sepolia (`CHAINS=sepolia,arc`), Arkiv claim records (`ARKIV_ENABLED`). See each `.env.example`.
+
 ---
 
 ## 📈 Performance
