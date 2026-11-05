@@ -7,6 +7,7 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import os from 'os';
+import crypto from 'crypto';
 import { ethers } from 'ethers';
 
 dotenv.config();
@@ -17,6 +18,7 @@ import filecoinService from './filecoinService.js';
 import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
+import { checkPacket, buildPacketMessage } from './packet.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -679,16 +681,49 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       deviceAddress,
       latitude,
       longitude,
-      locationName
+      locationName,
+      companionHash,
+      verdict,
+      timestamp,
+      nonce
     } = req.body;
 
-    if (!imageHash || !signature || !cameraId || !deviceAddress) {
-      // Clean up uploaded file
+    const reject = (status, error) => {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: imageHash, signature, cameraId, deviceAddress'
-      });
+      return res.status(status).json({ success: false, error });
+    };
+
+    if (!imageHash || !signature || !cameraId || !deviceAddress) {
+      return reject(400, 'Missing required fields: imageHash, signature, cameraId, deviceAddress');
+    }
+
+    // The bytes we received must be the bytes the device signed
+    const receivedHash = crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+    if (receivedHash !== imageHash.toLowerCase()) {
+      return reject(400, 'imageHash does not match the uploaded file');
+    }
+
+    // The same upload sent twice is answered below with the first result, so only fresh packets get checked
+    if (!dbService.getImageByHash(imageHash) && process.env.ENFORCE_PACKET !== 'false') {
+      const packet = checkPacket(
+        { imageHash, companionHash, verdict, timestamp, nonce, deviceAddress },
+        signature,
+        (n) => dbService.hasNonce(n)
+      );
+      if (!packet.ok) {
+        console.warn(`🚫 Upload rejected (${packet.error}) from ${deviceAddress}`);
+        return reject(packet.status, packet.error);
+      }
+
+      if (!web3Service.initialized) return reject(503, 'Chain connection not ready, try again shortly');
+      let active = false;
+      try {
+        active = await web3Service.isDeviceActive(deviceAddress);
+      } catch (e) {
+        // can't tell right now; 503 makes the camera keep it queued and try again
+        return reject(503, `Could not check device registry: ${e.message}`);
+      }
+      if (!active) return reject(403, 'Device is not registered and active');
     }
 
     // The camera retries an upload it thought timed out, even when the first try went through
@@ -729,7 +764,11 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       signature,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
-      location_name: locationName || null
+      location_name: locationName || null,
+      companion_hash: companionHash || null,
+      verdict: verdict || null,
+      packet_ts: timestamp ? Number(timestamp) : null,
+      packet_nonce: nonce || null
     });
 
     console.log(`📸 Image uploaded: ${image.id} - ${filename}`);
@@ -962,7 +1001,14 @@ app.get('/api/verify/:claimId', async (req, res) => {
 
     if (image.signature && image.image_hash && image.device_address) {
       try {
-        const recovered = ethers.verifyMessage(image.image_hash, image.signature);
+        // packets signed before the packet format only covered the image hash
+        const signedText = image.packet_nonce
+          ? buildPacketMessage({
+              imageHash: image.image_hash, companionHash: image.companion_hash, verdict: image.verdict,
+              timestamp: image.packet_ts, nonce: image.packet_nonce, deviceAddress: image.device_address
+            })
+          : image.image_hash;
+        const recovered = ethers.verifyMessage(signedText, image.signature);
         checks.signatureValid = recovered.toLowerCase() === image.device_address.toLowerCase();
       } catch (_) {}
     }

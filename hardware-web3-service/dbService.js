@@ -107,6 +107,19 @@ class DBService {
     safeAlter(`ALTER TABLE images ADD COLUMN latitude REAL`);
     safeAlter(`ALTER TABLE images ADD COLUMN longitude REAL`);
     safeAlter(`ALTER TABLE images ADD COLUMN location_name TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN companion_hash TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN verdict TEXT`);
+    safeAlter(`ALTER TABLE images ADD COLUMN packet_ts INTEGER`);
+    safeAlter(`ALTER TABLE images ADD COLUMN packet_nonce TEXT`);
+
+    // one row per accepted capture packet, so the same signed packet can't be replayed
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS used_nonces (
+        nonce TEXT PRIMARY KEY,
+        device_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS devices (
@@ -164,16 +177,30 @@ class DBService {
     const {
       filename, filepath, image_hash, camera_id,
       device_address, signature,
-      latitude = null, longitude = null, location_name = null
+      latitude = null, longitude = null, location_name = null,
+      companion_hash = null, verdict = null, packet_ts = null, packet_nonce = null
     } = imageData;
 
     const stmt = this.db.prepare(`
-      INSERT INTO images (filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved')
+      INSERT INTO images (filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name,
+                          companion_hash, verdict, packet_ts, packet_nonce, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved')
     `);
 
-    const result = stmt.run(filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name);
-    return this.getImageById(result.lastInsertRowid);
+    // image row and nonce go in together, so a failed insert doesn't burn the nonce
+    const insert = this.db.transaction(() => {
+      const result = stmt.run(filename, filepath, image_hash, camera_id, device_address, signature, latitude, longitude, location_name,
+        companion_hash, verdict, packet_ts, packet_nonce);
+      if (packet_nonce) {
+        this.db.prepare('INSERT INTO used_nonces (nonce, device_address) VALUES (?, ?)').run(packet_nonce, device_address);
+      }
+      return result;
+    });
+    return this.getImageById(insert().lastInsertRowid);
+  }
+
+  hasNonce(nonce) {
+    return !!this.db.prepare('SELECT 1 FROM used_nonces WHERE nonce = ?').get(nonce);
   }
 
   getImageById(id) {
