@@ -123,6 +123,21 @@ class DBService {
       )
     `);
 
+    // mints on chains other than the primary one; 'pending' rows are retried by the sweep
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS chain_mints (
+        image_id INTEGER NOT NULL,
+        chain TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        token_id TEXT,
+        tx_hash TEXT,
+        payload TEXT,
+        error TEXT,
+        attempts INTEGER DEFAULT 0,
+        PRIMARY KEY (image_id, chain)
+      )
+    `);
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS devices (
         device_address TEXT PRIMARY KEY,
@@ -211,6 +226,28 @@ class DBService {
 
   getImagesNeedingDecisionLog() {
     return this.db.prepare('SELECT * FROM images WHERE decision_log IS NOT NULL AND decision_log_ref IS NULL LIMIT 20').all();
+  }
+
+  saveChainMint(image_id, chain, { status, token_id = null, tx_hash = null, payload = null, error = null, bumpAttempts = false }) {
+    this.db.prepare(`
+      INSERT INTO chain_mints (image_id, chain, status, token_id, tx_hash, payload, error, attempts)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(image_id, chain) DO UPDATE SET
+        status = excluded.status,
+        token_id = COALESCE(excluded.token_id, token_id),
+        tx_hash = COALESCE(excluded.tx_hash, tx_hash),
+        payload = COALESCE(excluded.payload, payload),
+        error = excluded.error,
+        attempts = attempts + ?
+    `).run(image_id, chain, status, token_id, tx_hash, payload, error, bumpAttempts ? 1 : 0, bumpAttempts ? 1 : 0);
+  }
+
+  getChainMints(image_id) {
+    return this.db.prepare('SELECT chain, status, token_id, tx_hash, error FROM chain_mints WHERE image_id = ?').all(image_id);
+  }
+
+  getPendingChainMints() {
+    return this.db.prepare("SELECT * FROM chain_mints WHERE status = 'pending' AND payload IS NOT NULL LIMIT 20").all();
   }
 
   hasNonce(nonce) {

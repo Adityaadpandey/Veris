@@ -21,6 +21,7 @@ import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
 import { checkPacket, buildPacketMessage } from './packet.js';
+import { initChains, mintEverywhere, retrySecondaryMints, explorerTxUrl } from './chains.js';
 import { buildDecisionLog, storeDecisionLog, retryDecisionLogs } from './decisionLog.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +99,7 @@ async function initializeServices() {
       console.warn('⚠️ Device wallet not available, Filecoin service disabled');
     }
     await zerogStorageService.initialize();
+    await initChains();
 
     const claimHealth = await claimClient.healthCheck();
     if (claimHealth.status === 'ok') {
@@ -861,12 +863,9 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
           if (ownerWallet) {
             console.log(`   🎨 Minting original NFT to owner wallet: ${ownerWallet}`);
             try {
-              const mintResult = await web3Service.mintOriginal({
+              const mintResult = await mintEverywhere(dbService.getImageById(image.id), {
                 recipient: ownerWallet,
-                ipfsHash: filecoinCid,
-                imageHash: imageHash,
-                signature: signature,
-                maxEditions: 0
+                ipfsHash: filecoinCid
               });
 
               dbService.updateImageStatus(image.id, 'minted', {
@@ -1124,12 +1123,9 @@ app.post('/api/mint-pending', async (req, res) => {
     for (const image of uploaded) {
       const result = { id: image.id, claimId: image.claim_id, status: 'failed' };
       try {
-        const mintResult = await web3Service.mintOriginal({
+        const mintResult = await mintEverywhere(image, {
           recipient: ownerWallet,
-          ipfsHash: image.filecoin_cid,
-          imageHash: image.image_hash,
-          signature: image.signature,
-          maxEditions: 0
+          ipfsHash: image.filecoin_cid
         });
 
         dbService.updateImageStatus(image.id, 'minted', {
@@ -1257,12 +1253,9 @@ async function retryPendingUploads() {
 
       // Phase 2: uploaded + claimId + no tokenId → mint
       if (image._phase === 2) {
-        const mintResult = await web3Service.mintOriginal({
+        const mintResult = await mintEverywhere(image, {
           recipient: ownerWallet,
-          ipfsHash: image.filecoin_cid,
-          imageHash: image.image_hash,
-          signature: image.signature,
-          maxEditions: 0
+          ipfsHash: image.filecoin_cid
         });
         dbService.updateImageStatus(image.id, 'minted', {
           token_id: mintResult.tokenId,
@@ -1305,6 +1298,7 @@ async function retryPendingUploads() {
 const AUTO_RETRY_INTERVAL_MS = parseInt(process.env.AUTO_RETRY_INTERVAL_MS || '60000', 10);
 setInterval(() => {
   retryDecisionLogs().catch(() => {});
+  retrySecondaryMints().catch(() => {});
   retryPendingUploads().catch(err => console.error('❌ Automatic retry sweep failed:', err.message));
 }, AUTO_RETRY_INTERVAL_MS);
 
