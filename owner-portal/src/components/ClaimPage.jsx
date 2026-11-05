@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Palette, Brutal, Pill, SectionHead, short } from '@/components/brutal'
+import LicenseButton from './LicenseButton'
 import { VERIS_ADDRESS, VERIS_ABI, hasTokenData } from '@/lib/contracts'
 import {
   Check,
@@ -822,6 +823,11 @@ export default function ClaimPage() {
           {accordionOpen && (
             <div className="pt-1.5">
               <ProvenanceBlock prov={prov} />
+              <LicenseButton
+                tokenId={prov?.chains?.find(c => c.chain === 'arc')?.tokenId}
+                photographer={prov?.owner || claim?.recipient_address}
+                claimApi={CLAIM_API}
+              />
             </div>
           )}
           {accordionOpen && (
