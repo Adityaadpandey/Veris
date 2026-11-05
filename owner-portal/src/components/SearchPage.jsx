@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './LandingPage/landing.css'
@@ -265,6 +266,45 @@ function VerifyPanel({ onOpenClaim }) {
   )
 }
 
+// Look a photo up by its SHA-256 hash or a device id (the server asks Arkiv first, then Postgres)
+function HashLookup({ onOpenClaim }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const search = async (e) => {
+    e.preventDefault()
+    const q = query.trim()
+    if (!q) return
+    setBusy(true)
+    try {
+      const params = /^[0-9a-f]{64}$/i.test(q) ? { imageHash: q.toLowerCase() } : { deviceId: q }
+      const res = await axios.get(`${CLAIM_API}/api/arkiv/search`, { params, timeout: 10000 })
+      setResults(res.data?.results || [])
+    } catch {
+      setResults([])
+    }
+    setBusy(false)
+  }
+
+  return (
+    <form onSubmit={search} style={{ marginTop: 24 }}>
+      <label htmlFor="hash-q" style={{ display: 'block', marginBottom: 6 }}>Or search by image hash or device id</label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input id="hash-q" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="64 character SHA-256, or a device id" style={{ flex: 1, padding: '10px 12px' }} />
+        <button className="btn btn-ghost" type="submit" disabled={busy}>{busy ? 'Searching…' : 'Search'}</button>
+      </div>
+      {results && (results.length === 0
+        ? <p style={{ marginTop: 8 }}>Nothing found.</p>
+        : results.map((r) => (
+            <p key={r.claimId} style={{ marginTop: 8 }}>
+              <button type="button" className="btn btn-ghost" onClick={() => onOpenClaim(r.claimId)}>Claim {String(r.claimId).slice(0, 8)}… · {r.status}</button>
+            </p>
+          )))}
+    </form>
+  )
+}
+
 export default function SearchPage() {
   const navigate = useNavigate()
 
@@ -284,6 +324,7 @@ export default function SearchPage() {
         </div>
 
         <VerifyPanel onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
+        <HashLookup onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
       </main>
 
       <footer className="va-foot">
