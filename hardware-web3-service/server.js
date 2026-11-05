@@ -21,6 +21,7 @@ import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
 import { checkPacket, buildPacketMessage } from './packet.js';
+import { buildDecisionLog, storeDecisionLog, retryDecisionLogs } from './decisionLog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -689,7 +690,8 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
       companionHash,
       verdict,
       timestamp,
-      nonce
+      nonce,
+      liveness
     } = req.body;
 
     const reject = (status, error) => {
@@ -776,6 +778,12 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
     });
 
     console.log(`📸 Image uploaded: ${image.id} - ${filename}`);
+
+    // The camera's liveness answer isn't part of the signature (only the verdict is), so keep it as evidence
+    let livenessInfo = null;
+    try { livenessInfo = liveness ? JSON.parse(liveness) : null; } catch (_) {}
+    dbService.setDecisionLog(image.id, buildDecisionLog(image, livenessInfo));
+    storeDecisionLog(dbService.getImageById(image.id)); // in the background, a slow 0G write must not hold up the claim
 
     let filecoinCid = null;
     let metadataCid = null;
@@ -1294,6 +1302,7 @@ async function retryPendingUploads() {
 // independently of whether anyone's phone is even connected right now.
 const AUTO_RETRY_INTERVAL_MS = parseInt(process.env.AUTO_RETRY_INTERVAL_MS || '60000', 10);
 setInterval(() => {
+  retryDecisionLogs().catch(() => {});
   retryPendingUploads().catch(err => console.error('❌ Automatic retry sweep failed:', err.message));
 }, AUTO_RETRY_INTERVAL_MS);
 
