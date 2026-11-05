@@ -81,6 +81,11 @@ def _keccak256(data):
         return _keccak256_pure(data)
 
 
+def ellipticcurve_point(curve, x, y, order):
+    from ecdsa.ellipticcurve import PointJacobi
+    return PointJacobi(curve, x, y, 1, order)
+
+
 SALT_PATH = os.getenv('SALT_PATH', '/boot/.device_salt')
 SALT_BACKUP_PATH = Path(os.getenv('SALT_BACKUP_PATH', str(Path.home() / ".veris" / ".device_salt_backup")))
 
