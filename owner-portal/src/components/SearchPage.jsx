@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { searchArkiv } from '@/lib/arkivDirect'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './LandingPage/landing.css'
@@ -266,7 +267,7 @@ function VerifyPanel({ onOpenClaim }) {
   )
 }
 
-// Look a photo up by its SHA-256 hash or a device id (the server asks Arkiv first, then Postgres)
+// Look a photo up by its SHA-256 hash or a device id (the browser asks Arkiv first, then our server)
 function HashLookup({ onOpenClaim }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
@@ -279,8 +280,10 @@ function HashLookup({ onOpenClaim }) {
     setBusy(true)
     try {
       const params = /^[0-9a-f]{64}$/i.test(q) ? { imageHash: q.toLowerCase() } : { deviceId: q }
-      const res = await axios.get(`${CLAIM_API}/api/arkiv/search`, { params, timeout: 10000 })
-      setResults(res.data?.results || [])
+      // Ask Arkiv directly first, so Veris never sees the lookup. Our server is only the fallback.
+      let found = await searchArkiv(params).catch(() => [])
+      if (!found.length) found = (await axios.get(`${CLAIM_API}/api/arkiv/search`, { params, timeout: 10000 })).data?.results || []
+      setResults(found)
     } catch {
       setResults([])
     }
