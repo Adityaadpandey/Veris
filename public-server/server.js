@@ -16,7 +16,7 @@ const { isZerogRef } = require('./zerogRead');
 const { computeForensicDiff } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
 const { parseSignup, createRateLimiter } = require('./waitlist');
-const { processCompanionLink, uploadCompanionImage } = require('./companionCapture');
+const { processCompanionLink, uploadCompanionImage, fetchBufferFromUrl } = require('./companionCapture');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -1383,14 +1383,26 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
     // bytes (the forensic diff below, and/or the OpenAI side-by-side
     // comparison further down) and reused for both instead of fetching twice.
     let cachedOriginalBuffer = null;
+    // A companion match must be diffed against the phone photo, not the device image.
+    let companionUrl = null;
+    const loadOriginal = async (cid) => companionUrl ? fetchBufferFromUrl(companionUrl) : (await fetchImageBuffer(cid)).buffer;
 
-    const exact = await dbService.getClaimByImageHash(uploadSha);
+    // The paired phone photo counts too: uploading it should find the claim just like the device image does.
+    let matchedImage = 'device';
+    let exact = await dbService.getClaimByImageHash(uploadSha);
+    if (!exact) {
+      exact = await dbService.getClaimByCompanionHash(uploadSha);
+      if (exact) matchedImage = 'companion';
+    }
     if (exact) {
       verdict = {
         type: 'authentic_original',
         claim_id: exact.claim_id,
         token_id: exact.token_id || null,
-        message: 'Authentic original — byte-for-byte identical to the verified on-chain image.',
+        matched_image: matchedImage,
+        message: matchedImage === 'companion'
+          ? 'Authentic original — byte-for-byte identical to the phone photo paired with a verified on-chain image.'
+          : 'Authentic original — byte-for-byte identical to the verified on-chain image.',
         image_hash: uploadSha,
         claim_url: `${FRONTEND_URL}/claim/${exact.claim_id}`
       };
@@ -1398,10 +1410,14 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
       // Closest match among claims that have at least one perceptual hash,
       // scored by the weighted vote across all hash families both sides have.
       let best = null;
-      for (const row of await dbService.getClaimsWithPhash()) {
+      const scan = [
+        ...(await dbService.getClaimsWithPhash()).map(row => ({ row, source: 'device' })),
+        ...(await dbService.getClaimsWithCompanionHashes()).map(row => ({ row, source: 'companion' }))
+      ];
+      for (const { row, source } of scan) {
         const cmp = bestCombinedHashDistance(uploadHashes, rowOrientationHashes(row));
         if (cmp.distance === null) continue;
-        if (best === null || cmp.distance < best.distance) best = { row, ...cmp };
+        if (best === null || cmp.distance < best.distance) best = { row, source, ...cmp };
       }
 
       if (best && best.distance <= TAMPER_POSSIBLE_MAX) {
@@ -1423,6 +1439,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
           tier,
           claim_id: best.row.claim_id,
           token_id: best.row.token_id || null,
+          matched_image: best.source,
           message: tierMessage,
           confidence: Math.round((1 - best.distance) * 100) / 100,
           hash_coverage: Math.round(best.coverage * 100) / 100,
@@ -1441,9 +1458,10 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         // tiers where the hash vote says "probably edited, not just
         // recompressed" (a pure re-encode's SSIM is always ~1.0 with no
         // region, so skip the fetch+compute cost for that tier).
+        companionUrl = best.source === 'companion' ? best.row.mobile_image_url : null;
         if ((tier === 'structural_edit' || tier === 'possible_match') && verdict.original_cid) {
           try {
-            const { buffer: origBuffer } = await fetchImageBuffer(verdict.original_cid);
+            const origBuffer = await loadOriginal(verdict.original_cid);
             cachedOriginalBuffer = origBuffer;
             const alignedOriginal = best.orientation && best.orientation !== '0'
               ? await transformForOrientation(origBuffer, best.orientation)
@@ -1530,7 +1548,7 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         // showing OpenAI both images side by side. Non-authoritative, best-effort.
         if (verdict.type === 'altered_copy' && verdict.original_cid) {
           try {
-            const origBuffer = cachedOriginalBuffer || (await fetchImageBuffer(verdict.original_cid)).buffer;
+            const origBuffer = cachedOriginalBuffer || await loadOriginal(verdict.original_cid);
             const diff = await openaiService.compareImages(origBuffer, buffer, req.file.mimetype);
             verdict.changes = {
               summary: diff.summary || null,
