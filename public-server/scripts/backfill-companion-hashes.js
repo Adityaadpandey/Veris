@@ -7,7 +7,7 @@ const dbService = require('../dbService');
 const { mobileSearchHashes, fetchBufferFromUrl } = require('../companionCapture');
 
 async function main() {
-  await dbService.init();
+  await dbService.initialize();
   const { rows } = await dbService.pool.query(`
     SELECT claim_id, companion_capture FROM claims
     WHERE companion_capture->>'mobile_image_url' IS NOT NULL
