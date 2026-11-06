@@ -92,7 +92,7 @@ function ProvenanceScore({ imageHash, signature, deviceId, txHash, cid }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-brutal-body font-semibold text-[13px]" style={{ color: Palette.ink }}>Provenance Score</p>
-          <p className="font-brutal-mono text-[9px] tracking-[0.08em] mt-0.5" style={{ color: 'rgba(16,14,12,.5)' }}>{label}</p>
+          <p className="font-brutal-mono text-[10.5px] tracking-[0.08em] mt-0.5" style={{ color: 'rgba(16,14,12,.5)' }}>{label}</p>
         </div>
       </div>
       <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(16,14,12,.1)' }}>
@@ -104,8 +104,8 @@ function ProvenanceScore({ imageHash, signature, deviceId, txHash, cid }) {
             >
               {passed[f.key] && <span className="w-1 h-1 rounded-full" style={{ background: Palette.green }} />}
             </span>
-            <span className="font-brutal-mono text-[9.5px] flex-1" style={{ color: passed[f.key] ? 'rgba(16,14,12,.7)' : 'rgba(16,14,12,.4)' }}>{f.label}</span>
-            <span className="font-brutal-mono text-[9.5px]" style={{ color: passed[f.key] ? Palette.green : 'rgba(16,14,12,.3)' }}>
+            <span className="font-brutal-mono text-[11px] flex-1" style={{ color: passed[f.key] ? 'rgba(16,14,12,.7)' : 'rgba(16,14,12,.4)' }}>{f.label}</span>
+            <span className="font-brutal-mono text-[11px]" style={{ color: passed[f.key] ? Palette.green : 'rgba(16,14,12,.3)' }}>
               {passed[f.key] ? `+${f.points}` : '+0'}
             </span>
           </div>
@@ -129,7 +129,7 @@ function ProofStatCard({ title, sub, verified }) {
       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: verified ? Palette.green : 'rgba(16,14,12,.25)' }} />
       <div className="flex-1 min-w-0">
         <p className="font-brutal-body font-semibold text-[12.5px]" style={{ color: verified ? Palette.ink : 'rgba(16,14,12,.5)' }}>{title}</p>
-        <p className="font-brutal-mono text-[9px] mt-0.5" style={{ color: 'rgba(16,14,12,.5)' }}>{sub}</p>
+        <p className="font-brutal-mono text-[10.5px] mt-0.5" style={{ color: 'rgba(16,14,12,.5)' }}>{sub}</p>
       </div>
       {verified && <span className="font-bold text-sm" style={{ color: Palette.green }}>✓</span>}
     </Brutal>
@@ -155,15 +155,15 @@ function CopyBtn({ text }) {
 function ProofItem({ label, value, full, link }) {
   return (
     <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(16,14,12,.04)' }}>
-      <p className="font-brutal-mono text-[8.5px] tracking-[0.14em] uppercase mb-1" style={{ color: 'rgba(16,14,12,.45)' }}>{label}</p>
+      <p className="font-brutal-mono text-[10px] tracking-[0.14em] uppercase mb-1" style={{ color: 'rgba(16,14,12,.45)' }}>{label}</p>
       <div className="flex items-center gap-1.5">
         {link ? (
           <a href={link} target="_blank" rel="noreferrer"
-            className="flex items-center gap-1 font-brutal-mono text-[10.5px] hover:brightness-125" style={{ color: Palette.orange }}>
+            className="flex items-center gap-1 font-brutal-mono text-[11.5px] hover:brightness-125" style={{ color: Palette.orange }}>
             {value} <ExternalLink size={9} />
           </a>
         ) : (
-          <span className="font-brutal-mono text-[10.5px]" style={{ color: Palette.ink }}>{value || '—'}</span>
+          <span className="font-brutal-mono text-[11.5px]" style={{ color: Palette.ink }}>{value || '—'}</span>
         )}
         {full && value && <CopyBtn text={full} />}
       </div>
@@ -207,7 +207,7 @@ function AiDescription({ description, tags, pending }) {
   const isLong = (description?.length || 0) > 180
   return (
     <Brutal offset={4} radius={16} contentClassName="p-3.5">
-      <span className="font-brutal-mono font-semibold text-[9.5px] tracking-[0.16em] uppercase" style={{ color: Palette.orange }}>AI Description</span>
+      <span className="font-brutal-mono font-semibold text-[11px] tracking-[0.16em] uppercase" style={{ color: Palette.orange }}>AI Description</span>
       {description ? (
         <div className="mt-2">
           <p
@@ -217,7 +217,7 @@ function AiDescription({ description, tags, pending }) {
             {description}
           </p>
           {isLong && (
-            <button onClick={() => setExpanded(v => !v)} className="mt-1 font-brutal-mono text-[10px] font-semibold hover:brightness-125" style={{ color: Palette.orange }}>
+            <button onClick={() => setExpanded(v => !v)} className="mt-1 font-brutal-mono text-[11px] font-semibold hover:brightness-125" style={{ color: Palette.orange }}>
               {expanded ? 'Read less' : 'Read more'}
             </button>
           )}
@@ -228,7 +228,7 @@ function AiDescription({ description, tags, pending }) {
       {tags?.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-2.5 mt-2.5" style={{ borderTop: '1px solid rgba(16,14,12,.08)' }}>
           {tags.slice(0, 12).map((tag, i) => (
-            <span key={i} className="font-brutal-mono text-[9px] rounded-full px-2 py-0.5" style={{ color: 'rgba(16,14,12,.6)', background: 'rgba(16,14,12,.05)', border: '1px solid rgba(16,14,12,.1)' }}>
+            <span key={i} className="font-brutal-mono text-[10.5px] rounded-full px-2 py-0.5" style={{ color: 'rgba(16,14,12,.6)', background: 'rgba(16,14,12,.05)', border: '1px solid rgba(16,14,12,.1)' }}>
               {tag}
             </span>
           ))}
@@ -258,7 +258,7 @@ function AiFlagChip({ label, hint }) {
   return (
     <div className="flex items-center gap-1.5 rounded-full px-2 py-1" style={{ border: `1px solid ${flagged ? Palette.orange : 'rgba(16,14,12,.2)'}` }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: flagged ? Palette.orange : Palette.green }} />
-      <span className="font-brutal-mono text-[8.5px]" style={{ color: flagged ? Palette.orange : 'rgba(16,14,12,.55)' }}>
+      <span className="font-brutal-mono text-[10px]" style={{ color: flagged ? Palette.orange : 'rgba(16,14,12,.55)' }}>
         {label} {flagged ? 'FLAGGED' : 'CLEAR'}
       </span>
     </div>
@@ -276,7 +276,7 @@ function CompanionCaptureCard({ companion, deviceAiHint }) {
       <Brutal offset={4} radius={16} contentClassName="p-4 text-center">
         <Loader2 size={18} className="animate-spin mx-auto" style={{ color: Palette.ink }} strokeWidth={1.5} />
         <p className="font-brutal-body font-semibold text-[12.5px] mt-2" style={{ color: Palette.ink }}>Pairing companion photo…</p>
-        <p className="font-brutal-mono text-[9px] mt-1" style={{ color: 'rgba(16,14,12,.5)' }}>Comparing against the device capture</p>
+        <p className="font-brutal-mono text-[10.5px] mt-1" style={{ color: 'rgba(16,14,12,.5)' }}>Comparing against the device capture</p>
       </Brutal>
     )
   }
@@ -290,12 +290,12 @@ function CompanionCaptureCard({ companion, deviceAiHint }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-          <span className="font-brutal-mono font-semibold text-[10px] tracking-[0.14em]" style={{ color: Palette.ink }}>
+          <span className="font-brutal-mono font-semibold text-[11px] tracking-[0.14em]" style={{ color: Palette.ink }}>
             {Math.round(consistency.score * 100)}% CONSISTENT
           </span>
         </div>
         <div className="rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
-          <span className="font-brutal-mono text-[8.5px]" style={{ color: 'rgba(16,14,12,.55)' }}>
+          <span className="font-brutal-mono text-[10px]" style={{ color: 'rgba(16,14,12,.55)' }}>
             PAIRED · {short(companion.mock_chain_ref, 6)} · OFF-CHAIN
           </span>
         </div>
@@ -317,7 +317,7 @@ function CompanionCaptureCard({ companion, deviceAiHint }) {
           ['SSIM', forensic.ssim],
         ].map(([label, value]) => (
           <div key={label} className="flex-1 p-2.5" style={{ background: Palette.cream }}>
-            <p className="font-brutal-mono text-[8.5px]" style={{ color: 'rgba(16,14,12,.45)' }}>{label}</p>
+            <p className="font-brutal-mono text-[10px]" style={{ color: 'rgba(16,14,12,.45)' }}>{label}</p>
             <p className="font-brutal-body font-semibold text-[12.5px] mt-0.5" style={{ color: Palette.ink }}>{value != null ? `${Math.round(value * 100)}%` : '—'}</p>
           </div>
         ))}
@@ -353,7 +353,7 @@ function SimilarPhotos({ results }) {
                     className="w-full h-full object-cover" onError={ipfsOnError(cid)} />
                 )}
                 <div className="absolute bottom-1.5 right-1.5 rounded px-1.5 py-0.5" style={{ background: 'rgba(16,14,12,.75)', border: `1px solid ${Palette.orange}55` }}>
-                  <span className="font-brutal-mono text-[8px] font-bold" style={{ color: Palette.orange }}>{Math.round(r.similarity * 100)}%</span>
+                  <span className="font-brutal-mono text-[10px] font-bold" style={{ color: Palette.orange }}>{Math.round(r.similarity * 100)}%</span>
                 </div>
               </div>
             </a>
@@ -509,7 +509,7 @@ export default function ClaimPage() {
   if (notFound) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-8" style={{ background: Palette.cream }}>
-        <span className="font-brutal-mono text-[10px] tracking-[0.18em]" style={{ color: Palette.orange }}>CLAIM NOT FOUND</span>
+        <span className="font-brutal-mono text-[11px] tracking-[0.18em]" style={{ color: Palette.orange }}>CLAIM NOT FOUND</span>
         <p className="font-brutal-body text-[13px] leading-relaxed mt-2 text-center max-w-[260px]" style={{ color: 'rgba(16,14,12,.55)' }}>
           This claim doesn't exist yet, or the claim server can't be reached right now.
         </p>
@@ -553,7 +553,7 @@ export default function ClaimPage() {
             <span className="font-brutal-display text-xs tracking-tight" style={{ color: Palette.ink }}>Veris</span>
           </div>
           <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
-            <span className="font-brutal-mono text-[10px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.55)' }}>CLAIM / {short(claimId, 6)}</span>
+            <span className="font-brutal-mono text-[11px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.55)' }}>CLAIM / {short(claimId, 6)}</span>
           </div>
         </div>
 
@@ -569,7 +569,7 @@ export default function ClaimPage() {
               />
             ) : (
               <div className="aspect-[4/3] flex items-center justify-center" style={{ background: Palette.onyx }}>
-                <span className="font-brutal-mono text-[9.5px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.4)' }}>
+                <span className="font-brutal-mono text-[11px] tracking-[0.14em]" style={{ color: 'rgba(237,231,218,.4)' }}>
                   {cid ? 'IMAGE UNAVAILABLE' : 'AWAITING UPLOAD'}
                 </span>
               </div>
@@ -579,7 +579,7 @@ export default function ClaimPage() {
               style={{ background: 'rgba(16,14,12,.5)', border: '1px solid rgba(237,231,218,.3)', backdropFilter: 'blur(12px)' }}
             >
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: isPending ? Palette.orange : Palette.green }} />
-              <span className="font-brutal-mono text-[9.5px] tracking-[0.14em]" style={{ color: Palette.bone }}>
+              <span className="font-brutal-mono text-[11px] tracking-[0.14em]" style={{ color: Palette.bone }}>
                 {isPending ? 'PROCESSING' : 'HARDWARE VERIFIED'}
               </span>
             </div>
@@ -681,7 +681,7 @@ export default function ClaimPage() {
             className="w-full flex items-center justify-between py-2.5"
             style={{ borderTop: '1px solid rgba(16,14,12,.14)' }}
           >
-            <span className="font-brutal-mono text-[10px] tracking-[0.18em]" style={{ color: 'rgba(16,14,12,.5)' }}>CRYPTOGRAPHIC PROOF DATA</span>
+            <span className="font-brutal-mono text-[11px] tracking-[0.18em]" style={{ color: 'rgba(16,14,12,.5)' }}>CRYPTOGRAPHIC PROOF DATA</span>
             {accordionOpen
               ? <ChevronUp size={13} style={{ color: Palette.orange }} />
               : <ChevronDown size={13} style={{ color: Palette.orange }} />}
@@ -696,10 +696,7 @@ export default function ClaimPage() {
                 claimApi={CLAIM_API}
                 onLicensed={() => setLicenseTick(t => t + 1)}
               />
-            </div>
-          )}
-          {accordionOpen && (
-            <div className="grid grid-cols-2 gap-2 pb-2">
+              <div className="grid grid-cols-2 gap-2 pb-2">
               <ProofItem label="Device Address" value={short(deviceAddress, 8)} full={deviceAddress} link={addressUrl(chain, deviceAddress)} />
               <ProofItem label="IPFS CID" value={short(cid, 8)} full={cid} link={ipfsUrl} />
               {claim?.token_id && (
@@ -715,12 +712,13 @@ export default function ClaimPage() {
               {claim?.recipient_address && (
                 <ProofItem label="Original Owner" value={short(claim.recipient_address, 8)} full={claim.recipient_address} link={addressUrl(chain, claim.recipient_address)} />
               )}
+              </div>
             </div>
           )}
         </div>
 
         {/* ── Footer ── */}
-        <p className="text-center font-brutal-mono text-[9.5px] mt-6" style={{ color: 'rgba(16,14,12,.4)' }}>
+        <p className="text-center font-brutal-mono text-[11px] mt-6" style={{ color: 'rgba(16,14,12,.4)' }}>
           Powered by Veris Protocol · No trust required, just math.
         </p>
       </div>
@@ -732,7 +730,7 @@ function MetaRow({ label, value, href }) {
   const content = <span className="font-brutal-body font-medium text-[12.5px]" style={{ color: Palette.ink }}>{value}</span>
   return (
     <div className="flex items-center justify-between">
-      <span className="font-brutal-mono text-[9px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.48)' }}>{label}</span>
+      <span className="font-brutal-mono text-[10.5px] tracking-[0.16em]" style={{ color: 'rgba(16,14,12,.48)' }}>{label}</span>
       {href ? <a href={href} target="_blank" rel="noreferrer">{content}</a> : content}
     </div>
   )
