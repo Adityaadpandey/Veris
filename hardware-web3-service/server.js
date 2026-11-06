@@ -255,6 +255,29 @@ app.get('/health', (req, res) => {
   });
 });
 
+// What the owner portal's device card reads. Cheaper than /api/status: no claim-server round trip.
+app.get('/api/device/status', async (req, res) => {
+  const address = web3Service.deviceWallet?.address || null;
+  let info = null;
+  if (address) {
+    try {
+      info = await web3Service.getDeviceInfo(address);
+    } catch {
+      // not registered yet, the card just shows "No"
+    }
+  }
+  res.json({
+    servicesInitialized,
+    device: {
+      deviceId: info?.deviceId || null,
+      address,
+      isRegistered: Boolean(info?.deviceAddress)
+    },
+    filecoin: { connected: Boolean(filecoinService.initialized) },
+    blockchain: Boolean(web3Service.initialized)
+  });
+});
+
 app.get('/api/status', async (req, res) => {
   try {
     const claimHealth = await claimClient.healthCheck();
