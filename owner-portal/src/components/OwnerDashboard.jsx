@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+// ngrok free shows an HTML warning page (no CORS headers) unless this header is sent.
+axios.defaults.headers.common["ngrok-skip-browser-warning"] = "1";
 const CLAIM_SERVER_URL =
   import.meta.env.VITE_CLAIM_SERVER_URL || "http://localhost:5001";
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID || "your-privy-app-id";
