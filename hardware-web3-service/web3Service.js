@@ -29,6 +29,7 @@ export class Web3Service {
         (deployedChainId === 8453 && process.env.BASE_RPC_URL) ||
         (deployedChainId === 84532 && process.env.BASE_SEPOLIA_RPC_URL) ||
         (deployedChainId === 11155111 && process.env.SEPOLIA_RPC_URL) ||
+        (deployedChainId === 5042002 && (process.env.ARC_RPC_URL || 'https://rpc.testnet.arc.network')) ||
         process.env.SEPOLIA_RPC_URL ||
         process.env.RPC_URL;
 

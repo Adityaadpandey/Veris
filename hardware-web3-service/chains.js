@@ -8,7 +8,7 @@ import { publishProvenance } from './provenance.js';
 // primary one; CHAINS=sepolia,arc adds a secondary service for every other name in the list.
 // Arc values are from docs.arc.network (testnet); gas there is paid in USDC.
 export const CHAIN_INFO = {
-  sepolia: { chainId: 11155111, rpcEnv: 'SEPOLIA_RPC_URL', explorer: 'https://sepolia.etherscan.io' },
+  sepolia: { chainId: 11155111, rpcEnv: 'SEPOLIA_RPC_URL', defaultRpc: 'https://ethereum-sepolia-rpc.publicnode.com', explorer: 'https://sepolia.etherscan.io' },
   'base-sepolia': { chainId: 84532, rpcEnv: 'BASE_SEPOLIA_RPC_URL', defaultRpc: 'https://sepolia.base.org', explorer: 'https://sepolia.basescan.org' },
   arc: { chainId: 5042002, rpcEnv: 'ARC_RPC_URL', defaultRpc: 'https://rpc.testnet.arc.network', explorer: 'https://testnet.arcscan.app' },
 };
