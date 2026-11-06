@@ -53,6 +53,7 @@
   .card.feat .shot { aspect-ratio: 16 / 9; }
   .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .shot .tag { position: absolute; top: 10px; left: 10px; }
+  .shot .tag.demo { left: auto; right: 10px; background: #FFD84D; color: var(--ink); }
   .shot .tag.score { top: auto; left: auto; right: 10px; bottom: 10px; }
 
   .body { padding: 14px; display: flex; flex-direction: column; gap: 8px; }

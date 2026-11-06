@@ -4,8 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { BACKEND_URL, NGROK_HEADERS, CLAIM_SERVER_URL, isFresh } from "./helpers";
 
+// The camera whose shots we show (tagged "Demo") when they aren't minted to the signed-in wallet.
+const DEMO_CAMERA_ID = import.meta.env.VITE_DEMO_CAMERA_ID || "7abaf46f54a7d55a";
+
 // A claim-server row, reshaped like the camera service's image so PhotoCard can show either.
-const fromClaim = (c) => ({
+// `wallet` is whoever is signed in; a claim that isn't theirs is flagged as a demo.
+const fromClaim = (wallet) => (c) => ({
+  demo: c.recipient_address?.toLowerCase() !== wallet?.toLowerCase(),
   id: c.claim_id,
   status: c.token_id ? "minted" : "uploaded",
   filecoinCid: c.cid,
@@ -72,13 +77,20 @@ export default function useDashboardData(authenticated) {
     }
   }, [authenticated, fetchImages, fetchDeviceStatus]);
 
-  // Camera offline: the claim server still knows every photo minted to this wallet.
+  // Camera offline: the claim server still knows the wallet's photos, plus the demo camera's.
   useEffect(() => {
     if (!backendOffline || !walletAddress) return;
-    axios
-      .get(`${CLAIM_SERVER_URL}/claims/by-wallet/${walletAddress}`, { timeout: 8000 })
-      .then((r) => setWalletImages((r.data.claims || []).map(fromClaim)))
-      .catch(() => {});
+    const get = (path) =>
+      axios.get(`${CLAIM_SERVER_URL}${path}`, { timeout: 8000 }).then((r) => r.data.claims || []).catch(() => []);
+    Promise.all([
+      get(`/claims/by-wallet/${walletAddress}`),
+      get(`/claims/by-camera/${DEMO_CAMERA_ID}`),
+    ]).then(([mine, cam]) => {
+      const seen = new Set();
+      const rows = [...mine, ...cam].filter((c) => !seen.has(c.claim_id) && seen.add(c.claim_id));
+      rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+      setWalletImages(rows.map(fromClaim(walletAddress)));
+    });
   }, [backendOffline, walletAddress]);
 
   // Auto-refresh every 8 s while any image is still being processed
