@@ -61,13 +61,15 @@ export default function PhotoCard({ img, featured, onRetry, sample }) {
   const src = ipfsUrl(img.filecoinCid);
   const minted = state === "minted";
   const chainLink = img.txHash ? txUrl(chainOfImg(img), img.txHash) : img.nftUrl;
+  // Claim-server rows have a uuid for an id, so show the short token number (or the uuid's first bit).
+  const label = typeof img.id === "number" ? img.id : (img.tokenId ?? String(img.id).slice(0, 6));
   const tone = minted ? "ok" : state === "minting" ? "wait" : "bad";
 
   return (
     <article className={`card${featured ? " feat" : ""}`}>
       <div className="shot">
         {src ? (
-          <img src={src} alt={`Photo #${img.id}`} loading="lazy" onError={ipfsOnError(img.filecoinCid)} />
+          <img src={src} alt={`Photo #${label}`} loading="lazy" onError={ipfsOnError(img.filecoinCid)} />
         ) : (
           <Sprite name="camera" u={featured ? 5 : 3} />
         )}
@@ -78,7 +80,7 @@ export default function PhotoCard({ img, featured, onRetry, sample }) {
 
       <div className="body">
         <div className="meta">
-          <b>#{img.id}</b>
+          <b>#{label}</b>
           <span>{sample ? "Example" : featured ? `Latest · ${fmtTime(img.createdAt)}` : fmtTime(img.createdAt)}</span>
         </div>
         {img.deviceId && <p className="dev">Camera {img.deviceId}</p>}
