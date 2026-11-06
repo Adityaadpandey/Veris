@@ -1,7 +1,7 @@
 import Sprite from "../LandingPage/Sprite";
 import { VERIS_ADDRESS, DEVICE_REGISTRY_ADDRESS } from "@/lib/contracts";
 import { CHAINS, addressUrl } from "@/lib/chains";
-import { BACKEND_URL, shortAddr } from "./helpers";
+import { shortAddr } from "./helpers";
 
 const Row = ({ label, children }) => (
   <div className="row"><dt>{label}</dt><dd>{children}</dd></div>
@@ -18,7 +18,7 @@ export default function CameraTab({ status, user, walletAddress, onRefresh }) {
         <Sprite name="cloud" u={6} />
         <h2>Can't reach the camera</h2>
         <p>
-          Nothing answered at <code>{BACKEND_URL}</code>. Check that the Raspberry Pi and the ngrok tunnel are running.
+          Nothing answered. Check that the Raspberry Pi and the ngrok tunnel are running.
         </p>
         <button type="button" className="btn btn-primary" onClick={onRefresh}>Try again</button>
       </div>

@@ -37,7 +37,10 @@ export const fmtTime = (s) =>
 
 // Older claims were uploaded under a previous Lighthouse API key, so they only resolve on that
 // key's dedicated gateway, not the current one — public IPFS gateways never have these CIDs at all.
+// Photos stored on 0G ("0g…" refs) have no HTTP gateway at all, so the claim server goes first: it
+// fetches those itself and streams Lighthouse ones through.
 const IPFS_GATEWAYS = [
+  `${CLAIM_SERVER_URL}/api/image`,
   import.meta.env.VITE_IPFS_GATEWAY ||
     "https://unemployed-tyrannosaurus-wprec.lighthouseweb3.xyz/ipfs",
   "https://structural-crocodile-le3p6.lighthouseweb3.xyz/ipfs",
