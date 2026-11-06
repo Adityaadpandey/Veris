@@ -16,7 +16,7 @@
 | [Filecoin / Lighthouse](#filecoin--lighthouse) | Default photo storage and fallback for 0G | `STORAGE_PROVIDER` unset uses it |
 | [Privy](#privy) | Wallet login and session signers | Portal login |
 
-- Not in the code today: Solana, vlayer, RISC Zero, Synapse SDK calls. They are not claimed here.
+- Not in the code on `main`: vlayer, RISC Zero, Synapse SDK calls. They are not claimed here. The Solana program is on the `solana-migration` branch, not on `main`.
 - Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
 
 ### Arkiv (ETHGlobal Mumbai, Continuity track)

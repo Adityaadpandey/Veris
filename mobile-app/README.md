@@ -100,7 +100,7 @@ Only what this app's code really does. The heavy lifting for each sponsor lives 
 | Arc (USDC licensing) | License history read from the Arc explorer, 5 USDC for 30 days | `src/components/licenses-card.tsx`, `src/constants/config.ts` | Shows "couldn't reach Arc indexer" on failure |
 | Filecoin / Lighthouse | Photos load through Lighthouse IPFS gateways | `src/constants/config.ts` (`IPFS_GATEWAYS`) | Tries the server gateway first, then each Lighthouse subdomain |
 
-> TODO: the Sepolia contract in `config.ts` is still the app's main chain, Solana, vlayer and RISC Zero are not used directly by this app.
+> The Sepolia contract in `config.ts` is the app's main chain. Solana, vlayer and RISC Zero are not used directly by this app.
 > TODO: before the event vs added at the event is not clear from this app's code, confirm with git history.
 
 ## Folder structure

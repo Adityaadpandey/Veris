@@ -11,7 +11,7 @@ The backend that turns a signed Pi photo into a stored, minted, claimable proof.
 - Creates a claim on `public-server` and returns a claim URL and QR link to the camera.
 - Retries stuck photos in the background and mirrors mints to a second chain (Arc) if enabled.
 
-> TODO: ZK proof (vlayer), Solana and Arkiv are not in this service's code. Judges: check `public-server` and `contracts` for those parts.
+> ZK proof (vlayer), Solana and Arkiv are not in this service's code on `main`. Judges: check `public-server` and `contracts` for Arkiv and the contracts. Solana is on the `solana-migration` branch.
 
 ## Where it fits
 
@@ -76,7 +76,7 @@ hardware-web3-service/
 | Arc (testnet, USDC gas) | Mints the original NFT on Arc as well as the main chain | `chains.js`, `web3Service.js` | `CHAINS=sepolia,arc`, `ARC_RPC_URL`; failed mints are queued and retried; added at the event |
 | Privy | Session signer and mint-with-signer routes | `privyService.js`, `server.js` | `PRIVY_APP_ID`, `PRIVY_APP_SECRET`; before the event |
 | Arkiv | Not in this service | none | > TODO: Arkiv lives in `public-server/arkivService.js`; this service only sends provenance to public-server |
-| Solana | Not in this service | none | > TODO: no Solana code here; this service mints on EVM chains with ethers |
+| Solana | Not on `main`; see the `solana-migration` branch | none | none. This service mints on EVM chains with ethers |
 | vlayer / RISC Zero | Not in this service | none | > TODO: no ZK code found here |
 
 > TODO: `@filoz/synapse-sdk` is in `package.json` but no import was found in the service files.

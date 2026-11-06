@@ -12,7 +12,7 @@ The web app where people view, verify and license Veris photos.
 - Runs an authenticity check that compares a candidate photo against a source of truth.
 - Lets buyers license a photo for 5 USDC on Arc testnet.
 
-> Note: the code in this folder talks to Sepolia and Arc testnet (EVM), not Solana. The wallet and chain code here is the EVM path.
+> Note: the code in this folder talks to Sepolia and Arc testnet (EVM), not Solana. The wallet and chain code here is the EVM path. The Solana version of the portal is on the `solana-migration` branch.
 
 ## Where it fits
 
@@ -207,7 +207,7 @@ npm run preview          # serve the build
 
 - Arkiv lookup and Arc licensing are the event-era parts of this service (see the root README Arkiv section).
 - Privy and Lighthouse image loading predate the event.
-> TODO: 0G, Solana, vlayer and RISC Zero are not used in this service's code (only mentioned in `src/components/LandingPage/story/story.html` copy).
+> 0G, Solana, vlayer and RISC Zero are not used in this service's code (only mentioned in `src/components/LandingPage/story/story.html` copy).
 
 ## Screenshots
 
