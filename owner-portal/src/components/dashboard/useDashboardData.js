@@ -79,11 +79,11 @@ export default function useDashboardData(authenticated) {
 
   // Camera offline: the claim server still knows the wallet's photos, plus the demo camera's.
   useEffect(() => {
-    if (!backendOffline || !walletAddress) return;
+    if (!backendOffline) return;
     const get = (path) =>
       axios.get(`${CLAIM_SERVER_URL}${path}`, { timeout: 8000 }).then((r) => r.data.claims || []).catch(() => []);
     Promise.all([
-      get(`/claims/by-wallet/${walletAddress}`),
+      walletAddress ? get(`/claims/by-wallet/${walletAddress}`) : [],
       get(`/claims/by-camera/${DEMO_CAMERA_ID}`),
     ]).then(([mine, cam]) => {
       const seen = new Set();
