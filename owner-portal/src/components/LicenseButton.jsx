@@ -5,7 +5,7 @@ import { arcTestnet, LICENSE_ADDRESS, ARC_USDC_ADDRESS, LICENSE_PRICE, LICENSE_A
 
 // An editor pays the photographer 5 USDC on Arc for a 30 day license.
 // tokenId is the photo's token on Arc (not the Sepolia one).
-export default function LicenseButton({ tokenId, photographer, claimApi }) {
+export default function LicenseButton({ tokenId, photographer, claimApi, onLicensed }) {
   const { address, chainId } = useAccount()
   const { switchChainAsync } = useSwitchChain()
   const { writeContractAsync } = useWriteContract()
@@ -34,6 +34,7 @@ export default function LicenseButton({ tokenId, photographer, claimApi }) {
       // the server mirrors the license to Arkiv; the purchase itself is already final on-chain
       axios.post(`${claimApi}/api/license/record`, { txHash: hash }).catch(() => {})
       setStep('done')
+      onLicensed?.()
       setMessage('Licensed for 30 days.')
     } catch (e) {
       setStep('error')

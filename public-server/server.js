@@ -1752,7 +1752,7 @@ app.get('/api/arkiv/search', async (req, res) => {
   if (!imageHash && !deviceId) return res.status(400).json({ success: false, error: 'imageHash or deviceId is required' });
   try {
     if (arkivService.enabled()) {
-      const results = await arkivService.search({ imageHash, deviceId }).catch(() => []);
+      const results = await arkivService.search({ imageHash, deviceId }).catch((e) => { console.warn('Arkiv search failed, using Postgres:', e.message.split('\n')[0]); return []; });
       if (results.length) return res.json({ success: true, source: 'arkiv', results });
     }
     const claims = imageHash
