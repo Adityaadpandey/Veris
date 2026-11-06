@@ -45,7 +45,8 @@ async function load() {
 }
 
 const toBytes = (obj) => new TextEncoder().encode(JSON.stringify(obj));
-const fromBytes = (b) => JSON.parse(new TextDecoder().decode(b));
+// Arkiv hands bytes columns back as 0x hex, not as a Uint8Array
+const fromBytes = (b) => JSON.parse(typeof b === 'string' ? Buffer.from(b.replace(/^0x/, ''), 'hex').toString('utf8') : new TextDecoder().decode(b));
 
 function fields(claimId, record, addr = (v) => v) {
   const f = {
