@@ -25,11 +25,10 @@ import { GlassPanel } from "@/components/glass-panel";
 import { LicensesCard } from "@/components/licenses-card";
 import { PillButton } from "@/components/pill-button";
 import {
-  CHAIN_NAME,
+  CHAINS,
   CLAIM_SERVER_URL,
   IPFS_GATEWAYS,
   publicRealClaimUrl,
-  VERIS_CONTRACT_ADDRESS,
 } from "@/constants/config";
 import { Border, Palette, Radius } from "@/constants/theme";
 import { body, display, mono } from "@/constants/typography";
@@ -311,7 +310,7 @@ function ClaimBody({ claim, claimId }: { claim: ClaimData; claimId: string }) {
       />
       <ProofStatCard
         title="IPFS Stored"
-        sub={cid ? "Filecoin · Lighthouse" : "No CID on record"}
+        sub={cid ? (cid.startsWith("0g") ? "0G Storage" : "Filecoin · Lighthouse") : "No CID on record"}
         verified={!!cid}
       />
 
@@ -461,7 +460,7 @@ const PROVENANCE_FACTORS: {
   { key: "sig", label: "Hardware ECDSA signature", points: 25 },
   { key: "device", label: "Camera device identity", points: 20 },
   { key: "mint", label: "Minted on-chain", points: 15 },
-  { key: "ipfs", label: "Stored on IPFS / Filecoin", points: 10 },
+  { key: "ipfs", label: "Stored on decentralized storage", points: 10 },
 ];
 
 function provenanceChecks(claim: ClaimData) {
@@ -809,6 +808,12 @@ function ProofAccordion({
   const cid = cleanCid(claim.cid);
   const ipfsUrl = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null;
   const from0g = prov?.engine === "0g";
+  // the chain this claim's mint is on; old claims with no provenance record were Sepolia
+  const mintChain =
+    CHAINS[
+      (prov?.chains ?? []).find((c: any) => c.txHash && c.txHash === claim.tx_hash)?.chain ??
+        prov?.chains?.[0]?.chain
+    ] ?? CHAINS.sepolia;
   const rows: [string, string][] = [
     ...(prov
       ? ([
@@ -834,8 +839,8 @@ function ProofAccordion({
       : []),
     ["ECDSA Signature", short(claim.signature, 8)],
     ["SHA-256 Hash", short(claim.image_hash, 8)],
-    ["Network", CHAIN_NAME],
-    ["Contract", short(VERIS_CONTRACT_ADDRESS, 8)],
+    ["Network", prov ? mintChain.name : "Loading…"],
+    ["Contract", prov ? short(mintChain.veris, 8) : "Loading…"],
     ...(claim.recipient_address
       ? ([["Original Owner", short(claim.recipient_address, 8)]] as [
           string,
