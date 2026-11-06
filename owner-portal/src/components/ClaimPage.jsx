@@ -294,11 +294,6 @@ function CompanionCaptureCard({ companion, deviceAiHint }) {
             {Math.round(consistency.score * 100)}% CONSISTENT
           </span>
         </div>
-        <div className="rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,.38)', border: '1px solid rgba(16,14,12,.14)', backdropFilter: 'blur(12px)' }}>
-          <span className="font-brutal-mono text-[10px]" style={{ color: 'rgba(16,14,12,.55)' }}>
-            PAIRED · {short(companion.mock_chain_ref, 6)} · OFF-CHAIN
-          </span>
-        </div>
       </div>
 
       <div className="aspect-[4/3] rounded-xl overflow-hidden" style={{ background: Palette.ink }}>
