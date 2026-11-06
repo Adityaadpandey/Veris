@@ -288,6 +288,45 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 
 > 📸 TODO: screenshots of the camera, claim page, dashboard and search result.
 
+## CROPS
+
+**Before the event:** the verify page sent everything to our server (`api.veris.live`): the hash
+lookup and the uploaded photo. It also loaded Google Fonts and made the claim QR codes through
+`api.qrserver.com`, so those two third parties saw every visitor and every claim link.
+
+**New property: verification that does not need us** (censorship resistance and privacy). To check
+a photo, the portal hashes it on your device and asks Arkiv directly (`owner-portal/src/lib/arkivDirect.js`).
+A byte-identical photo is settled there, and nothing is uploaded.
+
+- **C:** We control `api.veris.live` and the portal's domain. If our server is gone or refuses a
+  user, an exact-match check still works: the browser reads Arkiv's public endpoint, no key needed
+  (tested with the server blocked). What stops working is altered-copy analysis, which needs the server.
+- **O:** MIT, and the portal builds from this repo alone: `cd owner-portal && npm install --legacy-peer-deps && npm run dev`
+  (the flag works around an existing Privy peer-version mismatch). Checking a photo needs no hardware.
+- **P:** For an exact match, Arkiv's public RPC sees the user's IP and the photo's hash, and Veris
+  sees nothing. If there is no exact match, the photo is uploaded to our server for the altered-copy
+  check, and our server sends it on to an AI provider (OpenAI) for the description. We do not hide
+  the user's IP from Arkiv yet: Anon-RPC is not integrated. We removed Google Fonts (fonts are
+  bundled) and the QR service (QR codes are drawn in the browser). The Google Maps link on a claim
+  only loads if the user clicks it. Login uses Privy, and photos load from Lighthouse or 0G gateways.
+  There are no analytics or trackers.
+- **S:** Verifying needs no wallet or key. Trust assumptions: Arkiv entities are written by the
+  Veris wallet `0xC15aF2A372D01B5223819bB328400DB8b14d1894`, so a match means "Veris registered
+  this exact file", backed by the device signature and the on-chain mint. Arkiv entities expire
+  after about 180 days, so older photos fall back to our server. Keyless Arkiv reads are
+  rate-limited (`429 ANON_COST_LIMITED`), so the portal retries and gives up after 8 seconds.
+
+**Fallbacks:** any Arkiv failure, timeout or miss goes to the old server check, so nothing that
+worked before stops working.
+
+**Before and after demo:** open Search, drop a real Veris photo, and watch the network tab: one
+request to Arkiv, none to `api.veris.live`. Block `api.veris.live` and drop it again: same answer.
+
+**Tested** (headless Chromium against the live Arkiv endpoint and `api.veris.live`):
+real photo settled on Arkiv with no request to our server; altered copy still gets the server's
+"Altered copy" verdict; Arkiv blocked falls back to the server; our server blocked and a real
+photo still verifies. An altered copy with our server blocked fails with "The check didn't finish".
+
 ## Roadmap
 
 - Hotshoe module for DSLR and mirrorless cameras, and Clip for phones (see [mobile-app/README.md](mobile-app/README.md); simulated in the app today).
