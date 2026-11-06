@@ -2,9 +2,7 @@
 
 Solidity contracts that register cameras, mint photo NFTs and sell USDC licenses.
 
-> Current on-chain code is **Solidity + Foundry** (Sepolia and Arc testnet).
-> There is **no Solana / Anchor program in this repo**. Some project notes mention one.
-> TODO: confirm where (or if) the Solana program lives. No `Anchor.toml` or `programs/` folder exists here.
+> On-chain code is **Solidity + Foundry** (Sepolia and Arc testnet).
 
 ## What it does
 
@@ -185,7 +183,6 @@ Before the event: DeviceRegistry, VerisERC1155 (Sepolia). Added at the event: Ar
 |---------|---------------|-------|------------------|
 | Arc | Contracts deployed on Arc testnet; USDC license contract | `src/VerisLicense.sol`, `deployment-5042002.json`, `owner-portal/src/lib/arc.js` | Sepolia stays primary; `CHAINS=arc` in `hardware-web3-service` adds Arc |
 | Arkiv | Not in this folder; mirrors `Licensed` events as `veris-license` entities | `public-server/arkivService.js` | `ARKIV_ENABLED` (public-server) |
-| Solana | > TODO: no Solana program found in this repo | none | none |
 | Filecoin / Lighthouse | Not in contracts; metadata hash points at IPFS | `hardware-web3-service/filecoinService.js` | `STORAGE_PROVIDER` |
 | 0G | Not in contracts; storage and vision live in services | `hardware-web3-service/zerogStorageService.js` | `STORAGE_PROVIDER=0g` |
 | Privy | Not in contracts; wallet login in the portal | `hardware-web3-service/privyService.js` | > TODO: confirm env flag |
