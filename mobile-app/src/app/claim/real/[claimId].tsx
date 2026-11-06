@@ -22,6 +22,7 @@ import { BackButton } from "@/components/back-button";
 import { BrutalBlock } from "@/components/brutal-block";
 import { CompanionCaptureCard } from "@/components/companion-capture-card";
 import { GlassPanel } from "@/components/glass-panel";
+import { LicensesCard } from "@/components/licenses-card";
 import { PillButton } from "@/components/pill-button";
 import {
   CHAIN_NAME,
@@ -315,6 +316,8 @@ function ClaimBody({ claim, claimId }: { claim: ClaimData; claimId: string }) {
       />
 
       <MintSection claim={claim} claimId={claimId} />
+
+      <LicensesCard claimId={claimId} />
 
       <ProofAccordion claim={claim} claimId={claimId} />
 
