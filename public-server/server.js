@@ -1598,6 +1598,18 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
               change_type: changeRegions.length && diff.changeType === 'reencoded' ? 'content_edited' : diff.changeType,
               authoritative: false
             };
+            // The generic "no obvious signs of AI generation" remark (consistent lighting, natural
+            // poses...) contradicts a copy we just showed was edited, so only keep the AI note when
+            // it is a real flag; an AI edit found by the comparison becomes that flag.
+            if (verdict.changes.change_type === 'ai_modified') {
+              aiHint = {
+                likely_ai_generated: true,
+                note: verdict.changes.items.join('; ') || verdict.changes.summary || null,
+                authoritative: false
+              };
+            } else if (aiHint && !aiHint.likely_ai_generated) {
+              aiHint = null;
+            }
           } catch (diffErr) {
             console.warn('⚠️  Could not compare altered copy to original:', diffErr.message);
           }
