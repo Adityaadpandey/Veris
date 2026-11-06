@@ -35,7 +35,15 @@ class ZerogStorageService {
     return true;
   }
 
-  async _upload(bytes) {
+  // One wallet signs every upload, so two at once fight over the same nonce
+  // ("replacement transaction underpriced"). Run them one after another.
+  _upload(bytes) {
+    const run = (this._queue || Promise.resolve()).then(() => this._uploadNow(bytes));
+    this._queue = run.catch(() => {});
+    return run;
+  }
+
+  async _uploadNow(bytes) {
     const data = new MemData(new Uint8Array(bytes));
     const [, treeErr] = await data.merkleTree(); // the SDK needs this before upload
     if (treeErr !== null) throw new Error(`0G merkle tree: ${treeErr}`);
