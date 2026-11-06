@@ -52,7 +52,7 @@ function QRModal({ url, onClose }) {
  * One photo. `featured` makes it the wide "latest shot" card at the top of the grid.
  * Minted photos get a claim link plus QR / copy / explorer; stuck ones get a retry instead.
  */
-export default function PhotoCard({ img, featured, onRetry }) {
+export default function PhotoCard({ img, featured, onRetry, sample }) {
   const [showQR, setShowQR] = useState(false);
   const state = imageState(img);
   const claimPath = img.claimId ? `/claim/${img.claimId}` : null;
@@ -71,19 +71,20 @@ export default function PhotoCard({ img, featured, onRetry }) {
         ) : (
           <Sprite name="camera" u={featured ? 5 : 3} />
         )}
-        <span className={`tag ${tone}`}>{STATE_LABEL[state] || img.status}</span>
+        <span className={`tag ${tone}`}>{sample ? "Sample" : STATE_LABEL[state] || img.status}</span>
         {minted && img.ai_score != null && <span className="tag score">AI {img.ai_score}</span>}
       </div>
 
       <div className="body">
         <div className="meta">
           <b>#{img.id}</b>
-          <span>{featured ? `Latest · ${fmtTime(img.createdAt)}` : fmtTime(img.createdAt)}</span>
+          <span>{sample ? "Example" : featured ? `Latest · ${fmtTime(img.createdAt)}` : fmtTime(img.createdAt)}</span>
         </div>
         {img.deviceId && <p className="dev">Camera {img.deviceId}</p>}
         {!minted && <p className={`state ${tone}`}>{PROGRESS[state] || img.status}</p>}
 
-        <div className="acts">
+        {sample && <p className="dev">{minted ? "Sealed, minted and shareable." : "Still being sealed on-chain."}</p>}
+        <div className="acts" hidden={sample}>
           {minted && claimPath && <Link className="btn btn-primary" to={claimPath}>View claim</Link>}
           {minted && claimUrl && (
             <>
