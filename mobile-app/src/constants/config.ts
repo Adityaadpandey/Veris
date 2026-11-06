@@ -73,3 +73,10 @@ export const CHAIN_NAME = "Sepolia Testnet";
 
 /** The deployed Veris ERC-1155 contract (same address owner-portal reads, and the Pi mints to). */
 export const VERIS_CONTRACT_ADDRESS = "0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9";
+
+/** Arc testnet: where photos are licensed. The RPC refuses wide getLogs ranges, so license history comes from the explorer's indexer. */
+export const ARC_EXPLORER_URL = "https://testnet.arcscan.app";
+export const ARC_EXPLORER_API = "https://explorer.testnet.arc.io/api/v2";
+export const LICENSE_CONTRACT_ADDRESS = "0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9";
+/** topic0 of Licensed(uint256 indexed tokenId, address indexed licensee, address indexed photographer, uint64 expiresAt) */
+export const LICENSED_TOPIC = "0xd8ee36bb5da61408128932307b401bec0aa8c4f3edf6152129ecef5790c6e529";
