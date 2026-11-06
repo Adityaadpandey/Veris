@@ -942,7 +942,7 @@ app.post('/api/images/upload', upload.single('image'), async (req, res) => {
               });
 
               try {
-                await claimClient.updateClaimStatus(claimId, 'open', mintResult.tokenId, mintResult.txHash);
+                await claimClient.updateClaimStatus(claimId, 'open', mintResult.tokenId, mintResult.txHash, ownerWallet);
                 console.log(`   ✅ Claim server updated: status=open, token_id=${mintResult.tokenId}`);
               } catch (e) {
                 console.warn(`   ⚠️ Could not update claim server status: ${e.message}`);
@@ -1203,7 +1203,7 @@ app.post('/api/mint-pending', async (req, res) => {
           status: 'open'
         });
 
-        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash, ownerWallet).catch(() => {});
 
         result.status = 'minted';
         result.tokenId = mintResult.tokenId;
@@ -1329,7 +1329,7 @@ async function retryPendingUploads() {
           recipient_address: ownerWallet,
           status: 'open'
         });
-        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash).catch(() => {});
+        await claimClient.updateClaimStatus(image.claim_id, 'open', mintResult.tokenId, mintResult.txHash, ownerWallet).catch(() => {});
         result.status = 'minted';
         result.tokenId = mintResult.tokenId;
         result.txHash = mintResult.txHash;

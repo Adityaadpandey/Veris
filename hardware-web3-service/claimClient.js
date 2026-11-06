@@ -113,13 +113,14 @@ class ClaimClient {
     }
   }
 
-  async updateClaimStatus(claim_id, status, token_id = null, tx_hash = null) {
+  async updateClaimStatus(claim_id, status, token_id = null, tx_hash = null, recipient_address = null) {
     try {
       const response = await withNetworkRetry('updateClaimStatus', () => this.client.post('/update-claim-status', {
         claim_id,
         status,
         token_id,
-        tx_hash
+        tx_hash,
+        recipient_address
       }));
 
       if (response.data.success) {
