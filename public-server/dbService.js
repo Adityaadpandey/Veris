@@ -537,6 +537,25 @@ class ClaimDBService {
     return rows[0] || null;
   }
 
+  /** Claim whose paired phone photo is byte-identical to this hash (see companionCapture.mobileSearchHashes). */
+  async getClaimByCompanionHash(hash) {
+    if (!hash) return null;
+    const { rows } = await this.pool.query(`SELECT * FROM claims WHERE companion_capture->>'mobile_image_hash' = $1`, [hash]);
+    return rows[0] || null;
+  }
+
+  /** Claims with a hashed companion photo, shaped like getClaimsWithPhash rows so the tamper scan can reuse them. */
+  async getClaimsWithCompanionHashes() {
+    const { rows } = await this.pool.query(`
+      SELECT claim_id, cid, token_id, image_hash, recipient_address, device_id, status, description, tags, created_at,
+             companion_capture->'mobile_orientation_hashes' AS orientation_hashes,
+             companion_capture->>'mobile_image_url' AS mobile_image_url
+      FROM claims
+      WHERE jsonb_array_length(COALESCE(companion_capture->'mobile_orientation_hashes', '[]'::jsonb)) > 0
+    `);
+    return rows;
+  }
+
   /** All claims that have at least one perceptual hash, for the tamper scan. */
   async getClaimsWithPhash() {
     const { rows } = await this.pool.query(`
