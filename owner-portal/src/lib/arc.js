@@ -10,9 +10,10 @@ export const arcTestnet = defineChain({
   testnet: true,
 })
 
-// Set these once VerisLicense is deployed on Arc; the license button stays hidden until then.
-export const LICENSE_ADDRESS = import.meta.env.VITE_LICENSE_ADDRESS
-export const ARC_USDC_ADDRESS = import.meta.env.VITE_ARC_USDC_ADDRESS
+// Defaults are the live Arc testnet deployment (contracts/deployment-5042002.json and Circle's
+// USDC ERC-20 interface), so the license button works without any env. Override per environment if redeployed.
+export const LICENSE_ADDRESS = import.meta.env.VITE_LICENSE_ADDRESS || '0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9'
+export const ARC_USDC_ADDRESS = import.meta.env.VITE_ARC_USDC_ADDRESS || '0x3600000000000000000000000000000000000000'
 export const LICENSE_PRICE = 5_000_000n // 5 USDC, 6 decimals through the ERC-20 interface
 
 export const LICENSE_ABI = parseAbi([

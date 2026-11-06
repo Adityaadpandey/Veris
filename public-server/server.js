@@ -1771,7 +1771,7 @@ app.get('/api/arkiv/search', async (req, res) => {
 // disappears when the term ends. The contract is the source of truth, this is just a readable mirror.
 app.post('/api/license/record', async (req, res) => {
   const { txHash } = req.body || {};
-  const contract = process.env.LICENSE_CONTRACT_ADDRESS;
+  const contract = process.env.LICENSE_CONTRACT_ADDRESS || '0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9'; // Arc testnet VerisLicense
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash || '')) return res.status(400).json({ success: false, error: 'txHash is required' });
   if (!contract) return res.status(503).json({ success: false, error: 'LICENSE_CONTRACT_ADDRESS is not set' });
   try {
