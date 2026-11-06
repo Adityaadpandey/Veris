@@ -19,7 +19,7 @@ export default function Footer({ onStory }) {
           <Link to={OWNER_PORTAL}>Owner portal</Link>
           <button type="button" onClick={onStory}>The story behind Veris</button>
         </nav>
-        <p className="fine">Veris is a prototype and runs on the Ethereum Sepolia testnet.</p>
+        <p className="fine">Veris is a prototype and runs on the Ethereum Sepolia and Arc testnets.</p>
       </div>
     </footer>
   )
