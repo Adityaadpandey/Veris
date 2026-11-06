@@ -21,7 +21,7 @@ import claimClient from './claimClient.js';
 import privyService from './privyService.js';
 import deploymentService from './deploymentService.js';
 import { checkPacket, buildPacketMessage } from './packet.js';
-import { initChains, mintEverywhere, retrySecondaryMints, explorerTxUrl } from './chains.js';
+import { initChains, mintEverywhere, retrySecondaryMints, explorerTxUrl, primaryChainName, secondaryServices } from './chains.js';
 import { publishProvenance } from './provenance.js';
 import { buildDecisionLog, storeDecisionLog, retryDecisionLogs } from './decisionLog.js';
 
@@ -367,6 +367,14 @@ app.get('/api/balance', async (req, res) => {
     console.log(`   📊 ETH Required: ${minEthBalance} ETH`);
     console.log(`   ${hasEnoughEth ? '✅' : '⚠️'} ETH Status: ${hasEnoughEth ? 'Sufficient' : 'Low - needs funding'}`);
 
+    // Same device key pays on every chain; Arc's native gas token is USDC, so its number is USDC.
+    const chains = {};
+    for (const [name, service] of [[primaryChainName(), web3Service], ...secondaryServices()]) {
+      const b = await service.getDeviceBalance();
+      chains[name] = b ? { balance: b.balance } : { error: 'balance lookup failed' };
+      console.log(`   🌐 ${name}: ${b ? b.balance : 'lookup failed'}`);
+    }
+
     const lighthouseReady = filecoinService.initialized;
     console.log(`   ${lighthouseReady ? '✅' : '⚠️'} Lighthouse Status: ${lighthouseReady ? 'Ready' : 'Not initialized (set LIGHTHOUSE_API_KEY)'}`);
 
@@ -386,6 +394,7 @@ app.get('/api/balance', async (req, res) => {
         hasEnoughBalance: hasEnoughEth,
         needsFunding: !hasEnoughEth
       },
+      chains,
       lighthouse: {
         initialized: lighthouseReady,
         hasEnoughBalance: lighthouseReady,
