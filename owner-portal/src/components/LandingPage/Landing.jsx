@@ -98,7 +98,7 @@ export default function Landing({ onStory }) {
           <nav className="nav-links" aria-label="Main">
             <button type="button" className="nav-link" onClick={onStory}>How it works</button>
             <a className="nav-link" href="#devices" onClick={toDevices}>Use cases</a>
-            <a className="nav-link" href={DOCS} target="_blank" rel="noopener noreferrer">Docs</a>
+            <Link className="nav-link" to={DOCS}>Docs</Link>
             <Link className="nav-link" to={OWNER_PORTAL}>Owner portal</Link>
             <a className="btn btn-primary" href="#waitlist" onClick={toWaitlist}>Join the waitlist</a>
           </nav>

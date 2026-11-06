@@ -11,6 +11,7 @@ export default function SiteNav() {
         <nav className="nav-links" aria-label="Check a photo">
           <NavLink className="nav-link" to={VERIFY_PHOTO}>Verify</NavLink>
           <NavLink className="nav-link" to="/authenticity-check">Compare</NavLink>
+          <NavLink className="nav-link" to="/docs">Docs</NavLink>
           <Link className="btn btn-ghost" to={OWNER_PORTAL}>Owner portal →</Link>
         </nav>
       </div>
