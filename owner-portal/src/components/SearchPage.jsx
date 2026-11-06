@@ -288,20 +288,31 @@ function HashLookup({ onOpenClaim }) {
   }
 
   return (
-    <form onSubmit={search} style={{ marginTop: 24 }}>
-      <label htmlFor="hash-q" style={{ display: 'block', marginBottom: 6 }}>Or search by image hash or device id</label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input id="hash-q" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="64 character SHA-256, or a device id" style={{ flex: 1, padding: '10px 12px' }} />
-        <button className="btn btn-ghost" type="submit" disabled={busy}>{busy ? 'Searching…' : 'Search'}</button>
-      </div>
+    <details className="lookup">
+      <summary>No file? Search by image hash or device ID</summary>
+      <form onSubmit={search}>
+        <label htmlFor="hash-q" className="sr">Image hash or device ID</label>
+        <input id="hash-q" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="64 character SHA-256, or a device ID" />
+        <button className="btn btn-primary" type="submit" disabled={busy || !query.trim()}>{busy ? 'Searching…' : 'Search'}</button>
+      </form>
       {results && (results.length === 0
-        ? <p style={{ marginTop: 8 }}>Nothing found.</p>
-        : results.map((r) => (
-            <p key={r.claimId} style={{ marginTop: 8 }}>
-              <button type="button" className="btn btn-ghost" onClick={() => onOpenClaim(r.claimId)}>Claim {String(r.claimId).slice(0, 8)}… · {r.status}</button>
-            </p>
-          )))}
-    </form>
+        ? <p className="dim">Nothing found for that.</p>
+        : (
+          <ul>
+            {results.map((r) => (
+              <li key={r.claimId}>
+                <button type="button" className="sim" onClick={() => onOpenClaim(r.claimId)}>
+                  <span className="sim-text">
+                    <span className="sim-desc">Claim {String(r.claimId).slice(0, 8)}…</span>
+                    <span className="sim-meta">{r.status}</span>
+                  </span>
+                  <span className="sim-pct">→</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </details>
   )
 }
 
@@ -309,7 +320,7 @@ export default function SearchPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="vl va va-fit">
+    <div className="vl va">
       <header className="va-nav">
         <div className="wrap">
           <Link className="brand" to="/" aria-label="Veris home"><Sprite name="camera" u={1.7} />VERIS</Link>
