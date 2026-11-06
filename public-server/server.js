@@ -13,7 +13,7 @@ const { exifSignals } = require('./imageForensics');
 const clipService = require('./clipService');
 const arkivService = require('./arkivService');
 const { isZerogRef } = require('./zerogRead');
-const { computeForensicDiff } = require('./pixelDiff');
+const { computeForensicDiff, findChangeRegions, cropRegion } = require('./pixelDiff');
 const { buildSimilarResults, rowOrientationHashes } = require('./similarPhotos');
 const { parseSignup, createRateLimiter } = require('./waitlist');
 const { processCompanionLink, uploadCompanionImage, fetchBufferFromUrl, backfillCompanionHashes } = require('./companionCapture');
@@ -1400,6 +1400,8 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
     // bytes (the forensic diff below, and/or the OpenAI side-by-side
     // comparison further down) and reused for both instead of fetching twice.
     let cachedOriginalBuffer = null;
+    let cachedAlignedOriginal = null;
+    let changeRegions = [];
     // A companion match must be diffed against the phone photo, not the device image.
     let companionUrl = null;
     const loadOriginal = async (cid) => companionUrl ? fetchBufferFromUrl(companionUrl) : (await fetchImageBuffer(cid)).buffer;
@@ -1476,14 +1478,20 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         // recompressed" (a pure re-encode's SSIM is always ~1.0 with no
         // region, so skip the fetch+compute cost for that tier).
         companionUrl = best.source === 'companion' ? best.row.mobile_image_url : null;
-        if ((tier === 'structural_edit' || tier === 'possible_match') && verdict.original_cid) {
+        if (verdict.original_cid) {
           try {
             const origBuffer = await loadOriginal(verdict.original_cid);
             cachedOriginalBuffer = origBuffer;
             const alignedOriginal = best.orientation && best.orientation !== '0'
               ? await transformForOrientation(origBuffer, best.orientation)
               : origBuffer;
-            verdict.forensic_diff = await computeForensicDiff(alignedOriginal, buffer);
+            cachedAlignedOriginal = alignedOriginal;
+            if (tier === 'structural_edit' || tier === 'possible_match') {
+              verdict.forensic_diff = await computeForensicDiff(alignedOriginal, buffer);
+            }
+            // Fine-grained pass for every altered copy: catches small edits (a distant
+            // person, a small object) that the coarse SSIM grid and the vision model miss.
+            changeRegions = await findChangeRegions(alignedOriginal, buffer);
           } catch (diffErr) {
             console.warn('⚠️  Could not compute forensic diff:', diffErr.message);
           }
@@ -1566,11 +1574,28 @@ app.post('/api/search', upload.single('image'), async (req, res) => {
         if (verdict.type === 'altered_copy' && verdict.original_cid) {
           try {
             const origBuffer = cachedOriginalBuffer || await loadOriginal(verdict.original_cid);
-            const diff = await openaiService.compareImages(origBuffer, buffer, req.file.mimetype);
+            let regionCrops = [];
+            if (changeRegions.length) {
+              const aligned = cachedAlignedOriginal || origBuffer;
+              regionCrops = await Promise.all(changeRegions.map(async (r) => ({
+                position: r.position,
+                original: await cropRegion(aligned, r),
+                upload: await cropRegion(buffer, r)
+              }))).catch(() => []);
+            }
+            const diff = await openaiService.compareImages(cachedAlignedOriginal || origBuffer, buffer, req.file.mimetype, regionCrops);
+            const items = [...diff.changes];
+            if (changeRegions.length && items.length === 0) {
+              // The model saw nothing, but the pixels differ: say so rather than "no changes".
+              for (const r of changeRegions) items.push(`A small area changed in the ${r.position} of the photo`);
+            }
             verdict.changes = {
-              summary: diff.summary || null,
-              items: diff.changes,
-              change_type: diff.changeType,
+              summary: changeRegions.length && !diff.changes.length
+                ? `${changeRegions.length} small area${changeRegions.length > 1 ? 's' : ''} differ from the original.`
+                : diff.summary || null,
+              items,
+              regions: changeRegions,
+              change_type: changeRegions.length && diff.changeType === 'reencoded' ? 'content_edited' : diff.changeType,
               authoritative: false
             };
           } catch (diffErr) {

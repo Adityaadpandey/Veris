@@ -127,7 +127,7 @@ function SimilarRow({ result, onPress }) {
 }
 
 /** Pick a photo, hash it, and look for it on the chain. */
-function VerifyPanel({ onOpenClaim }) {
+function VerifyPanel({ onOpenClaim, onActiveChange }) {
   const [state, setState] = useState({ phase: 'idle' })
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef()
@@ -135,6 +135,8 @@ function VerifyPanel({ onOpenClaim }) {
   const outRef = useRef()
   const previewRef = useRef(null)
   const hasPreview = state.phase !== 'idle'
+
+  useEffect(() => { onActiveChange?.(hasPreview) }, [hasPreview, onActiveChange])
 
   useEffect(() => () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current) }, [])
   useEffect(() => {
@@ -327,6 +329,7 @@ function HashLookup({ onOpenClaim }) {
 
 export default function SearchPage() {
   const navigate = useNavigate()
+  const [photoAdded, setPhotoAdded] = useState(false)
 
   return (
     <div className="vl va">
@@ -335,10 +338,10 @@ export default function SearchPage() {
       <main className="wrap va-main">
         <div className="va-head">
           <h1>Was this photo ever sealed?</h1>
-          <p>Every photo captured with a Veris device is recorded on the chain. Add a file and we'll check it against the public registry.</p>
+          {!photoAdded && <p>Every photo captured with a Veris device is recorded on the chain. Add a file and we'll check it against the public registry.</p>}
         </div>
 
-        <VerifyPanel onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
+        <VerifyPanel onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} onActiveChange={setPhotoAdded} />
         <HashLookup onOpenClaim={(claimId) => navigate(`/claim/${claimId}`)} />
       </main>
 

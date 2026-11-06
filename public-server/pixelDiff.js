@@ -140,4 +140,149 @@ async function computeForensicDiff(originalBuffer, uploadBuffer) {
   return { ssim, change_type: changeType, region_bbox: regionBbox };
 }
 
-module.exports = { computeForensicDiff };
+// ── Fine-grained change regions ────────────────────────────────────────────
+// The 16x16 SSIM grid above is deliberately coarse, so a small edit (a tiny
+// distant person, a small object, a few pixels) vanishes inside a block. This
+// pass works at higher resolution on a lightly blurred colour diff, so JPEG
+// noise is absorbed but small genuine edits survive.
+const FINE_SIZE = 512;
+const FINE_BLUR_SIGMA = 1.5;
+const FINE_DIFF_THRESHOLD = 26;     // 0-255 blurred per-channel difference that counts as changed
+const FINE_MIN_AREA = 8;            // px at 512x512 (~0.003% of the frame)
+const FINE_MERGE_GAP = 14;          // boxes closer than this (px) are one region
+const FINE_MAX_GLOBAL_FRACTION = 0.35; // more than this changed -> whole-frame edit, no regions
+const FINE_MAX_REGIONS = 6;
+
+async function fineCanvas(buffer) {
+  return sharp(buffer)
+    .removeAlpha()
+    .resize(FINE_SIZE, FINE_SIZE, { fit: 'fill' })
+    .blur(FINE_BLUR_SIGMA)
+    .raw()
+    .toBuffer();
+}
+
+function mergeBoxes(boxes) {
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (a.x0 - FINE_MERGE_GAP <= b.x1 && b.x0 - FINE_MERGE_GAP <= a.x1
+          && a.y0 - FINE_MERGE_GAP <= b.y1 && b.y0 - FINE_MERGE_GAP <= a.y1) {
+          boxes[i] = {
+            x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0),
+            x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1),
+            area: a.area + b.area, peak: Math.max(a.peak, b.peak)
+          };
+          boxes.splice(j, 1);
+          merged = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return boxes;
+}
+
+/** Plain-English position of a normalised box centre, e.g. "upper left". */
+function describePosition(cx, cy) {
+  const v = cy < 0.34 ? 'upper' : cy > 0.66 ? 'lower' : 'middle';
+  const h = cx < 0.34 ? 'left' : cx > 0.66 ? 'right' : 'center';
+  if (v === 'middle' && h === 'center') return 'center';
+  if (v === 'middle') return h;
+  if (h === 'center') return v === 'upper' ? 'top' : 'bottom';
+  return `${v} ${h}`;
+}
+
+/**
+ * Find small localized differences between the original and an upload.
+ * @returns {Promise<Array<{x:number,y:number,width:number,height:number,area_fraction:number,position:string}>>}
+ *   normalised (0-1) boxes, largest first. Empty for identical / re-encoded images,
+ *   whole-frame adjustments, or crops (different aspect ratio).
+ */
+async function findChangeRegions(originalBuffer, uploadBuffer) {
+  const [origRatio, uploadRatio] = await Promise.all([aspectRatio(originalBuffer), aspectRatio(uploadBuffer)]);
+  if (origRatio && uploadRatio && Math.abs(origRatio - uploadRatio) / origRatio > ASPECT_RATIO_TOLERANCE) return [];
+
+  const [a, b] = await Promise.all([fineCanvas(originalBuffer), fineCanvas(uploadBuffer)]);
+  const n = FINE_SIZE * FINE_SIZE;
+
+  // Remove any global brightness/colour shift so only local edits stand out.
+  const offset = [0, 0, 0];
+  for (let c = 0; c < 3; c++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += b[i * 3 + c] - a[i * 3 + c];
+    offset[c] = sum / n;
+  }
+
+  const strength = new Uint8Array(n);
+  const mask = new Uint8Array(n);
+  let changed = 0;
+  for (let i = 0; i < n; i++) {
+    let m = 0;
+    for (let c = 0; c < 3; c++) {
+      const d = Math.abs(b[i * 3 + c] - a[i * 3 + c] - offset[c]);
+      if (d > m) m = d;
+    }
+    strength[i] = m > 255 ? 255 : m;
+    if (m > FINE_DIFF_THRESHOLD) { mask[i] = 1; changed++; }
+  }
+  if (changed === 0 || changed / n > FINE_MAX_GLOBAL_FRACTION) return [];
+
+  // 8-connected components via an iterative flood fill.
+  const stack = new Int32Array(n);
+  let boxes = [];
+  for (let start = 0; start < n; start++) {
+    if (mask[start] !== 1) continue;
+    let sp = 0;
+    stack[sp++] = start;
+    mask[start] = 2;
+    let x0 = FINE_SIZE, y0 = FINE_SIZE, x1 = 0, y1 = 0, area = 0, peak = 0;
+    while (sp > 0) {
+      const idx = stack[--sp];
+      const x = idx % FINE_SIZE, y = (idx - x) / FINE_SIZE;
+      area++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (strength[idx] > peak) peak = strength[idx];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= FINE_SIZE || ny >= FINE_SIZE) continue;
+          const ni = ny * FINE_SIZE + nx;
+          if (mask[ni] === 1) { mask[ni] = 2; stack[sp++] = ni; }
+        }
+      }
+    }
+    if (area >= FINE_MIN_AREA) boxes.push({ x0, y0, x1, y1, area, peak });
+  }
+
+  boxes = mergeBoxes(boxes).sort((p, q) => q.area - p.area).slice(0, FINE_MAX_REGIONS);
+  const r = (v) => Math.round(v * 1000) / 1000;
+  return boxes.map((bx) => {
+    const x = bx.x0 / FINE_SIZE, y = bx.y0 / FINE_SIZE;
+    const width = (bx.x1 - bx.x0 + 1) / FINE_SIZE, height = (bx.y1 - bx.y0 + 1) / FINE_SIZE;
+    return {
+      x: r(x), y: r(y), width: r(width), height: r(height),
+      area_fraction: r(bx.area / n),
+      position: describePosition(x + width / 2, y + height / 2)
+    };
+  });
+}
+
+/** Crop a normalised box (with padding) out of an image; returns a JPEG buffer. */
+async function cropRegion(buffer, box, padding = 0.04) {
+  const { width, height } = await sharp(buffer).metadata();
+  const left = Math.max(0, Math.floor((box.x - padding) * width));
+  const top = Math.max(0, Math.floor((box.y - padding) * height));
+  const right = Math.min(width, Math.ceil((box.x + box.width + padding) * width));
+  const bottom = Math.min(height, Math.ceil((box.y + box.height + padding) * height));
+  return sharp(buffer)
+    .extract({ left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) })
+    .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: false })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+module.exports = { computeForensicDiff, findChangeRegions, cropRegion };
