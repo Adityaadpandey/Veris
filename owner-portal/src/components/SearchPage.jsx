@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { searchArkiv } from '@/lib/arkivDirect'
+import { searchArkiv, verifyExactOnArkiv } from '@/lib/arkivDirect'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './LandingPage/landing.css'
@@ -151,6 +151,13 @@ function VerifyPanel({ onOpenClaim }) {
     setState({ phase: 'running', previewUri, fileName: file.name })
 
     try {
+      // A byte-identical photo is settled on this device: hash it here and ask Arkiv, so the photo
+      // never leaves the browser. Any failure or miss falls through to the server check below.
+      const direct = await verifyExactOnArkiv(file).catch(() => null)
+      if (direct) {
+        setState({ phase: 'done', previewUri, fileName: file.name, verdict: direct, aiHint: null, queryDescription: null, similar: [] })
+        return
+      }
       const form = new FormData()
       form.append('image', file)
       const res = await fetch(`${CLAIM_API}/api/search`, { method: 'POST', body: form })
