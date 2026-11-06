@@ -1,345 +1,281 @@
-# Veris Hotshoe
+# Veris Mobile App (Hotshoe)
 
-A demo/prototype Expo app for **Veris Hotshoe** — a hardware module ("Hotshoe" for
-DSLR/mirrorless cameras, "Clip" for phones) that signs a photo with a hardware key
-the instant it's captured, then seals that proof on-chain. The app is the owner's
-portal to that archive, a public registry to verify any sealed frame, and the
-capture surface for the phone-based Clip.
+An Expo / React Native app to trigger the Veris camera, browse sealed photos, and verify any image.
 
-Everything blockchain/hardware here is **simulated** for the demo — see
-[What's real vs. mocked](#whats-real-vs-mocked) before treating any of it as a spec
-for production behavior.
+## What it does
+
+- Connects to the Raspberry Pi camera over classic Bluetooth and sends a `CAPTURE` command (Android only).
+- Shows live pipeline status from the Pi: captured, signed, uploading, uploaded, queued, failed.
+- Lists every photo the wallet owns, pulled from the hosted claim server.
+- Opens a claim sheet per photo with provenance, chain proof and license history.
+- Verifies any image by uploading it for a reverse-image check against sealed photos.
+- Checks identity through DigiLocker (via a small bundled server) before wallet connect.
+
+## Where it fits
+
+```mermaid
+flowchart LR
+  Pi["hardware-camera-app<br/>(Raspberry Pi)"] -- "Bluetooth: CAPTURE / status lines" --- App["mobile-app<br/>(this app)"]
+  Pi --> W3["hardware-web3-service"]
+  W3 --> PS["public-server<br/>(claims API)"]
+  App -- "HTTPS: claims, provenance, search" --> PS
+  App -- "auth" --> Privy["Privy"]
+  App -- "optional" --> DL["mobile-app/server<br/>(DigiLocker bridge)"]
+  Portal["owner-portal (web)"] --> PS
+```
+
+## Flow: trigger a photo from the phone
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as Mobile app
+  participant Pi as Pi camera
+  participant S as Claim server
+  U->>A: Tap shutter
+  A->>Pi: CAPTURE (Bluetooth RFCOMM)
+  Pi-->>A: CAPTURING, CAPTURED, SIGNED
+  Pi-->>A: UPLOADING
+  Pi-->>A: UPLOADED:<claim url>
+  A->>S: Fetch claim by id
+  A-->>U: Photo appears in the archive
+```
+
+## Screens
+
+| Route | File | What it is |
+|---|---|---|
+| `/` | `src/app/index.tsx` | Redirects to portal if connected, else onboarding |
+| `/onboarding` | `src/app/onboarding.tsx` | Intro carousel |
+| `/landing` | `src/app/landing.tsx` | Entry: owner portal or verify a photo |
+| `/digilocker` | `src/app/digilocker.tsx` | Identity check |
+| `/wallet` | `src/app/wallet.tsx` | Wallet connect (modal) |
+| `/pairing` | `src/app/pairing.tsx` | Pair a device (modal) |
+| `/trigger` | `src/app/trigger.tsx` | Remote shutter for the Pi (modal) |
+| `/portal` | `src/app/(app)/portal.tsx` | The archive: grid of sealed photos |
+| `/search` | `src/app/(app)/search.tsx` | Search and verify, wallet scoped |
+| `/capture` | `src/app/(app)/capture.tsx` | Phone camera capture |
+| `/monitor` | `src/app/(app)/monitor.tsx` | Shows age of the newest frame |
+| `/profile` | `src/app/(app)/profile.tsx` | Identity, device and settings |
+| `/verify` | `src/app/verify.tsx` | Public verify, no wallet needed |
+| `/claim/[index]` | `src/app/claim/[index].tsx` | Claim sheet for a seed (demo) photo |
+| `/claim/real/[claimId]` | `src/app/claim/real/[claimId].tsx` | Claim sheet for a real Pi-sealed photo |
+
+<!-- TODO: screenshot of onboarding (save to docs/img/onboarding.png) -->
+> 📸 TODO: add screenshot of onboarding
+
+<!-- TODO: screenshot of landing (save to docs/img/landing.png) -->
+> 📸 TODO: add screenshot of landing
+
+<!-- TODO: screenshot of wallet connect (save to docs/img/wallet.png) -->
+> 📸 TODO: add screenshot of wallet connect
+
+<!-- TODO: screenshot of DigiLocker check (save to docs/img/digilocker.png) -->
+> 📸 TODO: add screenshot of DigiLocker check
+
+<!-- TODO: screenshot of the portal archive grid (save to docs/img/portal.png) -->
+> 📸 TODO: add screenshot of the portal archive grid
+
+<!-- TODO: screenshot of the Pi remote trigger (save to docs/img/trigger.png) -->
+> 📸 TODO: add screenshot of the Pi remote trigger
+
+<!-- TODO: screenshot of a real claim sheet with proof panel (save to docs/img/claim.png) -->
+> 📸 TODO: add screenshot of a real claim sheet with proof panel
+
+<!-- TODO: screenshot of verify / search result (save to docs/img/verify.png) -->
+> 📸 TODO: add screenshot of verify / search result
+
+<!-- TODO: screenshot of profile (save to docs/img/profile.png) -->
+> 📸 TODO: add screenshot of profile
+
+## Tracks & sponsors used
+
+Only what this app's code really does. The heavy lifting for each sponsor lives in the sibling services.
+
+| Sponsor | What we built | Files | Fallback or flag |
+|---|---|---|---|
+| Privy | Login and embedded wallet for the app | `src/app/_layout.tsx`, `src/app/wallet.tsx`, `src/hooks/use-connection.tsx` | IDs hardcoded in `src/constants/config.ts` |
+| Arkiv | Provenance shown comes from the server, which reads Arkiv first, then Postgres | `src/app/claim/real/[claimId].tsx` | Server side choice, no app flag |
+| 0G | Shows "0G Storage" for `0g` CIDs and "0G Compute" as the checker, with request id | `src/app/claim/real/[claimId].tsx`, `src/constants/config.ts` | Falls back to GPT vision label and Lighthouse gateways |
+| Arc (USDC licensing) | License history read from the Arc explorer, 5 USDC for 30 days | `src/components/licenses-card.tsx`, `src/constants/config.ts` | Shows "couldn't reach Arc indexer" on failure |
+| Filecoin / Lighthouse | Photos load through Lighthouse IPFS gateways | `src/constants/config.ts` (`IPFS_GATEWAYS`) | Tries the server gateway first, then each Lighthouse subdomain |
+
+> TODO: the Sepolia contract in `config.ts` is still the app's main chain, Solana, vlayer and RISC Zero are not used directly by this app.
+> TODO: before the event vs added at the event is not clear from this app's code, confirm with git history.
+
+## Folder structure
+
+```
+mobile-app/
+├── src/
+│   ├── app/            # expo-router screens (see table above)
+│   ├── bluetooth/      # Pi link: pi-connection.ts, permissions.ts
+│   ├── components/     # shared UI: dock, glass-panel, brutal-block, ...
+│   ├── constants/      # config.ts (URLs, chain info), theme, photos seed data
+│   ├── hooks/          # state + data: use-pi-trigger, use-wallet-claims, use-claim, ...
+│   ├── lib/            # helpers: claim-id, save-photo, wallet-connect, format
+│   └── screens/        # search-screen shared by /search and /verify
+├── server/             # tiny Express bridge for DigiLocker (Setu)
+├── plugins/            # Expo config plugin for Android Bluetooth permissions
+├── docs/spec/          # bluetooth.md protocol notes
+└── app.json            # Expo config, URL scheme: verishotshoeapp
+```
 
 ## Tech stack
 
-- **Expo SDK 57** + **Expo Router** (file-based routing, typed routes, React
-  Compiler enabled) — see `AGENTS.md`, Expo 57 docs differ from older versions.
-- **React 19** / **React Native 0.86**
-- **react-native-reanimated 4** for all motion (shared values, springs, layout
-  transitions) — no `Animated` API from core RN.
-- **react-native-gesture-handler** for the capture screen's pinch-to-zoom.
-- **react-native-svg** for icons, gradients, and the radial-glow background effect.
-- **expo-camera**, **expo-image-picker**, **expo-media-library** — real device
-  camera, gallery picking, and saving to the photo library.
-- **expo-secure-store**, with a `localStorage` fallback on web (secure-store has
-  no web implementation) — used for every piece of persisted app state.
-- A separate **Node/Express backend** (`server/`) fronting Setu's DigiLocker
-  eKYC API — kept out of the Expo app itself so `app.json`'s `web.output: "static"`
-  never has to change (see `server/README.md`).
-- No real blockchain, wallet SDK, or AI search — all mocked (see below).
-
-## App flow
-
-```
-index ("/")
-  └─ redirect: connected? → /portal : /onboarding
-
-/onboarding            (carousel, autoplay + tap-through, SKIP)
-  └─ ENTER / SKIP → /landing
-
-/landing               (public marketing splash)
-  ├─ "01 Owner portal"  → connected? /portal
-  │                       verified?  /wallet
-  │                       else       /digilocker
-  └─ "02 Verify a photo" → /verify   (public search, no wallet/identity needed)
-
-/digilocker            (govt identity check, via DigiLocker/Setu)
-  └─ verified → /wallet
-
-/wallet                (modal-presented wallet connect picker)
-  └─ connected → /portal   (auto-redirect on connect)
-
-/portal, /search, /capture      ← the "(app)" group, wrapped by <Dock/>
-  ├─ /portal   "The archive"     — grid of the owner's sealed/licensed/pending photos
-  ├─ /search   "Ask the registry" — same UI as /verify, but wallet-scoped
-  ├─ /capture  "Click Photo"     — only reachable/shown when a Clip is paired
-  └─ /profile                    — reached from portal's header chip, not a dock tab
-
-/claim/[index]         (full claim sheet for one photo — reachable from portal
-                        grid, search results, capture's "sealed" tags, or a
-                        shared public link)
-
-/verify                (same SearchScreen as /search, but the public/no-wallet
-                        entry point from the landing screen)
-```
-
-Key routing rules baked into the code:
-
-- `src/app/index.tsx` gates on `useConnection().connected` (wallet connected or
-  not) — `undefined` while the persisted flag is still loading, which keeps the
-  native splash screen up instead of flashing the wrong screen.
-- `src/app/landing.tsx`'s "Owner portal" row chains three states: already
-  connected → straight to `/portal`; identity verified but no wallet → `/wallet`;
-  neither → `/digilocker` first. **Identity check always happens before wallet
-  connect.**
-- `src/app/(app)/_layout.tsx` decides `showDock` (hidden only on `/profile`,
-  which is a detail screen, not a tab) and derives the active tab from the
-  pathname. It also owns the first-run device-pairing prompt: shown once,
-  exactly when `connected && verified && device === 'none' && !dismissed`.
-- `src/app/(app)/capture.tsx` redirects back to `/portal` if a device other than
-  `'clip'` is paired (a Hotshoe signs at its own physical shutter, not from the
-  app, so its owner never needs this screen).
-
-## Global state (root providers)
-
-`src/app/_layout.tsx` wraps the whole router `<Stack>` in four context
-providers, in this order — `DigilockerProvider → ConnectionProvider →
-DevicePairingProvider → PhotosProvider`:
-
-| Hook | File | Backs | Persistence key |
-|---|---|---|---|
-| `useConnection()` | `use-connection.tsx` | wallet address + connect/disconnect | `veris.hotshoe.connected` |
-| `useDevicePairing()` | `use-device-pairing.tsx` | which hardware (`'none' \| 'hotshoe' \| 'clip'`) is paired, and whether the first-run prompt was dismissed | `veris.hotshoe.device`, `veris.hotshoe.device_prompt_dismissed` |
-| `useDigilocker()` | `use-digilocker.tsx` | identity verification state + profile | `veris.hotshoe.digilocker` |
-| `usePhotos()` | `use-photos.tsx` | the in-memory photo archive (seed data + anything captured this session) | none — resets on reload |
-
-All three persisted hooks share the same pattern: a `boolean | undefined` state
-that starts `undefined` while the stored flag loads (screens use this to avoid a
-flash of the wrong UI), then `SecureStore` on native / `window.localStorage` on
-web.
-
-## Design system ("brutal glass")
-
-Documented at the top of `src/constants/theme.ts`: a fixed-palette,
-**not** light/dark-themed product. Two visual languages, deliberately kept
-distinct rather than blended:
-
-- **Neobrutalist blocks** (`BrutalBlock`) — solid fill, thick ink border, and a
-  flat, *unblurred* offset "sticker" shadow (no shadow blur anywhere). Used for
-  all content and controls: cards, buttons, chips, sheets.
-- **Frosted glass** (`GlassPanel`, built on `expo-blur`'s `BlurView`) — reserved
-  for floating chrome only: the dock, header chips, modals' backdrop cards,
-  badges over photos. Never used for regular content.
-
-Palette (`Palette` in `theme.ts`): `cream`/`paper` (light surfaces), `ink`
-(near-black, the universal border/text-on-light color), `orange`/`orangeHover`
-(the one brand accent — used for CTAs, active states, and signing/seal
-indicators), `espresso`/`charcoal`/`onyx` (near-black screen backgrounds),
-`bone` (off-white text on dark), `green` (the one place the palette means
-"verified/authentic" instead of "brand").
-
-Other tokens: `Border` (hairline → heavy, always solid), `Radius` (small,
-deliberate corners — never soft/pill-everywhere), `Shadow.hard()` (the flat
-offset-shadow helper), `Glass.*` (translucency tints for `GlassPanel`), `Tones`
-(8 three-color gradient sets, cycled per-photo for `PhotoThumb`'s diagonal tone
-wash), typography helpers in `constants/typography.ts`:
-- `display()` — Archivo Black, uppercase, tight tracking — all headlines.
-- `body()` — Archivo (regular/medium/semibold/bold) — running text.
-- `mono()` — IBM Plex Mono, letter-spaced, mostly uppercase — the recurring
-  micro-copy/label/kicker style (`"SIGNED AT CAPTURE"`, `"01 / THE PROBLEM"`, etc).
-
-A recurring camera-viewfinder corner-bracket motif (`ViewfinderBrackets`) marks
-every full-bleed dark screen (landing, onboarding, wallet, digilocker).
-`RadialGlow` (stacked-circle approximation of a radial gradient — real SVG
-`RadialGradient` renders solid on Android) puts a soft orange glow behind each
-of those heroes; `LinearScrim` is the equivalent top-to-bottom linear-gradient
-workaround, same Android caveat.
-
-### Shared components (`src/components/`)
-
-| Component | Purpose |
+| Layer | Tech |
 |---|---|
-| `BrutalBlock` | The core neobrutalist surface (see above) |
-| `GlassPanel` | The core frosted-chrome surface (see above) |
-| `PillButton` | Chunky offset-shadow CTA (onboarding, search, claim) — caller supplies colors |
-| `BackButton` | Frosted circular back control, `dark`/`light` variants |
-| `PhotoThumb` | Photo tile with the diagonal tone-wash overlay; `dynamic` sizes by the photo's real aspect ratio |
-| `RadialGlow` / `LinearScrim` | Gradient-effect backgrounds (Android-safe implementations) |
-| `ViewfinderBrackets` | Four corner brackets, the "camera" motif |
-| `Dock` | The bottom nav bar (see next section) |
-| `PairingModal` | First-run "pair a device" modal |
+| Framework | Expo SDK 57, Expo Router, React 19, React Native 0.86 |
+| Motion / gestures | react-native-reanimated, react-native-gesture-handler |
+| Auth | Privy (`@privy-io/expo`), WalletConnect, passkeys |
+| Chain client | viem |
+| Pi link | react-native-bluetooth-classic (Android RFCOMM) |
+| Device APIs | expo-camera, expo-image-picker, expo-media-library, expo-secure-store |
+| Identity | DigiLocker through Setu, via `server/` (Express) |
+| Language | TypeScript |
 
-`useBrutalPress(offset)` (`src/hooks/use-brutal-press.ts`) is the shared press
-physics used everywhere a `BrutalBlock`/`GlassPanel` needs to look like it's
-being pushed flush into its own shadow — pass the same `offset` the block uses.
+## Key code snippets
 
-## The Dock (bottom nav) — recently redesigned
+The Pi sends plain text lines. This turns them into typed status events.
 
-`src/components/dock.tsx`, rendered by `(app)/_layout.tsx` on every app-group
-screen except `/profile`.
+```ts
+export function parseStatusLine(line: string): PiStatusLine {
+  const trimmed = line.trim();
 
-- **No device paired, or a Hotshoe paired:** a plain 2-cell glass bar —
-  **Certificates** (portal) and **Verify** (search) — with a sliding orange
-  "chip" indicator behind whichever tab is active.
-- **A Clip is paired:** the bar still only holds those same two cells (the chip
-  now slides only between them), and **Click Photo** becomes a standalone
-  circular shutter button, centered, popped up so it half-overlaps the top edge
-  of the bar (Snapchat-style camera FAB) — not a third equal-width tab. It
-  springs in with a slight overshoot when it first appears, presses flush like
-  a real shutter, and inverts from orange-fill/ink-icon to ink-fill/orange-icon
-  while `/capture` is the active screen. The chip deliberately does **not**
-  jump to "portal" while capture is active — it just stays wherever it was.
-
-## Capture screen (`(app)/capture.tsx`)
-
-Only reachable (and only linked from the dock) when `device === 'clip'`; redirects
-to `/portal` otherwise. Uses the **real device camera** (`expo-camera`), not a
-mock viewfinder:
-
-- Live `CameraView` full-bleed, with pinch-to-zoom (`react-native-gesture-handler`
-  `Gesture.Pinch`), a flash-mode cycle button (`off → auto → on`), and front/back
-  flip.
-- Shutter → `takePictureAsync` → `sealFrame()`, which fakes the Clip's hardware
-  signing pass with a `setTimeout`, tagging the shot `"UPLOADING…"` then
-  `"✓ SEALED"` in a small stack of pills (tap a sealed tag to jump to its claim
-  sheet). Multiple shots can be "sealing" concurrently.
-- A gallery button (`expo-image-picker`) lets you seal an existing photo instead
-  of shooting one — same `sealFrame()` path.
-- Requests camera permission on first use, with a dedicated permission-denied
-  screen (deep-links to OS settings if permission can't be re-asked).
-
-`usePhotos().addCapturedPhoto()` builds a full `Photo` record around the real
-captured URI: today's date, a Bengaluru placeholder GPS/place, a fabricated
-token/tx/hash, `status: 'SEALED'`, `lic: 'EDITORIAL'`, and `phoneMatch: true` —
-then prepends it to the in-memory archive (lost on reload; not persisted).
-
-## Search / Verify (`src/screens/search-screen.tsx`)
-
-One shared component mounted at two routes:
-
-- `/search` (`(app)` group) — "leave" returns to `/portal`.
-- `/verify` (top-level) — the **public** entry point from landing's "02" row;
-  "leave" goes back if not connected, or to `/portal` if it turns out you are.
-
-Behavior:
-- Free-text query is tokenized, stop-words stripped, and scored against each
-  photo's caption/tags/place/date/code/licence/status/lens (`terms.length ?
-  hits/terms.length : 0`) — a simple substring/keyword match, **not** real AI
-  semantic search despite the "AI SEARCH" / "SEMANTIC + SEAL MATCH" copy.
-- Suggested-query chips run the same search.
-- "No match" state explicitly frames a miss as a feature: "if a photo claims to
-  be sealed and does not appear here, it was never signed by a Hotshoe."
-- A "reverse check" card ("drop an image, we'll tell you if it was ever sealed")
-  is a pure `setTimeout` mock — always resolves to the same canned "match found,
-  edited copy" result; it doesn't actually accept a file or hash anything.
-
-## Claim sheet (`/claim/[index]`)
-
-The full detail page for one sealed photo — reachable from the portal grid,
-search results, capture's sealed tags, or a shared public link
-(`publicClaimUrl()` in `constants/config.ts`, which resolves to the current web
-origin, the dev-server LAN address, or a `https://veris-hotshoe.app` placeholder
-for native shares).
-
-- **Download** → `saveToPhotoLibrary()` (`src/lib/save-photo.ts`) — real
-  `expo-media-library` save on native; explicitly unsupported on web.
-- **Share** → native `Share.share()` with a text summary (code, seal date,
-  owner address, token/licence, seal tx, public link); iOS attaches the image
-  file, Android/web fall back to text-only or clipboard.
-- **Licence it** → `Alert`-only mock ("request sent").
-- **Capture metadata** — camera/lens/shutter/aperture/ISO/GPS/capture time,
-  displayed as if read from EXIF (it's fabricated per-photo in `photos.ts`, or
-  synthesized for a real capture in `use-photos.tsx`).
-- **On-chain claim** — token id, contract, mint tx, edition, royalty, licence,
-  a "perceptual hash" — all hardcoded strings, no real chain.
-- **Device ↔ phone match** — a "did the phone's own camera-roll copy pixel-match
-  the hardware-signed capture" card, gated on `photo.phoneMatch`; when true it
-  shows two thumbnails side-by-side captioned "SIGNED" / "ROLL COPY" — **both
-  are the same image**, since there's no real second source to compare against.
-- **Similar frames** — just the other photos in the archive, first 6.
-
-## Portal, Profile
-
-- **`/portal`** — "The archive": owner header (address chip → `/profile`,
-  device-pairing label), status filter chips (`ALL/SEALED/LICENSED/PENDING`),
-  newest/oldest sort, a 2-column photo grid, and a static "18 frames pending
-  Wi-Fi sync" card (not wired to any real count).
-- **`/profile`** — identity header, a 3-stat strip (sealed/licensed/disputes —
-  all hardcoded), a paired-device card whose content branches on
-  `hotshoe`/`clip`/`none`, and an accordion of settings rows: signing-key
-  rotation (fake, `Alert` + timer), licensing-terms preset (real local state,
-  no backend), device pairing (opens `PairingModal`), Hotshoe-only firmware
-  update (fake), dispute centre (fake), and destructive
-  disconnect-wallet/disconnect-DigiLocker rows (real — these do clear the
-  actual persisted state and route you back to `/landing`).
-
-## DigiLocker identity check (`/digilocker`)
-
-Real integration contract, with a zero-setup mock fallback — see
-`server/README.md` for the full backend story. Summary:
-
-- The Expo app never talks to DigiLocker/Setu directly. It calls its own tiny
-  Node/Express backend (`server/`), which holds the Setu credentials and never
-  forwards raw eKYC data (Aadhaar number, photo, DOB) to the client — only a
-  display name + doc-type label.
-- **With `EXPO_PUBLIC_API_BASE_URL` unset** (the default, out of the box): a
-  1.4s `setTimeout` stands in for the whole flow and always "verifies" as
-  `A. Sharma / AADHAAR E-KYC`.
-- **With it set:** native opens `session.authUrl` in an in-app browser
-  (`expo-web-browser`'s `openAuthSessionAsync`) and resumes via the app's
-  `verishotshoeapp://` URL scheme; web hands the whole tab over to the
-  `authUrl` and picks the result back up from query params after the server's
-  redirect bounces it back (`consumePendingWebRedirect()`), since a browser tab
-  reload can't resolve an in-memory promise.
-- Server backend: `server/src/index.js` (Express routes) +
-  `server/src/digilocker.js` (the 3-function Setu contract:
-  `createSession`/`buildAppRedirectUrl`/`completeSession`). Kept as a separate
-  service specifically so the Expo app's `web.output: "static"` config never
-  has to change to `"server"`.
-
-## What's real vs. mocked
-
-Real:
-- Camera capture, gallery picking, saving to photo library, and native share
-  (device APIs actually used).
-- All persisted app state (wallet-connected flag, device pairing, DigiLocker
-  verified flag) via SecureStore/localStorage.
-- The DigiLocker integration *contract* (backend exists, has a real Setu
-  sandbox integration) — currently running against the mock fallback unless
-  `EXPO_PUBLIC_API_BASE_URL` is configured.
-
-Simulated / hardcoded, by design, for demo purposes:
-- Wallet connect (any of the 4 listed providers "connects" after an 1100ms
-  timer; no real wallet SDK).
-- Hardware signing at capture (`sealFrame`'s timeout stands in for the Clip
-  actually signing anything).
-- The on-chain claim record (token/contract/tx/royalty/hash — all fabricated
-  strings, no chain).
-- "AI" search (keyword/substring scoring, not semantic).
-- The reverse-image "was this ever sealed" check (always the same canned
-  result).
-- Device ↔ phone pixel-match comparison (shows the same image twice).
-- Profile's firmware update, key rotation, and dispute-filing flows (`Alert` +
-  timers only).
-- Portal's "18 frames pending sync" count and profile's stat strip
-  (412 sealed / 31 licensed / 6 disputes) — static numbers.
-
-## Project structure
-
-```
-src/
-  app/                    expo-router file-based routes
-    (app)/                the tab-bar group: portal, search, capture, profile
-    claim/[index].tsx      claim sheet, dynamic route
-    _layout.tsx           root: fonts, providers, Stack
-    landing.tsx, onboarding.tsx, wallet.tsx, digilocker.tsx, verify.tsx, index.tsx
-  components/             shared UI (see table above)
-  constants/              theme.ts, typography.ts, photos.ts (seed data), config.ts, onboarding.ts
-  hooks/                  use-connection, use-device-pairing, use-digilocker,
-                          use-photos, use-brutal-press
-  screens/search-screen.tsx   shared between /search and /verify routes
-  lib/save-photo.ts       photo-library save helper
-server/                   separate Node/Express backend for DigiLocker (see server/README.md)
+  if (trimmed === 'CAPTURING') return { kind: 'CAPTURING' };
+  if (trimmed === 'SIGNED') return { kind: 'SIGNED' };
+  if (trimmed.startsWith('UPLOADED:')) {
+    return { kind: 'UPLOADED', claimUrl: trimmed.slice('UPLOADED:'.length) };
+  }
+  // ...
+}
 ```
 
-## Running it
+Only already-paired Pis are used. The device name must start with `Veris-Cam-`.
+
+```ts
+async findPairedPi(): Promise<BluetoothDevice | null> {
+  const bonded = await RNBluetoothClassic.getBondedDevices();
+  const prefix = DEVICE_NAME_PREFIX.toLowerCase();
+  return bonded.find((d) => d.name?.toLowerCase().startsWith(prefix)) ?? null;
+}
+```
+
+Triggering a shot is one line over the socket.
+
+```ts
+async sendCapture(): Promise<void> {
+  if (!this.device) throw new Error('Not connected');
+  await this.device.write('CAPTURE\n');
+}
+```
+
+The wallet archive is polled from the claim server every 15 seconds.
+
+```ts
+const res = await fetch(`${CLAIM_SERVER_URL}/claims/by-wallet/${encodeURIComponent(address)}`);
+```
+
+## Backend calls the app makes
+
+All go to `CLAIM_SERVER_URL` (`https://api.veris.live`, set in `src/constants/config.ts`).
+
+| Call | Used for |
+|---|---|
+| `GET /claims/by-wallet/:address` | Archive for the connected wallet |
+| `GET /claims/by-camera/:id` | Claims captured by a paired camera |
+| `GET /check-claim?claim_id=` | Load one claim |
+| `GET /api/provenance/:claimId` | Provenance and chain proof |
+| `POST /claim/:claimId/submit` | Claim a photo |
+| `POST /api/search` | Reverse-image verify (multipart upload) |
+| `POST /api/companion/upload` | Upload the phone companion photo |
+| `POST /api/claim/:claimId/companion/link` | Link companion photo to a claim |
+| `GET /api/image/...` | Image gateway, tried before Lighthouse gateways |
+
+## DigiLocker bridge (`server/`)
+
+| Method and path | Purpose |
+|---|---|
+| `GET /health` | Liveness check |
+| `POST /api/digilocker/session` | Start a consent session, returns `authUrl` and `state` |
+| `GET /api/digilocker/redirect` | Redirect hop back into the app |
+| `POST /api/digilocker/callback` | Finish the session, returns verified, name, doc type |
+
+## Environment variables
+
+App (read in `src/hooks/use-digilocker.tsx`):
+
+| Name | Purpose | Example |
+|---|---|---|
+| `EXPO_PUBLIC_API_BASE_URL` | Points to `server/`. Unset means a built-in mock verify. | `http://localhost:8787` |
+
+DigiLocker server (`server/.env`, copy from `server/.env.example`):
+
+| Name | Purpose | Example |
+|---|---|---|
+| `PORT` | Server port | `8787` |
+| `SETU_CLIENT_ID` | Setu credential | `your-client-id` |
+| `SETU_CLIENT_SECRET` | Setu credential | `your-client-secret` |
+| `SETU_PRODUCT_INSTANCE_ID` | Setu product id | `your-instance-id` |
+| `SETU_BASE_URL` | Sandbox or prod Setu | `https://dg-sandbox.setu.co` |
+| `PUBLIC_SERVER_URL` | Public HTTPS URL of this server | `http://localhost:8787` |
+| `APP_DEEP_LINK_SCHEME` | App URL scheme | `verishotshoeapp` |
+
+> TODO: Privy ids, WalletConnect id, contract addresses and chain ids are hardcoded in `src/constants/config.ts`, not env vars.
+
+## Setup & run
 
 ```bash
+cd mobile-app
 npm install
-npx expo start          # then press i / a / w, or scan with Expo Go
+npx expo start            # press i / a / w, or scan with Expo Go
 ```
 
-Optional, for a non-mocked DigiLocker flow:
+Native builds (needed for Bluetooth, Expo Go will not have the native module):
 
 ```bash
-cd server && npm install && cp .env.example .env   # fill in Setu credentials
-npm run dev
+npm run android           # expo run:android
+npm run ios               # expo run:ios (no Pi Bluetooth on iOS)
+npm run web               # expo start --web
 ```
 
-then set `EXPO_PUBLIC_API_BASE_URL=http://localhost:8787` for the Expo app (see
-`server/README.md` for the full setup and the redirect-URL allowlisting step).
+Optional real DigiLocker flow:
 
-> **Note:** `AGENTS.md` flags that Expo has changed significantly — this
-> project targets **Expo SDK 57**; check
-> [the versioned v57 docs](https://docs.expo.dev/versions/v57.0.0/) rather than
-> general/latest Expo docs when making changes.
+```bash
+cd server
+npm install
+cp .env.example .env      # fill in Setu credentials
+npm run dev               # listens on :8787
+# then start the app with:
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8787 npx expo start
+```
+
+One-time Pi setup: pair the phone with the Pi in Android Settings first. See `docs/spec/bluetooth.md`.
+
+## Testing
+
+- No automated test suite is set up.
+- Lint with `npm run lint`.
+- Manual check: pair the Pi, open the trigger screen, press the shutter, watch statuses reach `UPLOADED`.
+
+> TODO: add unit tests, for example for `parseStatusLine` in `src/bluetooth/pi-connection.ts`.
+
+## Troubleshooting
+
+- Trigger says unsupported: Pi Bluetooth works on Android only.
+- Pi not found: pair it in Android Settings first, its name must start with `Veris-Cam-`.
+- Bluetooth module missing: use a dev build (`npm run android`), not Expo Go.
+- DigiLocker always shows a fake user: `EXPO_PUBLIC_API_BASE_URL` is unset, so the mock runs.
+- Photo not in the archive: check the Pi reached `UPLOADED` and the claim server is reachable.
+- Photo image will not load: gateways in `IPFS_GATEWAYS` (`config.ts`) may be stale after a key rotation.
+
+## Links
+
+- Root: [`../README.md`](../README.md)
+- Camera: [`../hardware-camera-app`](../hardware-camera-app)
+- Backend: [`../hardware-web3-service`](../hardware-web3-service)
+- Claim server: [`../public-server`](../public-server)
+- Web portal: [`../owner-portal`](../owner-portal)
+- Contracts: [`../contracts`](../contracts)
+- DigiLocker bridge notes: [`server/README.md`](server/README.md)
+- Bluetooth protocol: [`docs/spec/bluetooth.md`](docs/spec/bluetooth.md)
