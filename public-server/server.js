@@ -1053,7 +1053,7 @@ app.post('/claim/:claim_id/submit', async (req, res) => {
 
 app.post('/update-claim-status', requireDeviceSecret, async (req, res) => {
   try {
-    const { claim_id, status, token_id, tx_hash } = req.body;
+    const { claim_id, status, token_id, tx_hash, recipient_address } = req.body;
 
     if (!claim_id || !status) {
       return res.status(400).json({
@@ -1062,7 +1062,7 @@ app.post('/update-claim-status', requireDeviceSecret, async (req, res) => {
       });
     }
 
-    const updated = await dbService.updateClaimStatus(claim_id, status, token_id, tx_hash);
+    const updated = await dbService.updateClaimStatus(claim_id, status, token_id, tx_hash, recipient_address);
 
     if (!updated) {
       return res.status(404).json({
