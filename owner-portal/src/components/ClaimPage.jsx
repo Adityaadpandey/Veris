@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { usePrivy, useWallets } from '@privy-io/react-auth'
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
 import axios from 'axios'
 import { Input } from '@/components/ui/input'
 import { Palette, Brutal, Pill, SectionHead, short } from '@/components/brutal'
 import LicenseButton from './LicenseButton'
 import LicensesSection from './LicensesSection'
-import { VERIS_ADDRESS, VERIS_ABI, hasTokenData } from '@/lib/contracts'
+import { VERIS_ABI, hasTokenData } from '@/lib/contracts'
+import { CHAINS, resolveChain, txUrl, addressUrl } from '@/lib/chains'
 import {
   Check,
   Copy,
@@ -54,7 +55,7 @@ const PROVENANCE_FACTORS = [
   { key: 'sig',    label: 'Hardware ECDSA signature',     points: 25 },
   { key: 'device', label: 'Camera device identity',       points: 20 },
   { key: 'mint',   label: 'Minted on-chain',               points: 15 },
-  { key: 'ipfs',   label: 'Stored on IPFS / Filecoin',    points: 10 },
+  { key: 'ipfs',   label: 'Stored on decentralized storage',    points: 10 },
 ]
 
 function ProvenanceScore({ imageHash, signature, deviceId, txHash, cid }) {
@@ -424,22 +425,29 @@ export default function ClaimPage() {
 
   // On-chain proof fetch — enabled once we have a token_id (from cache or live data)
   const onChainTokenId = claim?.token_id ? BigInt(claim.token_id) : undefined
+  // Which chain this photo was minted on, from its provenance record. null until that loads, so we
+  // never read or link the wrong network in the meantime.
+  const chain = prov ? resolveChain(claim, prov) : null
   const { data: onChainMeta } = useReadContract({
-    address: VERIS_ADDRESS,
+    address: chain?.veris,
+    chainId: chain?.id,
     abi: VERIS_ABI,
     functionName: 'getTokenMetadata',
     args: onChainTokenId !== undefined ? [onChainTokenId] : undefined,
-    query: { enabled: onChainTokenId !== undefined },
+    query: { enabled: onChainTokenId !== undefined && !!chain },
   })
+  const { switchChainAsync } = useSwitchChain()
 
   // Direct on-chain mint (used when claim server is offline)
   const { data: mintTxHash, writeContract, isPending: isMintPending, error: mintWriteError } = useWriteContract()
   const { isLoading: isMintConfirming, isSuccess: isMintConfirmed } = useWaitForTransactionReceipt({ hash: mintTxHash })
 
   const mintOnChain = async (recipient) => {
-    if (!onChainTokenId) return
+    if (!onChainTokenId || !chain) return
+    await switchChainAsync({ chainId: chain.id }).catch(() => {})
     writeContract({
-      address: VERIS_ADDRESS,
+      chainId: chain.id,
+      address: chain.veris,
       abi: VERIS_ABI,
       functionName: 'mintEdition',
       args: [recipient, onChainTokenId],
@@ -513,8 +521,8 @@ export default function ClaimPage() {
   useEffect(() => {
     let cancelled = false
     axios.get(`${CLAIM_API}/api/provenance/${claimId}`, { timeout: 8000 })
-      .then(res => { if (!cancelled && res.data?.success) setProv(res.data.provenance) })
-      .catch(() => {})
+      .then(res => { if (!cancelled) setProv(res.data?.success ? res.data.provenance : { chains: [] }) })
+      .catch(() => { if (!cancelled) setProv((p) => p || { chains: [] }) })
     return () => { cancelled = true }
   }, [claimId, claim?.token_id])
 
@@ -581,9 +589,9 @@ export default function ClaimPage() {
     : claim?.created_at
 
   const ipfsUrl        = cid ? `${IPFS_GATEWAYS[0]}/${cid}` : null
-  const etherscanTx    = claim?.tx_hash ? `https://sepolia.etherscan.io/tx/${claim.tx_hash}` : null
-  const etherscanToken = `https://sepolia.etherscan.io/address/${VERIS_ADDRESS}`
-  const etherscanNft   = claim?.token_id ? `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${claim.token_id}` : null
+  const explorerTx    = txUrl(chain, claim?.tx_hash)
+  const explorerToken = addressUrl(chain, chain?.veris)
+  const explorerNft   = chain && claim?.token_id ? chain.nft(chain, claim.token_id) : null
   const mapsUrl        = claim?.latitude ? `https://maps.google.com/?q=${claim.latitude},${claim.longitude}` : null
   const isMinted = onChainVerified || !!claim?.token_id
 
@@ -698,7 +706,7 @@ export default function ClaimPage() {
           <ProofStatCard
             title="IPFS Stored"
             verified={!!cid}
-            sub={cid ? 'Filecoin · Lighthouse' : 'No CID on record'}
+            sub={cid ? (cid.startsWith('0g') ? '0G Storage' : 'Filecoin · Lighthouse') : 'No CID on record'}
           />
         </div>
 
@@ -710,7 +718,7 @@ export default function ClaimPage() {
                 <div className="text-center space-y-1.5">
                   <span className="font-brutal-mono text-[10.5px] font-semibold tracking-[0.14em]" style={{ color: Palette.green }}>✓ EDITION MINTED</span>
                   {mintTxHash && (
-                    <a href={`https://sepolia.etherscan.io/tx/${mintTxHash}`} target="_blank" rel="noreferrer"
+                    <a href={txUrl(chain, mintTxHash)} target="_blank" rel="noreferrer"
                       className="flex items-center justify-center gap-1.5 font-brutal-mono text-[10px] hover:brightness-125" style={{ color: Palette.orange }}>
                       <ExternalLink size={11} /> View transaction
                     </a>
@@ -792,7 +800,7 @@ export default function ClaimPage() {
                 )}
                 <div className="flex items-center justify-center gap-1.5 pt-1">
                   <span className="font-brutal-mono text-[9px] rounded-full px-2 py-0.5" style={{ color: 'rgba(16,14,12,.45)', background: 'rgba(16,14,12,.04)', border: '1px solid rgba(16,14,12,.1)' }}>ERC-1155</span>
-                  <span className="font-brutal-mono text-[9px] rounded-full px-2 py-0.5" style={{ color: 'rgba(16,14,12,.45)', background: 'rgba(16,14,12,.04)', border: '1px solid rgba(16,14,12,.1)' }}>Sepolia</span>
+                  <span className="font-brutal-mono text-[9px] rounded-full px-2 py-0.5" style={{ color: 'rgba(16,14,12,.45)', background: 'rgba(16,14,12,.04)', border: '1px solid rgba(16,14,12,.1)' }}>{chain?.short || '…'}</span>
                   <span className="font-brutal-mono text-[9px] font-bold rounded-full px-2 py-0.5" style={{ color: Palette.green, background: 'rgba(30,122,76,.08)', border: `1px solid ${Palette.green}33` }}>Free · Gasless</span>
                 </div>
               </div>
@@ -838,20 +846,20 @@ export default function ClaimPage() {
           )}
           {accordionOpen && (
             <div className="grid grid-cols-2 gap-2 pb-2">
-              <ProofItem label="Device Address" value={short(deviceAddress, 8)} full={deviceAddress} link={deviceAddress ? `https://sepolia.etherscan.io/address/${deviceAddress}` : null} />
+              <ProofItem label="Device Address" value={short(deviceAddress, 8)} full={deviceAddress} link={addressUrl(chain, deviceAddress)} />
               <ProofItem label="IPFS CID" value={short(cid, 8)} full={cid} link={ipfsUrl} />
               {claim?.token_id && (
-                <ProofItem label="Token ID" value={`#${claim.token_id}`} link={etherscanNft || etherscanToken} />
+                <ProofItem label="Token ID" value={`#${claim.token_id}`} link={explorerNft || explorerToken} />
               )}
-              {etherscanTx && (
-                <ProofItem label="Mint Transaction" value="View on Etherscan" link={etherscanTx} />
+              {explorerTx && (
+                <ProofItem label="Mint Transaction" value={`View on ${chain.explorerName}`} link={explorerTx} />
               )}
               <ProofItem label="ECDSA Signature" value={short(signature, 8)} full={signature} />
               <ProofItem label="SHA-256 Hash" value={short(imageHash, 8)} full={imageHash} />
-              <ProofItem label="Network" value="Sepolia Testnet" />
-              <ProofItem label="Contract" value="Veris ERC-1155" link={etherscanToken} />
+              <ProofItem label="Network" value={chain?.name || 'Loading…'} />
+              <ProofItem label="Contract" value="Veris ERC-1155" link={explorerToken} />
               {claim?.recipient_address && (
-                <ProofItem label="Original Owner" value={short(claim.recipient_address, 8)} full={claim.recipient_address} link={`https://sepolia.etherscan.io/address/${claim.recipient_address}`} />
+                <ProofItem label="Original Owner" value={short(claim.recipient_address, 8)} full={claim.recipient_address} link={addressUrl(chain, claim.recipient_address)} />
               )}
             </div>
           )}
