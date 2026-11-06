@@ -1,1184 +1,40 @@
-# 📷 Veris - Web3 Camera with Proof of Memory & ZK Verification
-
-<div align="center">
-
-![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
-![Blockchain](https://img.shields.io/badge/Blockchain-Ethereum%20%7C%20Filecoin-purple?style=for-the-badge)
-![ZK Proofs](https://img.shields.io/badge/ZK%20Proofs-vlayer%20%7C%20RISC%20Zero-orange?style=for-the-badge)
-
-**A Web3 camera system that solves real problems for creators: prove photos are authentic (not AI-generated), create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others (attendees, people in photos).**
-
-<!-- [Gallery](#-gallery) • -->
-
-[Features](#-features) • [How It Works](#-how-it-works) • [Architecture](#-technical-architecture) • [Installation](#-installation) • [Hardware](#-hardware-requirements)
-
-</div>
-
-<!-- ---
-
-## 📸 Gallery
-
-### 🔧 Hardware Components
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1430.JPG" alt="Component 1" width="200"/></td>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1431.JPG" alt="Component 2" width="200"/></td>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1432.JPG" alt="Component 3" width="200"/></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1433.JPG" alt="Component 4" width="200"/></td>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1434.JPG" alt="Component 5" width="200"/></td>
-      <td align="center"><img src="assets/COMPONENTS/IMG_1435.JPG" alt="Component 6" width="200"/></td>
-    </tr>
-    <tr>
-      <td align="center" colspan="3"><img src="assets/COMPONENTS/IMG_1436.JPG" alt="Component 7" width="200"/></td>
-    </tr>
-  </table>
-</div>
-
-### 💻 Backend Screenshots
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.45.49 AM.png" alt="Backend Screenshot 1" width="400"/><br/><small>Screenshot 1</small></td>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.46.11 AM.png" alt="Backend Screenshot 2" width="400"/><br/><small>Screenshot 2</small></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.46.34 AM.png" alt="Backend Screenshot 3" width="400"/><br/><small>Screenshot 3</small></td>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.46.54 AM.png" alt="Backend Screenshot 4" width="400"/><br/><small>Screenshot 4</small></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.47.42 AM.png" alt="Backend Screenshot 5" width="400"/><br/><small>Screenshot 5</small></td>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.47.58 AM.png" alt="Backend Screenshot 6" width="400"/><br/><small>Screenshot 6</small></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 8.48.14 AM.png" alt="Backend Screenshot 7" width="400"/><br/><small>Screenshot 7</small></td>
-      <td align="center"><img src="assets/Screenshot 2025-11-23 at 9.02.44 AM.png" alt="Backend Screenshot 8" width="400"/><br/><small>Screenshot 8</small></td>
-    </tr>
-    <tr>
-      <td align="center" colspan="2"><img src="assets/Screenshot 2025-11-23 at 9.03.05 AM.png" alt="Backend Screenshot 9" width="400"/><br/><small>Screenshot 9</small></td>
-    </tr>
-  </table>
-</div>
-
-### 📷 Physical Camera Final Images
-
-<div align="center">
-  <table>
-    <tr>
-      <td align="center"><img src="assets/IMG_1813.JPG" alt="Camera Image 1" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1814.JPG" alt="Camera Image 2" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1815.JPG" alt="Camera Image 3" width="300"/></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/IMG_1816.JPG" alt="Camera Image 4" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1818.JPG" alt="Camera Image 5" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1819.JPG" alt="Camera Image 6" width="300"/></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/IMG_1820.JPG" alt="Camera Image 7" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1830.JPG" alt="Camera Image 8" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1831.JPG" alt="Camera Image 9" width="300"/></td>
-    </tr>
-    <tr>
-      <td align="center"><img src="assets/IMG_1832.JPG" alt="Camera Image 10" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1833.JPG" alt="Camera Image 11" width="300"/></td>
-      <td align="center"><img src="assets/IMG_1836.JPG" alt="Camera Image 12" width="300"/></td>
-    </tr>
-    <tr>
-      <td align="center" colspan="3"><img src="assets/IMG_1837.JPG" alt="Camera Image 13" width="300"/></td>
-    </tr>
-  </table>
-</div> -->
-
----
-
-## 🎯 Vision: Solving Real Problems for Creators
-
-**Veris** is a Web3 camera system that solves critical problems facing content creators, wildlife photographers, and event organizers. We provide cryptographic proof of authenticity, enable automatic monetization through tagging, create proof of attendance at events, preserve memories with verified blockchain records, and easily mint NFTs for others.
-
-### Core Innovation: Proof of Authenticity + Creator Monetization
-
-Every photo captured solves real problems:
-
-- **🔍 Prove It's Real**: Cryptographic proof images aren't AI-generated or manipulated
-- **💰 Tag for Payment**: Tag people in images to automatically distribute royalties
-- **🎫 Proof of Attendance**: Verify who was at events, easy minting for attendees
-- **⛓️ Blockchain-Verified**: Smart contracts validate device identity and image integrity
-- **💾 Permanent Ownership**: Filecoin storage ensures content lasts forever
-- **🎨 Auto-Monetization**: Automatic NFT creation enables direct creator payments
-
-## 💡 Our Solution: Proof of Authenticity + Creator Monetization
-
-**Veris** solves these real problems with blockchain technology:
-
-### 🔐 Proof of Authenticity
-
-- **Zero-Knowledge Proofs (vlayer)**: Generate cryptographic proofs that images are real, not AI-generated or manipulated
-- **Hardware-Based Identity**: Each camera has unique cryptographic identity - proves which device captured the image
-- **RISC Zero Verification**: On-chain verification of authenticity proofs using RISC Zero verifier contracts
-- **Immutable Timestamps**: Blockchain timestamps prove exactly when images were captured
-- **Device Metadata**: Cryptographic proof of camera model, location, and capture conditions
-
-### 💰 Creator Monetization & Tagging
-
-- **Automatic NFT Minting**: Every photo becomes an NFT - creators own their content
-- **Tag-Based Payments**: Tag people in images to automatically distribute royalties
-- **Direct Payments**: Receive payments directly via smart contracts, no middlemen
-- **Usage Tracking**: Blockchain tracks every use of your images for automatic royalty distribution
-- **Revenue Sharing**: Smart contracts automatically split payments between tagged creators
-
-### 🎫 Proof of Attendance & Memory
-
-- **Proof of Attendance**: Verify who was present at events using blockchain verification
-- **Proof of Memory**: Cryptographic proof that important moments were captured
-- **Easy Minting for Others**: Mint NFTs for event attendees or people in photos with QR codes
-- **Verified Presence**: On-chain verification of attendance at events
-- **Memory Preservation**: Permanent blockchain records of important moments
-
-### 💾 Permanent Storage & Ownership
-
-- **Filecoin Storage**: Images stored permanently on decentralized network
-- **True Ownership**: NFTs prove you own the original content
-- **No Platform Lock-in**: Your content lives on blockchain, not platforms
-- **Censorship-Resistant**: No one can delete your content from Filecoin
-
----
-
-## ✨ Features
-
-### 📸 Camera Features
-
-- **Live Preview**: Real-time camera feed with 30 FPS preview
-- **High-Quality Capture**: 1920x1080 photo resolution with rotation support
-- **Video Recording**: H.264 video recording with configurable duration
-- **Digital Zoom**: 1x to 4x zoom with smooth controls
-- **Gallery View**: Browse captured photos and videos with thumbnail grid
-- **Touch-Optimized UI**: Designed for 3.5" touchscreen displays
-
-### 🔐 Security & Identity
-
-- **Hardware Identity**: Unique cryptographic key derived from device hardware
-- **Image Signing**: Every photo is cryptographically signed with device key
-- **Device Registration**: On-chain device registry ensures only authorized cameras can mint
-- **Camera ID**: Unique camera hardware identifier for provenance tracking
-
-### 🌐 Web3 & Blockchain Features
-
-- **Zero-Knowledge Proofs**: Generate ZK proofs using vlayer from external metadata APIs
-- **RISC Zero Verification**: On-chain ZK proof verification via RISC Zero verifier contracts
-- **Automatic NFT Minting**: ERC-1155 tokens auto-minted with device-signed metadata
-- **Filecoin Persistent Storage**: Permanent decentralized storage on Filecoin network
-- **Proof of Memory**: Cryptographic proof that memories were captured by verified devices
-- **Blockchain Verification**: Smart contracts verify device authenticity and image integrity
-- **Claim-Based Distribution**: QR code system for seamless NFT claiming
-- **On-Chain Provenance**: Complete immutable history tracked on blockchain
-
-### 🎨 User Experience
-
-- **Battery Monitoring**: Real-time battery level display
-- **Status Indicators**: Visual feedback for upload, minting, and claim status
-- **Offline Support**: Queue system for offline captures
-- **Auto-Start**: Kiosk mode launches automatically on boot
-- **Gallery Management**: View, delete, and manage captured media
-
----
-
-## 🔄 How It Works
-
-### 1. **Photo Capture Flow**
-
-```
-┌─────────────┐
-│    User     │
-└──────┬──────┘
-       │ Press Photo Button
-       ▼
-┌──────────────────┐
-│   Camera App     │
-│  (hardware-camera │
-│      -app)       │
-└──────┬───────────┘
-       │ 1. Capture Image
-       │ 2. Sign with Hardware Key
-       │ 3. POST /api/images/upload
-       ▼
-┌──────────────────────────┐
-│ Hardware Web3 Service    │
-│ (hardware-web3-service)  │
-└──────┬───────────────────┘
-       │ Upload Image
-       ▼
-┌─────────────┐
-│  Filecoin   │
-└──────┬──────┘
-       │ Return Image CID
-       ▼
-┌──────────────────────────┐
-│ Hardware Web3 Service    │
-└──────┬───────────────────┘
-       │ Upload Metadata
-       ▼
-┌─────────────┐
-│  Filecoin   │
-└──────┬──────┘
-       │ Return Metadata CID
-       ▼
-┌──────────────────────────┐
-│ Hardware Web3 Service    │
-└──────┬───────────────────┘
-       │ Create Claim
-       ▼
-┌──────────────────────────┐
-│  Veris Public Server │
-│ (public-server) │
-└──────┬───────────────────┘
-       │ Return QR Code URL
-       ▼
-┌──────────────────┐
-│   Camera App     │
-└──────┬───────────┘
-       │ Display QR Code
-       ▼
-┌─────────────┐
-│    User     │
-└──────┬──────┘
-       │ Scan QR & Enter Wallet
-       ▼
-┌──────────────────────────┐
-│  Veris Public Server │
-└──────┬───────────────────┘
-       │ Store Address
-       │ (Camera App polls)
-       │ Return Address
-       ▼
-┌──────────────────┐
-│   Camera App     │
-└──────┬───────────┘
-       │ Trigger Minting
-       ▼
-┌──────────────────────────┐
-│ Hardware Web3 Service    │
-└──────┬───────────────────┘
-       │ Mint NFT (device → user)
-       ▼
-┌─────────────┐
-│  Blockchain │
-└──────┬──────┘
-       │ Return Token ID
-       ▼
-┌──────────────────────────┐
-│ Hardware Web3 Service    │
-└──────┬───────────────────┘
-       │ Mark Complete
-       ▼
-┌──────────────────────────┐
-│  Veris Public Server │
-└──────┬───────────────────┘
-       │
-       ▼
-┌──────────────────┐
-│   Camera App     │
-│   Show Success   │
-└──────────────────┘
-```
-
-### 2. **Device Registration Flow**
-
-```
-┌─────────────────────────────┐
-│   Raspberry Pi Device      │
-│  (hardware-camera-app)      │
-└────────────┬────────────────┘
-             │
-             │ 1. Generate Hardware Identity
-             │ 2. Extract Camera ID
-             │ 3. POST /api/device/ensure-registered
-             ▼
-┌──────────────────────────────┐
-│ Hardware Web3 Service        │
-│ (hardware-web3-service)      │
-└────────────┬─────────────────┘
-             │ Check Registration Status
-             ▼
-┌──────────────────────────────┐
-│      Blockchain              │
-│  (DeviceRegistry Contract)   │
-└────────────┬─────────────────┘
-             │
-    ┌────────┴────────┐
-    │                 │
-    ▼                 ▼
-┌─────────┐    ┌──────────────┐
-│ Not     │    │ Not          │
-│Registered│   │ Activated    │
-└────┬────┘    └──────┬───────┘
-     │                │
-     │ Register       │ Activate
-     │ Device         │ Device
-     ▼                ▼
-┌──────────────────────────────┐
-│      Blockchain              │
-│  Returns: Registration TX    │
-│  Returns: Activation TX      │
-└────────────┬─────────────────┘
-             │ Registration Complete
-             ▼
-┌──────────────────────────────┐
-│ Hardware Web3 Service        │
-└────────────┬─────────────────┘
-             │ Success Response
-             ▼
-┌─────────────────────────────┐
-│   Raspberry Pi Device       │
-│   Device Ready!             │
-└─────────────────────────────┘
-```
-
-### 3. **Claim-Based Minting Flow**
-
-```
-┌─────────────────┐
-│ Photo Captured  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Upload to       │
-│ Filecoin        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Get Image CID   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Create Claim    │
-│ (Public Server) │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Generate QR     │
-│ Code            │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Display QR on   │
-│ Screen          │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ User Scans QR   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ User Enters     │
-│ Wallet Address  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Public Server   │
-│ Stores Address  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Camera App      │
-│ Polls for       │
-│ Address         │
-└────────┬────────┘
-         │
-         ▼
-    ┌─────────┐
-    │ Address │
-    │Received?│
-    └────┬────┘
-         │
-    ┌────┴────┐
-    │         │
-    │ No      │ Yes
-    │         │
-    ▼         ▼
-┌──────┐  ┌──────────────────────┐
-│ Poll │  │ Hardware Web3 Service│
-│Again │  │ Mints NFT            │
-└──┬───┘  └──────────┬─────────────┘
-   │                 │
-   └────────┬────────┘
-            │
-            ▼
-    ┌───────────────┐
-    │ Device → User │
-    │ Transfer      │
-    └───────┬───────┘
-            │
-            ▼
-    ┌───────────────┐
-    │ Update Status │
-    └───────┬───────┘
-            │
-            ▼
-    ┌───────────────┐
-    │ Show Success  │
-    └───────────────┘
-```
-
----
-
-## 🏗️ Technical Architecture
-
-### System Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Raspberry Pi 4                          │
-│                                                             │
-│  ┌──────────────────┐    ┌──────────────────┐            │
-│  │ Hardware Camera  │    │ Hardware Identity│            │
-│  │ App              │◄───│ Cryptographic    │            │
-│  │ Python/Kivy      │    │ Keys             │            │
-│  └────────┬─────────┘    └──────────────────┘            │
-│           │                                                │
-│           │ Capture    ┌──────────────────┐               │
-│           ├───────────►│ Camera Module    │               │
-│           │            │ Picamera2       │               │
-│           │            └──────────────────┘               │
-│           │                                                │
-│           │ Display    ┌──────────────────┐               │
-│           └───────────►│ Touchscreen      │               │
-│                        │ Display 3.5"    │               │
-│                        └──────────────────┘               │
-└───────────┼───────────────────────────────────────────────┘
-            │
-            │ HTTP API
-            ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Hardware Web3 Service                         │
-│              (hardware-web3-service)                        │
-│                                                             │
-│  ┌──────────────────┐    ┌──────────────────┐            │
-│  │ Hardware Web3    │    │ Filecoin Service │            │
-│  │ Service          │───►│ Synapse SDK      │            │
-│  │ Node.js/Express  │    └────────┬──────────┘            │
-│  └────────┬─────────┘            │                        │
-│           │                       │                        │
-│           │ Mint NFTs   ┌─────────▼──────────┐            │
-│           ├────────────►│ Web3 Service      │            │
-│           │             │ Ethers.js         │            │
-│           │             └─────────┬──────────┘            │
-│           │                       │                        │
-│           │ Store Data  ┌─────────▼──────────┐            │
-│           ├────────────►│ Database Service   │            │
-│           │             │ SQLite            │            │
-│           │             └───────────────────┘            │
-│           │                                                │
-│           │ Create Claims                                 │
-│           └───────────────────┐                          │
-└───────────────────────────────┼───────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  External Services                          │
-│                                                             │
-│  ┌──────────────────────┐    ┌──────────────────────┐   │
-│  │ Veris Public      │    │ Filecoin Network     │   │
-│  │ Server               │    │ Decentralized       │   │
-│  │ (Veris-public-    │    │ Storage              │   │
-│  │  server)             │    └──────────────────────┘   │
-│  │ Node.js              │                                │
-│  └──────────┬───────────┘                                │
-│             │                                              │
-│             │ QR Codes                                     │
-│             └──────────────┐                              │
-│                            │                              │
-│  ┌─────────────────────────▼──────────┐                 │
-│  │ Ethereum Sepolia                   │                 │
-│  │ Smart Contracts                    │                 │
-│  │ - DeviceRegistry                   │                 │
-│  │ - VerisERC1155                   │                 │
-│  │ - VerisVerifier                 │                 │
-│  └─────────────────────────────────────┘                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Component Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Frontend Layer                           │
-│                                                             │
-│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │ Hardware Camera  │  │ Gallery View │  │ QR Code     │ │
-│  │ App              │  │              │  │ Display     │ │
-│  └────────┬─────────┘  └──────┬───────┘  └──────┬───────┘ │
-│           │                    │                  │         │
-└───────────┼────────────────────┼──────────────────┼─────────┘
-            │                    │                  │
-            ▼                    ▼                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      API Layer                               │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Image Upload │  │ Device       │  │ Claim        │     │
-│  │ API          │  │ Registration │  │ Management   │     │
-│  └──────┬───────┘  │ API          │  │ API          │     │
-│         │          └──────┬───────┘  └──────┬───────┘     │
-│         │                 │                 │             │
-│         │                 │          ┌───────▼───────┐     │
-│         │                 │          │ Status API  │     │
-│         │                 │          └──────────────┘     │
-└─────────┼─────────────────┼───────────────────────────────┘
-          │                 │
-          ▼                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Service Layer                            │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Filecoin     │  │ Web3 Service │  │ Database     │     │
-│  │ Service      │  │              │  │ Service      │     │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
-│         │                 │                 │             │
-│         │          ┌───────▼───────┐         │             │
-│         │          │ Claim Client  │         │             │
-│         │          └───────────────┘         │             │
-└─────────┼─────────────────┼─────────────────┼─────────────┘
-          │                 │                 │
-          ▼                 ▼                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Storage Layer                            │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ Filecoin     │  │ SQLite       │  │ Local File   │     │
-│  │ Network      │  │ Database     │  │ System       │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-          │
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Blockchain Layer                           │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ DeviceRegistry│  │ Veris    │  │ Veris     │     │
-│  │ Contract      │  │ ERC1155     │  │ Verifier     │     │
-│  │               │  │ Contract    │  │ Contract     │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-┌─────────────────┐
-│ Photo Captured  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Sign with       │
-│ Hardware Key    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Compute SHA256  │
-│ Hash            │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Upload to       │
-│ Hardware Web3   │
-│ Service         │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Upload to       │
-│ Filecoin        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Get Image CID   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Create Metadata │
-│ JSON            │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Upload Metadata │
-│ to Filecoin     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Get Metadata    │
-│ CID             │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Create Claim    │
-│ Record          │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Generate QR     │
-│ Code            │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Display QR on   │
-│ Screen           │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Wait for User   │
-│ Claim           │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Poll Public     │
-│ Server          │
-└────────┬────────┘
-         │
-         ▼
-    ┌─────────┐
-    │ Address │
-    │Available│
-    └────┬────┘
-         │
-    ┌────┴────┐
-    │         │
-    │ No      │ Yes
-    │         │
-    ▼         ▼
-┌──────┐  ┌─────────────────┐
-│ Poll │  │ Mint NFT on     │
-│Again │  │ Blockchain      │
-└──┬───┘  └────────┬─────────┘
-   │               │
-   └───────┬───────┘
-           │
-           ▼
-   ┌───────────────┐
-   │ Transfer to   │
-   │ User Wallet   │
-   └───────┬───────┘
-           │
-           ▼
-   ┌───────────────┐
-   │ Mark Claim    │
-   │ Complete      │
-   └───────┬───────┘
-           │
-           ▼
-   ┌───────────────┐
-   │     Done      │
-   └───────────────┘
-```
-
----
-
-## 🚀 Installation
-
-### Prerequisites
-
-- Raspberry Pi 4 (2GB+ RAM recommended)
-- Raspberry Pi OS (Bullseye or later)
-- Camera Module (v1/v2/v3 or USB camera)
-- 3.5" Touchscreen Display
-- MicroSD Card (16GB+)
-- Internet connection
-
-### Step 1: Clone Repository
-
-```bash
-cd ~
-git clone <repository-url> Veris
-cd Veris
-```
-
-### Step 2: Install System Dependencies
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Node.js 18+
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Install Python dependencies
-sudo apt install -y python3-pip python3-venv python3-dev
-
-# Install camera dependencies
-sudo apt install -y picamera2 python3-picamera2
-
-# Install Kivy dependencies
-sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
-    libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-    zlib1g-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-
-# Install build tools
-sudo apt install -y build-essential cmake git
-```
-
-### Step 3: Install Python Dependencies
-
-```bash
-cd hardware-camera-app
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install kivy[base] pillow numpy opencv-python requests qrcode[pil]
-```
-
-### Step 4: Install Hardware Web3 Service Dependencies
-
-```bash
-cd ../hardware-web3-service
-npm install
-```
-
-### Step 5: Install Public Server Dependencies
-
-```bash
-cd ../public-server
-npm install
-```
-
-### Step 6: Configure Environment Variables
-
-Create `.env` files in `hardware-web3-service` and `public-server` directories with your configuration settings.
-
-**For Privy Integration (Owner Portal):**
-
-- Add to `hardware-web3-service/.env`:
-  ```
-  PRIVY_APP_ID=your-privy-app-id
-  PRIVY_APP_SECRET=your-privy-app-secret
-  ```
-- Add to `owner-portal/.env`:
-  ```
-  VITE_PRIVY_APP_ID=your-privy-app-id
-  VITE_BACKEND_URL=http://localhost:5000
-  ```
-
-### Step 7: Initialize Hardware Identity
-
-```bash
-cd hardware-camera-app
-python3 hardware_identity.py
-```
-
-### Step 8: Start Services
-
-```bash
-sudo npm install -g pm2
-
-cd hardware-web3-service
-pm2 start server.js --name Veris-hardware-web3-service
-
-cd ../public-server
-pm2 start server.js --name public-server
-
-pm2 save
-pm2 startup
-```
-
-### Step 9: Start Camera App
-
-```bash
-cd hardware-camera-app
-source venv/bin/activate
-python3 raspberry_pi_camera_app.py
-```
-
-### Step 10: Start Owner Portal (Optional)
-
-For owner wallet management with Privy integration:
-
-```bash
-cd owner-portal
-npm install
-npm run dev
-```
-
-The owner portal will be available at `http://localhost:3000`. This allows the owner to:
-
-- Login with Privy (wallet, email, or SMS)
-- Setup session signers for backend transaction signing
-- Mint NFTs with automatic gas sponsorship
-
-See `PRIVY_SETUP.md` for detailed Privy configuration.
-
-### Step 11: Setup Auto-Start (Optional)
-
-Create a systemd service or add to autostart:
-
-```bash
-# Create service file
-sudo nano /etc/systemd/system/Veris.service
-```
-
-```ini
-[Unit]
-Description=Veris Camera App
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/Veris/hardware-camera-app
-Environment="PATH=/home/pi/Veris/hardware-camera-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/pi/Veris/hardware-camera-app/venv/bin/python3 /home/pi/Veris/hardware-camera-app/raspberry_pi_camera_app.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl enable Veris.service
-sudo systemctl start Veris.service
-```
-
----
-
-## 💻 Hardware Requirements
-
-### Minimum Requirements
-
-| Component        | Specification                                     |
-| ---------------- | ------------------------------------------------- |
-| **Raspberry Pi** | Raspberry Pi 4 Model B (2GB+ RAM)                 |
-| **Camera**       | Raspberry Pi Camera Module v1/v2/v3 or USB camera |
-| **Display**      | 3.5" Touchscreen Display (320x240 or higher)      |
-| **Storage**      | MicroSD Card (16GB+, Class 10)                    |
-| **Power**        | 5V 3A USB-C Power Supply                          |
-| **Network**      | WiFi or Ethernet connection                       |
-
-### Recommended Setup
-
-| Component        | Recommendation                      |
-| ---------------- | ----------------------------------- |
-| **Raspberry Pi** | Raspberry Pi 4 Model B (4GB RAM)    |
-| **Camera**       | Raspberry Pi Camera Module v3       |
-| **Display**      | Waveshare 3.5" HDMI LCD Touchscreen |
-| **Storage**      | MicroSD Card (32GB+, Class 10, A1)  |
-| **Power**        | UPS HAT for battery backup          |
-| **Cooling**      | Heat sinks and fan for extended use |
-
-### Optional Components
-
-- **UPS HAT**: For battery-powered operation
-- **GPS Module**: For location metadata
-- **External Storage**: USB drive for additional storage
-- **Case**: Protective case for outdoor use
-
-### Hardware Setup Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Raspberry Pi 4                           │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │                  Main Board                         │  │
-│  │                                                      │  │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │  │
-│  │  │ GPIO     │  │ USB      │  │ HDMI    │          │  │
-│  │  │ Pins     │  │ Ports    │  │ Port    │          │  │
-│  │  └────┬─────┘  └──────────┘  └────┬─────┘          │  │
-│  │       │                           │                 │  │
-│  │  ┌────▼───────────────────────────▼─────┐          │  │
-│  │  │ Camera Connector                     │          │  │
-│  │  └──────────────────────────────────────┘          │  │
-│  │                                                      │  │
-│  │  ┌──────────────────────────────────────┐          │  │
-│  │  │ SD Card Slot                         │          │  │
-│  │  └──────────────────────────────────────┘          │  │
-│  └─────────────────────────────────────────────────────┘  │
-└───────────┬───────────┬───────────┬───────────┬───────────┘
-            │           │           │           │
-            │           │           │           │ Ribbon Cable
-            │           │           │           │
-            │           │           │           ▼
-            │           │           │    ┌──────────────┐
-            │           │           │    │ Camera       │
-            │           │           │    │ Module       │
-            │           │           │    │ (v1/v2/v3)   │
-            │           │           │    └──────────────┘
-            │           │           │
-            │           │           │ HDMI + USB
-            │           │           │
-            │           │           ▼
-            │           │    ┌──────────────┐
-            │           │    │ Touchscreen │
-            │           │    │ Display     │
-            │           │    │ 3.5"        │
-            │           │    └──────────────┘
-            │           │
-            │           │ GPIO
-            │           │
-            │           ▼
-            │    ┌──────────────┐
-            │    │ UPS HAT      │
-            │    │ (Optional)   │
-            │    └──────────────┘
-            │
-            │ SD Card
-            │
-            ▼
-    ┌──────────────┐
-    │ MicroSD Card │
-    │ (16GB+)      │
-    └──────────────┘
-
-            │
-            │ Power
-            ▼
-┌──────────────────┐
-│ 5V 3A Power      │
-│ Supply           │
-└──────────────────┘
-```
-
----
-
-## 🎯 Real-World Use Cases
-
-### 1. **Wildlife Photography & Media**
-
-**Problem**: Need to prove wildlife photos are authentic, not staged or AI-generated
-**Solution**:
-
-- Cryptographic proof of capture device and timestamp
-- ZK proofs verify authenticity without exposing location data
-- NFTs enable direct monetization from media outlets
-- Permanent storage ensures photos can't be lost
-
-**Example**: National Geographic photographer captures rare wildlife - media outlets can verify authenticity before purchasing, photographer gets paid directly via NFT sales
-
-### 2. **Content Creator Monetization**
-
-**Problem**: Creators lose 30-50% to platforms, can't track usage, hard to get paid
-**Solution**:
-
-- Automatic NFT minting gives creators ownership
-- Tag people in images for automatic revenue sharing
-- Smart contracts track usage and distribute payments
-- Direct payments, no middlemen
-
-**Example**: Photographer tags models in fashion shoot - when image is used commercially, smart contract automatically splits payment between photographer and models
-
-### 3. **News & Journalism**
-
-**Problem**: Can't prove photos are real vs. AI-generated deepfakes
-**Solution**:
-
-- Hardware-based proof of capture device
-- ZK proofs verify authenticity without exposing sources
-- Blockchain timestamps prove when events occurred
-- Immutable record prevents manipulation
-
-**Example**: Journalist captures breaking news - blockchain proof verifies it's real, not AI-generated, protecting journalism integrity
-
-### 4. **Proof of Attendance at Events**
-
-**Problem**: Can't prove who was actually at events, hard to mint NFTs for attendees
-**Solution**:
-
-- Proof of attendance via blockchain verification
-- Easy minting for event attendees
-- Verified presence records
-- QR code system for claiming attendance NFTs
-
-**Example**: Conference organizer captures group photo - attendees scan QR code to claim their proof of attendance NFT, permanently recorded on blockchain
-
-### 5. **Memory Preservation & Minting**
-
-**Problem**: Important moments aren't permanently recorded, hard to mint NFTs for others
-**Solution**:
-
-- Proof of memory for captured moments
-- Easy minting for people in photos
-- Permanent blockchain records
-- Verified memory preservation
-
-**Example**: Wedding photographer captures moments - guests can easily claim their memory NFTs, creating permanent proof of attendance and shared memories
-
-### 6. **Scientific Documentation**
-
-**Problem**: Need tamper-proof proof of research documentation
-**Solution**:
-
-- Cryptographic proof of capture device and conditions
-- Immutable timestamps prove when research occurred
-- Permanent storage ensures data can't be lost
-- On-chain provenance for peer review
-
-**Example**: Field researcher documents rare species - blockchain proof verifies authenticity for scientific publication
-
----
-
-## 🔧 Technical Stack
-
-### Frontend (Hardware Camera App)
-
-- **Python 3.9+**: Core language
-- **Kivy 2.1+**: UI framework
-- **Picamera2**: Camera interface
-- **NumPy/OpenCV**: Image processing
-- **Requests**: HTTP client
-
-### Hardware Web3 Service
-
-- **Node.js 18+**: Runtime
-- **Express.js**: Web framework
-- **Ethers.js**: Blockchain interaction
-- **SQLite**: Database
-- **Multer**: File upload handling
-
-### Blockchain
-
-- **Ethereum Sepolia**: Testnet
-- **Solidity**: Smart contracts
-- **Foundry**: Development framework
-- **OpenZeppelin**: Contract libraries
-
-### Storage
-
-- **Filecoin**: Decentralized storage
-- **Synapse SDK**: Filecoin integration
-- **IPFS**: Content addressing
-
----
-
-## 📊 Smart Contracts
-
-### DeviceRegistry.sol
-
-- Registers authorized camera devices
-- Stores device metadata (address, camera ID, model)
-- Manages device activation status
-
-### VerisERC1155.sol
-
-- ERC-1155 NFT contract for multi-token standard
-- Device-only minting for originals
-- Public minting for editions
-- Transfer functionality
-
-### VerisVerifier.sol
-
-- **Zero-Knowledge Proof Verification**: RISC Zero verifier for ZK proof validation
-- **Device Authenticity**: Verifies device identity from ZK proof data
-- **Image Hash Verification**: Validates image integrity from external metadata
-- **On-Chain Proof Validation**: Trustless verification of vlayer-generated proofs
-
----
-
-## 🔐 Security Features
-
-- **Hardware-based Keys**: Cryptographic keys derived from device hardware
-- **Image Signing**: Every photo is cryptographically signed
-- **On-Chain Verification**: Smart contracts verify device authenticity
-- **Private Key Protection**: Keys stored securely, never exposed
-- **Tamper-Proof Metadata**: Immutable metadata on blockchain
-
-### What a capture proves, and what it does not
-
-Each capture is signed as one packet: image hash, phone-photo hash, AI verdict, timestamp, a random nonce and the device address. The backend recovers the signer, checks it is a registered and active device, and refuses stale or reused nonces, so a signed upload cannot be replayed or re-attributed. A device is only "registered" if the registry owner added it (`registerDevice` is owner-only on new deployments).
-
-Known gaps, stated plainly:
-
-- **The device key is software.** It is derived from the CPU serial, MAC, machine-id and a salt stored on the SD card. Someone who copies the card can sign as that device. There is no TPM or secure element in this build.
-- **The exported key file** (`.device_key_export`) is `chmod 600` but still plaintext on the card.
-- **Pointing a lens at a screen or print still passes the signature.** The defence is the liveness check: a vision model (0G Router, or GPT as fallback) judges whether the scene is real and, when a phone photo exists, whether both photos show the same scene. It is a model's opinion, not a depth sensor. If no model can answer, the capture is held as `pending`; it is never given a guessed verdict.
-- **The 0G key lives on the device.** It is a low-credit key, rotate it after the event.
-- **No on-chain proof verifier yet.** The backend verifies the signature and the verdict, and the packet hash is committed on-chain with the mint. A RISC Zero verifier contract would be the next step.
-- **The phone photo does not reach the Pi.** Bluetooth carries commands only, so the on-device check currently sees the camera photo alone. The same-scene comparison still runs server-side in `companionCapture.js`.
-
-Optional services (all off by default, all fall back to the original stack): 0G liveness (`ZEROG_ENABLED`), 0G storage (`STORAGE_PROVIDER=0g`), Arc minting next to Sepolia (`CHAINS=sepolia,arc`), Arkiv claim records (`ARKIV_ENABLED`). See each `.env.example`.
-
----
-
-## 📈 Performance
-
-- **Photo Capture**: < 2 seconds
-- **Filecoin Upload**: 5-15 seconds (depends on network)
-- **NFT Minting**: 10-30 seconds (depends on gas)
-- **QR Code Generation**: < 1 second
-- **Memory Usage**: ~300-400MB total
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-
-- [vlayer](https://vlayer.io/) - Zero-knowledge proof generation for authenticity verification
-- [Privy](https://privy.io/) - Wallet infrastructure and authentication
-- [Kivy](https://kivy.org/) - Python UI framework
-- [Ethers.js](https://ethers.org/) - Ethereum library
-- [Filecoin Synapse SDK](https://github.com/filoz-network/synapse-sdk) - Filecoin integration
-- [OpenZeppelin](https://www.openzeppelin.com/) - Smart contract libraries
-- [Foundry](https://book.getfoundry.sh/) - Development framework
-
----
-
-<div align="center">
-
-**Made with ❤️ for the Web3 community**
-
-[⬆ Back to Top](#-Veris---decentralized-camera-system-for-web3)
-
-</div>
-
----
-
-## Arkiv (ETHGlobal Mumbai, Continuity track)
-
-**Prize:** Build on Arkiv (existing projects).
-
-**What existed before the event:** the camera, hardware signing, Filecoin/Lighthouse storage,
-the Postgres claim server, the ERC-1155 contracts, the owner portal and mobile app.
-
-**What we added at the event:**
-- `public-server/arkivService.js`: each claim's provenance record is mirrored to Arkiv.
-  Pending captures expire after 24 hours; minted ones get the longest life Arkiv allows.
-- A `veris-license` entity per USDC license bought on Arc, expiring exactly when the term ends.
-- `GET /api/arkiv/search`: the portal's verify page looks a photo up by image hash or device id
-  on Arkiv first and falls back to Postgres.
-
-**Writer wallet (Arkiv testnet, chain id 7794095):** `0xC15aF2A372D01B5223819bB328400DB8b14d1894`
-
-**A query you can run** (filter syntax as sent by the SDK; replace the key with yours from
-https://hub.arkiv.network/access-keys):
+# Veris
+
+**A camera that signs every photo at the moment it is taken, so anyone can check it is real.**
+
+> 📸 TODO: hero photo of the finished camera (see `assets/COMPONENTS` for build shots).
+
+> 📸 TODO: demo video link.
+
+## Tracks and sponsors
+
+| Sponsor / track | What we built | Verify it |
+|---|---|---|
+| [Arkiv](#arkiv-ethglobal-mumbai-continuity-track) (Continuity) | Provenance and license records, queryable by anyone | `curl` the verify endpoint below |
+| [0G](#0g) | Storage, and vision liveness check with TEE option | Image refs that start with `0g` |
+| [Arc](#arc) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
+| [Filecoin / Lighthouse](#filecoin--lighthouse) | Default photo storage and fallback for 0G | `STORAGE_PROVIDER` unset uses it |
+| [Privy](#privy) | Wallet login and session signers | Portal login |
+
+- Not in the code today: Solana, vlayer, RISC Zero, Synapse SDK calls. They are not claimed here.
+- Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
+- Plan and rules: [docs/HACKATHON_PLAN.md](docs/HACKATHON_PLAN.md).
+
+### Arkiv (ETHGlobal Mumbai, Continuity track)
+
+- **Prize:** Build on Arkiv (existing projects).
+- **Existed before the event:** camera, hardware signing, Filecoin/Lighthouse storage, Postgres claim server, ERC-1155 contracts, owner portal, mobile app.
+- **Added at the event:** `public-server/arkivService.js` mirrors each claim to Arkiv; pending ones expire in 24 hours, minted ones get the longest life Arkiv allows.
+- **Added at the event:** a `veris-license` entity per USDC license on Arc, expiring exactly when the term ends.
+- **Added at the event:** `GET /api/arkiv/search`, and a browser-side lookup in `owner-portal/src/lib/arkivDirect.js` that asks Arkiv first.
+- **Flag and fallback:** `ARKIV_ENABLED`; reads fall back to Postgres, failed writes are retried.
+- **Writer wallet (Arkiv testnet, chain id 7794095):** `0xC15aF2A372D01B5223819bB328400DB8b14d1894`
+- **Live result (2026-11-06):** 14 `minted` and 0 `pending` claim entities.
+- **Verify:** `curl "https://api.veris.live/api/arkiv/search?imageHash=940d4b013da66f9d767e04e0fe516222c6193b3c4b476bdf022e8fd24e7986f3"` returns `"source":"arkiv"` with two minted claims (Arc tokens 12 and 13).
+- **Details:** [arkiv/README.md](arkiv/README.md), [schema](arkiv/schema.md), [how we use Arkiv](arkiv/how-you-use-arkiv.md), [why Arkiv](arkiv/why-arkiv.md), [reach](arkiv/reach.md), [friction](arkiv/friction.md).
+- **Service README:** `public-server/README.md`.
+
+A query you can run (get a key at https://hub.arkiv.network/access-keys):
 
 ```js
 import { createPublicClient } from '@arkiv-network/sdk'
@@ -1190,16 +46,255 @@ const client = createPublicClient({ chain: rabdi({ accessKey: process.env.ARKIV_
 const r = await client.select({ $key: true, status: true }).from(Claims).where(eq('status', 'minted')).limit(5).fetch()
 ```
 
-Underneath that is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
+- Underneath it is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
+- Example entity: `0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
+- **How AI was used:** Claude Code helped write the Arkiv service, the license contract and the docs under `arkiv/`; the team reviewed and tested every change.
 
-**Result on the live server (2026-11-06):** 14 `minted` and 0 `pending` claim entities, for example
-`0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
+### 0G
 
-**The feature that reads it:** the verify page calls `GET https://api.veris.live/api/arkiv/search?imageHash=<hash>`.
-For `940d4b01…86f3` it returns `"source":"arkiv"` with two minted claims (Arc tokens 12 and 13).
+- **Built:** photo storage on 0G Storage, stored as a ref like `0g<64 hex>`.
+- **Built:** the Pi liveness check calls the 0G Router for a vision verdict, with an optional TEE check (`ZEROG_VERIFY_TEE`).
+- **Files:** `hardware-web3-service/zerogStorageService.js`, `hardware-web3-service/storageService.js`, `public-server/zerogRead.js`, `hardware-camera-app/liveness.py`.
+- **Flags:** `STORAGE_PROVIDER=0g` makes 0G the primary store; `ZEROG_ENABLED=true` turns on the Router call. Fallback is Lighthouse and GPT vision.
+- **Verify:** a photo whose storage ref starts with `0g` is on 0G; the claim page links it to StorageScan when `ZEROG_STORAGESCAN_URL` is set.
+- **Service READMEs:** `hardware-web3-service/README.md`, `hardware-camera-app/README.md`.
+- > TODO: confirm 0G is on in the live deployment, and whether TEE verification is enabled.
 
-Details for judges: [schema](arkiv/schema.md) · [how we use Arkiv](arkiv/how-you-use-arkiv.md) ·
-[why Arkiv](arkiv/why-arkiv.md) · [reach](arkiv/reach.md) · [friction](arkiv/friction.md)
+### Arc
 
-**How AI was used:** Claude Code helped write the Arkiv service, the license contract and the
-docs under `arkiv/`, and every change was reviewed and tested by the team.
+- **Built:** the same ERC-1155 mint on Arc testnet, next to Sepolia (`CHAINS=sepolia,arc`).
+- **Built:** `VerisLicense`: an editor pays 5 USDC to license a photo for 30 days.
+- **Files:** `contracts/src/VerisLicense.sol`, `hardware-web3-service/chains.js`, `owner-portal/src/lib/arc.js`, `owner-portal/src/components/LicenseButton.jsx`, `public-server/server.js` (`/api/license/record`).
+- **Flag and fallback:** `CHAINS` lists the extra chains; an Arc failure is queued for retry and never fails the Sepolia mint.
+- **Verify:** open the Arc contracts from the Deployed table on `https://testnet.arcscan.app`.
+- **Service READMEs:** `contracts/README.md`, `owner-portal/README.md`.
+
+### Filecoin / Lighthouse
+
+- **Built:** photo upload through the Lighthouse SDK (IPFS/Filecoin). It is the default store and the fallback for 0G.
+- **Files:** `hardware-web3-service/filecoinService.js`, `hardware-web3-service/storageService.js`.
+- **Flag:** `STORAGE_PROVIDER` unset means Lighthouse.
+- **Verify:** a storage ref without the `0g` prefix is an IPFS CID.
+- > TODO: `@filoz/synapse-sdk` is a dependency, but no code calls it; do not count it as a Synapse integration.
+- **Service README:** `hardware-web3-service/README.md`.
+
+### Privy
+
+- **Built:** wallet login in the portal, and session signers so the backend can mint for a user.
+- **Files:** `owner-portal/src/App.jsx`, `hardware-web3-service/privyService.js`.
+- **Verify:** log in to the portal with email or wallet.
+- **Service READMEs:** `owner-portal/README.md`, `hardware-web3-service/README.md`.
+- > TODO: confirm if Privy is a target sponsor for this event.
+
+## The problem
+
+- AI images look like photos now.
+- Nobody can tell a real photo from a fake one.
+- Photographers have no simple proof that they took a shot.
+
+## The solution
+
+- A Raspberry Pi camera signs each photo with a hardware-bound key.
+- The photo is stored on decentralized storage and minted as an NFT.
+- A QR code lets the owner claim it; a public page lets anyone verify it.
+
+## Why it matters
+
+- Real photos get proof, not just trust.
+- Fakes cannot reuse a capture: every packet has a nonce and a timestamp.
+- Checking a photo needs no account and no access to our server.
+- Photographers can license photos and get paid in USDC.
+- Provenance is public on Arkiv, so it outlives our hosting.
+
+## End to end
+
+```mermaid
+flowchart LR
+  subgraph Edge
+    CAM[Pi camera app<br/>capture + liveness]
+    KEY[Hardware key<br/>signs packet]
+    PHONE[Phone companion photo]
+  end
+  subgraph Backend
+    W3[hardware-web3-service<br/>verify packet, mint]
+    EMB[ai-embedding-service<br/>CLIP + pHash]
+    PS[public-server<br/>claims, search, forensics]
+  end
+  subgraph Storage
+    ZG[0G Storage]
+    LH[Lighthouse / Filecoin]
+    PG[(Postgres)]
+  end
+  subgraph Chains
+    SEP[Sepolia<br/>DeviceRegistry + VerisERC1155]
+    ARC[Arc testnet<br/>ERC1155 + VerisLicense in USDC]
+    ARK[Arkiv<br/>veris-claim, veris-license]
+  end
+  CAM --> KEY --> W3
+  PHONE --> PS
+  W3 --> ZG
+  W3 --> LH
+  W3 --> EMB
+  W3 --> SEP
+  W3 --> ARC
+  W3 --> PS
+  PS --> PG
+  PS --> ARK
+  PS -->|claim id| QR[QR on camera screen]
+  QR --> PORTAL[owner-portal<br/>claim, dashboard, search]
+  QR --> MOBILE[mobile-app<br/>claim, verify]
+  PORTAL -->|verify by hash| ARK
+  PORTAL --> PS
+  PORTAL -->|license| ARC
+```
+
+## Capture to claim
+
+```mermaid
+sequenceDiagram
+  participant Pi as Pi camera
+  participant W3 as hardware-web3-service
+  participant St as 0G / Lighthouse
+  participant Ch as Sepolia + Arc
+  participant PS as public-server
+  participant Ark as Arkiv
+  participant U as Owner
+  Pi->>Pi: take photo, run liveness check
+  Pi->>Pi: sign packet (image hash, verdict, time, nonce)
+  Pi->>W3: upload photo + signature
+  W3->>W3: check signature, age, nonce, device
+  W3->>St: store photo
+  W3->>Ch: mintOriginal
+  W3->>PS: create claim
+  PS->>Ark: write veris-claim (pending, 24h)
+  PS-->>Pi: claim id for the QR
+  U->>PS: scan QR, open claim page
+  U->>PS: submit wallet to claim
+  PS->>Ark: write veris-claim (minted)
+```
+
+## Verify
+
+```mermaid
+sequenceDiagram
+  participant V as Anyone with a photo
+  participant P as owner-portal Search
+  participant Ark as Arkiv
+  participant PS as public-server
+  V->>P: drop photo or paste hash
+  P->>P: hash the photo in the browser
+  P->>Ark: query imageHash
+  alt found on Arkiv
+    Ark-->>P: claim record
+  else not found or Arkiv down
+    P->>PS: GET /api/arkiv/search or /api/search
+    PS-->>P: claim record from Postgres
+  end
+  P-->>V: device, time, chain, tx links, storage link
+```
+
+## Services
+
+| Service | What it does | README |
+|---|---|---|
+| `hardware-camera-app` | Pi app: capture, liveness, hardware signing, QR | > TODO: add link when written, see `hardware-camera-app/README.md` |
+| `hardware-web3-service` | Verifies the packet, stores the photo, mints on each chain | `hardware-web3-service/README.md` |
+| `public-server` | Claims, QR pages, search, forensics, Arkiv mirror | `public-server/README.md` |
+| `owner-portal` | React site: claim, dashboard, search, license | `owner-portal/README.md` |
+| `mobile-app` | Expo app: claim and verify on a phone | [mobile-app/README.md](mobile-app/README.md) |
+| `contracts` | Solidity: DeviceRegistry, VerisERC1155, VerisLicense | `contracts/README.md` |
+| `ai-embedding-service` | FastAPI: CLIP embedding and pHash for similar-photo search | `ai-embedding-service/README.md` |
+| `ai-model` | Research code for image comparison, not wired into the pipeline | `ai-model/README.md` |
+| `arkiv` | Design notes for the Arkiv part | [arkiv/README.md](arkiv/README.md) |
+
+- Per-service READMEs are written alongside this one; paths above are relative to the repo root.
+
+## Trust model
+
+**What is signed**
+- The camera signs a packet: image hash, companion hash, liveness verdict, timestamp, nonce, device address.
+- The key is secp256k1, derived from device identifiers plus a salt on the Pi.
+- The format lives in `hardware-web3-service/packet.js` and `hardware-camera-app/capture_pipeline.py`.
+
+**What is checked**
+- The backend rejects packets that are too old, from the future, or a replayed nonce.
+- Minting needs the device to be active in `DeviceRegistry`.
+- A liveness check tags the shot as live or not; if no engine answers, it stays `pending`.
+- Companion capture compares a phone photo to the camera photo of the same scene.
+- There is no ZK proof in the current code. > TODO: confirm whether ZK is planned for this release.
+
+**What is stored where**
+
+| Data | Where |
+|---|---|
+| The photo | 0G Storage or Lighthouse (IPFS/Filecoin) |
+| Ownership and device identity | ERC-1155 and DeviceRegistry on Sepolia and Arc |
+| Licenses | `VerisLicense` on Arc, paid in USDC |
+| Permanent claim record | Postgres on `public-server` |
+| Public, queryable copy | Arkiv (see [arkiv/schema.md](arkiv/schema.md)) |
+| Device private key | Only on the Pi |
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Camera | Python, Kivy, Picamera2, OpenCV |
+| Backend | Node.js (ES modules), Express, ethers, better-sqlite3 |
+| Claim server | Node.js, Express, Postgres (`pg`), sharp, Cloudinary |
+| Storage | 0G Storage SDK, Lighthouse SDK |
+| Chains | Ethereum Sepolia, Arc testnet, Arkiv |
+| Contracts | Solidity, Foundry, OpenZeppelin |
+| Web | React, Vite, Privy, Wagmi, Viem |
+| Mobile | Expo, React Native |
+| AI | CLIP (FastAPI), perceptual hashing, vision LLM liveness |
+
+## Deployed
+
+| What | Where |
+|---|---|
+| Public API | `https://api.veris.live` |
+| Verify endpoint | `GET https://api.veris.live/api/arkiv/search?imageHash=<hash>` |
+| Sepolia DeviceRegistry | `0x7e6bd8193E9762430ff6E494764D74036E333c14` |
+| Sepolia VerisERC1155 | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9` |
+| Arc DeviceRegistry | `0x7e6bd8193E9762430ff6E494764D74036E333c14` |
+| Arc VerisERC1155 | `0xB7909d4bba142AfF48aF7509B070e64eC1c6AdAc` |
+| Arc VerisLicense | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9` |
+| Arkiv writer wallet (chain id 7794095) | `0xC15aF2A372D01B5223819bB328400DB8b14d1894` |
+
+- Sources: `contracts/deployment-11155111.json`, `contracts/deployment-5042002.json`, [arkiv/schema.md](arkiv/schema.md).
+- > TODO: confirm the live portal URL.
+
+## Quick start
+
+Each service has its own `.env.example`. See the service READMEs for the variables.
+
+1. Contracts: `cd contracts && forge build && forge test`, then deploy with `script/Deploy.s.sol`.
+2. Claim server: `cd public-server && npm install && npm run dev` (needs `DATABASE_URL`).
+3. AI embedding service: `cd ai-embedding-service && pip install -r requirements.txt && uvicorn main:app --port 5001`.
+4. Backend: `cd hardware-web3-service && npm install && npm run dev`.
+5. Portal: `cd owner-portal && npm install && npm run dev`.
+6. Mobile (optional): `cd mobile-app && npm install && npm start`.
+7. Camera, on the Pi: `cd hardware-camera-app && python3 raspberry_pi_camera_app.py`.
+
+- Full cloud and Pi setup: [deploy.md](deploy.md). It was written before the multi-chain work, so check addresses against the table above.
+- Architecture diagrams: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
+
+## Demo script for judges
+
+1. Take a photo on the Pi camera and watch the status messages (sign, store, mint).
+2. Scan the QR on the camera screen; the claim page shows the photo, device, chain and storage proof.
+3. Claim it with a wallet in the portal and see it on the dashboard.
+4. Open Search, drop the same photo, and see the answer come from Arkiv (`"source":"arkiv"`).
+5. Buy a USDC license on Arc and see the `veris-license` entity appear and later expire.
+
+> 📸 TODO: screenshots of the camera, claim page, dashboard and search result.
+
+## Roadmap
+
+- Hotshoe module for DSLR and mirrorless cameras, and Clip for phones (see [mobile-app/README.md](mobile-app/README.md); simulated in the app today).
+- Wire the `ai-model` image verifier into the pipeline.
+- > TODO: ZK proof of authenticity, mentioned in older docs but absent from the code.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
