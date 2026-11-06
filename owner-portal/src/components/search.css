@@ -33,10 +33,13 @@
 
   /* ---------- side notes ---------- */
   .note { background: var(--peach-2); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 16px 18px; }
-  .note h3, .similar h3 { font: 700 20px/1.1 var(--f-pixel); }
+  .note summary { font: 700 20px/1.1 var(--f-pixel); cursor: pointer; }
+  .similar h3 { font: 700 20px/1.1 var(--f-pixel); }
   .note p { font: 400 14px/1.6 var(--f-mono); margin-top: 8px; }
-  .aihint { font: 400 13px/1.6 var(--f-mono); color: #2A241E; }
-  .aihint b { font-weight: 500; }
+  .aihint { background: var(--peach-2); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 16px 18px; color: #2A241E; }
+  .aihint b { font: 700 20px/1.2 var(--f-pixel); display: block; }
+  .aihint p { font: 400 14px/1.6 var(--f-mono); margin-top: 8px; }
+  .aihint.flag { background: #F4C7B8; }
 
   /* ---------- similar photos ---------- */
   .similar .dim { margin-top: 4px; }

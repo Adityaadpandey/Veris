@@ -242,18 +242,18 @@ function VerifyPanel({ onOpenClaim }) {
           <>
             <VerdictCard verdict={state.verdict} onOpenClaim={onOpenClaim} />
 
-            {state.queryDescription && (
-              <aside className="note">
-                <h3>What we see in your photo</h3>
-                <p>{state.queryDescription}</p>
+            {state.aiHint && (
+              <aside className={`aihint${state.aiHint.likely_ai_generated ? ' flag' : ''}`}>
+                <b>{state.aiHint.likely_ai_generated ? 'This photo may be AI-generated or manipulated.' : 'No obvious signs of AI generation.'}</b>
+                {state.aiHint.note && <p>{state.aiHint.note}</p>}
               </aside>
             )}
 
-            {state.aiHint && (
-              <p className="aihint">
-                <b>{state.aiHint.likely_ai_generated ? 'This photo may be AI-generated or manipulated.' : 'No obvious signs of AI generation.'}</b>
-                {state.aiHint.note ? ` ${state.aiHint.note}` : ''}
-              </p>
+            {state.queryDescription && (
+              <details className="note">
+                <summary>What we see in your photo</summary>
+                <p>{state.queryDescription}</p>
+              </details>
             )}
 
             {state.similar.length > 0 && (
