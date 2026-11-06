@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VERIS_ADDRESS, DEVICE_REGISTRY_ADDRESS, VERIS_ABI, hasTokenData } from "@/lib/contracts";
+import { CHAINS, txUrl, addressUrl } from "@/lib/chains";
+
+// The explorer for the chain a photo was minted on (the camera service reports it per image).
+const chainOfImg = (img) => CHAINS[img.chain] || CHAINS.sepolia;
 import {
   Dialog,
   DialogContent,
@@ -332,7 +336,7 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
                     <a
                       href={
                         img.txHash
-                          ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                          ? txUrl(chainOfImg(img), img.txHash)
                           : img.nftUrl
                       }
                       target="_blank"
@@ -340,7 +344,7 @@ function FeaturedCard({ img, claimServerUrl, onRetry }) {
                       className="gap-1.5"
                     >
                       <ExternalLink size={12} />{" "}
-                      {img.txHash ? "Etherscan" : "View NFT"}
+                      {img.txHash ? chainOfImg(img).explorerName : "View NFT"}
                     </a>
                   </Button>
                 )}
@@ -512,7 +516,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
                 <a
                   href={
                     img.txHash
-                      ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                      ? txUrl(chainOfImg(img), img.txHash)
                       : img.nftUrl
                   }
                   target="_blank"
@@ -520,7 +524,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
                   className="flex items-center justify-center gap-1 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg px-2.5 py-1.5 text-[10px] hover:text-white hover:border-white/15 transition-colors"
                   title={
                     img.nftUrl && !img.txHash
-                      ? "View NFT on Etherscan"
+                      ? `View NFT on ${chainOfImg(img).explorerName}`
                       : "View transaction"
                   }
                 >
@@ -534,7 +538,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
           <a
             href={
               img.txHash
-                ? `https://sepolia.etherscan.io/tx/${img.txHash}`
+                ? txUrl(chainOfImg(img), img.txHash)
                 : img.nftUrl
             }
             target="_blank"
@@ -542,7 +546,7 @@ function ImageCard({ img, claimServerUrl, onRetry }) {
             className="flex w-full items-center justify-center gap-1.5 bg-white/[0.04] border border-white/[0.07] text-text-muted rounded-lg py-2 text-[10px] hover:text-white hover:border-white/15 transition-colors"
           >
             <ExternalLink size={10} />{" "}
-            {img.txHash ? "View on Etherscan" : "View NFT"}
+            {img.txHash ? `View on ${chainOfImg(img).explorerName}` : "View NFT"}
           </a>
         )}
         {state === "minting" && (
@@ -687,7 +691,7 @@ export default function OwnerDashboard() {
             ai_score: null,
             deviceId: null,
             imageHash: null,
-            nftUrl: `https://sepolia.etherscan.io/nft/${VERIS_ADDRESS}/${id}`,
+            nftUrl: CHAINS.sepolia.nft({ veris: VERIS_ADDRESS }, id),
           }))
       : [];
 
@@ -1360,12 +1364,13 @@ export default function OwnerDashboard() {
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-[#60a5fa]" />
                         <Badge variant="uploaded">Sepolia</Badge>
+                        <Badge variant="uploaded">Arc</Badge>
                       </div>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-text-secondary">ERC-1155</span>
+                      <span className="text-text-secondary">ERC-1155 · Sepolia</span>
                       <a
-                        href={`https://sepolia.etherscan.io/address/${VERIS_ADDRESS}`}
+                        href={addressUrl(CHAINS.sepolia, VERIS_ADDRESS)}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
@@ -1374,9 +1379,20 @@ export default function OwnerDashboard() {
                       </a>
                     </div>
                     <div className="flex justify-between items-center text-sm">
+                      <span className="text-text-secondary">ERC-1155 · Arc</span>
+                      <a
+                        href={addressUrl(CHAINS.arc, CHAINS.arc.veris)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
+                      >
+                        {CHAINS.arc.veris.slice(0, 6)}…{CHAINS.arc.veris.slice(-4)} <ExternalLink size={10} />
+                      </a>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-text-secondary">Registry</span>
                       <a
-                        href={`https://sepolia.etherscan.io/address/${DEVICE_REGISTRY_ADDRESS}`}
+                        href={addressUrl(CHAINS.sepolia, DEVICE_REGISTRY_ADDRESS)}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-brand text-xs hover:brightness-125 flex items-center gap-1"
@@ -1410,15 +1426,20 @@ export default function OwnerDashboard() {
                     </div>
                     {walletAddress && (
                       <div className="flex justify-between items-center text-sm">
-                        <span className="text-text-secondary">Etherscan</span>
-                        <a
-                          href={`https://sepolia.etherscan.io/address/${walletAddress}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-brand text-xs hover:brightness-125 flex items-center gap-1"
-                        >
-                          View <ExternalLink size={10} />
-                        </a>
+                        <span className="text-text-secondary">Explorers</span>
+                        <span className="flex items-center gap-3">
+                          {Object.values(CHAINS).map((c) => (
+                            <a
+                              key={c.key}
+                              href={addressUrl(c, walletAddress)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-brand text-xs hover:brightness-125 flex items-center gap-1"
+                            >
+                              {c.short} <ExternalLink size={10} />
+                            </a>
+                          ))}
+                        </span>
                       </div>
                     )}
                   </CardContent>
