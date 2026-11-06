@@ -37,7 +37,7 @@ async function load() {
   const chain = rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY ?? '' });
   const account = privateKeyToAccount(process.env.ARKIV_PRIVATE_KEY);
   sdk = {
-    Claims, ExpirationTime, and, eq,
+    Claims, ExpirationTime, and, eq, addr,
     publicClient: createPublicClient({ chain, transport: http() }),
     walletClient: createWalletClient({ chain, transport: http(), account }),
   };
@@ -47,7 +47,7 @@ async function load() {
 const toBytes = (obj) => new TextEncoder().encode(JSON.stringify(obj));
 const fromBytes = (b) => JSON.parse(new TextDecoder().decode(b));
 
-function fields(claimId, record) {
+function fields(claimId, record, addr = (v) => v) {
   const f = {
     claimId,
     imageHash: record.imageHash || '',
@@ -55,7 +55,7 @@ function fields(claimId, record) {
     record: toBytes(record),
   };
   if (record.deviceId) f.deviceId = record.deviceId;
-  if (/^0x[0-9a-fA-F]{40}$/.test(record.owner || '')) f.owner = record.owner;
+  if (/^0x[0-9a-fA-F]{40}$/.test(record.owner || '')) f.owner = addr(record.owner); // an addr column wants addr(...), a plain string is refused
   return f;
 }
 
@@ -65,8 +65,8 @@ function fields(claimId, record) {
  * Returns { key, status }.
  */
 async function writeClaimRecord(claimId, record, previous = null) {
-  const { Claims, walletClient, ExpirationTime } = await load();
-  const f = fields(claimId, record);
+  const { Claims, walletClient, ExpirationTime, addr } = await load();
+  const f = fields(claimId, record, addr);
   if (previous?.key && previous.status === f.status) {
     await walletClient.patchEntity(Claims, previous.key, { set: f });
     return { key: previous.key, status: f.status };
