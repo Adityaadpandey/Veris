@@ -1027,7 +1027,8 @@ app.get('/api/images/list', (req, res) => {
         createdAt: img.created_at,
         errorMessage: img.error_message,
         uploadedAt: img.uploaded_at,
-        mintedAt: img.minted_at
+        mintedAt: img.minted_at,
+        chain: primaryChainName() // which chain txHash/tokenId live on, so the portal links the right explorer
       }))
     });
   } catch (error) {
