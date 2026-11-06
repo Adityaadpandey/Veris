@@ -48,7 +48,7 @@ class HardwareKeyExtractor {
 
       if (!cameraId) {
         try {
-          const exportFile = path.join(__dirname, '../kivy/.device_key_export');
+          const exportFile = path.join(__dirname, '../hardware-camera-app/.device_key_export');
           if (fs.existsSync(exportFile)) {
             const data = JSON.parse(fs.readFileSync(exportFile, 'utf8'));
             cameraId = data.cameraId || null;
@@ -179,7 +179,7 @@ except Exception as e:
   }
 
   _tryReadFromExportFile() {
-    const exportFile = path.join(__dirname, '../kivy/.device_key_export');
+    const exportFile = path.join(__dirname, '../hardware-camera-app/.device_key_export');
     
     if (fs.existsSync(exportFile)) {
       try {
