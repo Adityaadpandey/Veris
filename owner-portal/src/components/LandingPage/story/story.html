@@ -1301,7 +1301,7 @@
               <b>IPFS + Filecoin</b><span>Long-term storage.</span>
             </div>
             <div class="part">
-              <b>RISC Zero</b><span>On-chain zero-knowledge proofs.</span>
+              <b>DeviceRegistry</b><span>On-chain check of the camera key.</span>
             </div>
             <div class="part">
               <b>Hot shoe mount</b><span>On most DSLRs and mirrorless.</span>
@@ -1350,7 +1350,7 @@
           <h3>Cryptographic proof</h3>
           <div class="stp">
             <i>3</i>
-            <div><b>Prove</b><span>Zero-knowledge proof.</span></div>
+            <div><b>Verify</b><span>Contract checks the camera key.</span></div>
           </div>
           <div class="stp">
             <i>4</i>
@@ -1429,16 +1429,13 @@
             </div>
             <div class="eqr">
               <code
-                ><em>π</em> ← Prove{(pk<sub>D</sub>, σ, μ): Verify = 1 ∧ pk<sub
-                  >D</sub
-                >
-                ∈ R}</code
-              ><span>Prove it, reveal nothing.</span>
+                >Registered(pk<sub>D</sub>) = 1 ∧ Verify(pk<sub>D</sub>, σ) = 1</code
+              ><span>Checked against the on-chain registry.</span>
             </div>
             <div class="eqr">
               <code
-                >Accept(I′) ⇔ H(I′) = <em>h</em> ∧ VerifyZK(<em>π</em>) =
-                1</code
+                >Accept(I′) ⇔ H(I′) = <em>h</em> ∧ Registered(pk<sub>D</sub>)
+                = 1</code
               ><span>Photo plus public record.</span>
             </div>
           </div>
@@ -1462,7 +1459,7 @@
             </tr>
             <tr>
               <td>Proof</td>
-              <td>vlayer; VerisVerifier.sol on RISC Zero</td>
+              <td>Device-key signature, checked on-chain by DeviceRegistry</td>
             </tr>
             <tr>
               <td>Ownership</td>
@@ -1525,17 +1522,17 @@
               <tr>
                 <td>Compromise Veris servers</td>
                 <td>
-                  Servers cannot forge a signature or proof; verification is
+                  Servers cannot forge a signature; verification is
                   on-chain
                 </td>
                 <td class="m">Availability, not authenticity</td>
               </tr>
               <tr>
                 <td>Link a photo to its photographer</td>
-                <td>Zero-knowledge proof hides key, signature and metadata</td>
+                <td>Not yet: the device key and metadata are public</td>
                 <td class="m">
-                  Prototype claim pages still show GPS and device ID; opt-in is
-                  planned
+                  Claim pages show GPS and device ID; privacy-preserving proofs
+                  are future work
                 </td>
               </tr>
             </tbody>
@@ -1644,7 +1641,7 @@
             </tr>
             <tr>
               <td>Hides who took it and where</td>
-              <td class="v y">Yes, zero-knowledge</td>
+              <td class="m">Not yet</td>
               <td class="n">No</td>
               <td class="m">n/a</td>
             </tr>
