@@ -2,9 +2,9 @@
 
 **A camera that signs every photo at the moment it is taken, so anyone can check it is real.**
 
-> 📸 TODO: hero photo of the finished camera (see `assets/COMPONENTS` for build shots).
+>
 
-> 📸 TODO: demo video link.
+> 📸 demo video link:
 
 All submitted prizes are for ETHGlobal Mumbai, Continuity track. See [Prize tracks](#prize-tracks).
 
@@ -99,25 +99,27 @@ sequenceDiagram
 
 ## Services
 
-| Service | What it does | README |
-|---|---|---|
-| `hardware-camera-app` | Pi app: capture, liveness, hardware signing, QR | [hardware-camera-app/README.md](hardware-camera-app/README.md) |
-| `hardware-web3-service` | Verifies the packet, stores the photo, mints on each chain | `hardware-web3-service/README.md` |
-| `public-server` | Claims, QR pages, search, forensics, Arkiv mirror | `public-server/README.md` |
-| `owner-portal` | React site: claim, dashboard, search, license | `owner-portal/README.md` |
-| `mobile-app` | Expo app: claim and verify on a phone | [mobile-app/README.md](mobile-app/README.md) |
-| `contracts` | Solidity: DeviceRegistry, VerisERC1155, VerisLicense | `contracts/README.md` |
-| `ai-model` | Research code for image comparison, not wired into the pipeline | `ai-model/README.md` |
-| `arkiv` | Design notes for the Arkiv part | [arkiv/README.md](arkiv/README.md) |
+| Service                 | What it does                                                    | README                                                         |
+| ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- |
+| `hardware-camera-app`   | Pi app: capture, liveness, hardware signing, QR                 | [hardware-camera-app/README.md](hardware-camera-app/README.md) |
+| `hardware-web3-service` | Verifies the packet, stores the photo, mints on each chain      | `hardware-web3-service/README.md`                              |
+| `public-server`         | Claims, QR pages, search, forensics, Arkiv mirror               | `public-server/README.md`                                      |
+| `owner-portal`          | React site: claim, dashboard, search, license                   | `owner-portal/README.md`                                       |
+| `mobile-app`            | Expo app: claim and verify on a phone                           | [mobile-app/README.md](mobile-app/README.md)                   |
+| `contracts`             | Solidity: DeviceRegistry, VerisERC1155, VerisLicense            | `contracts/README.md`                                          |
+| `ai-model`              | Research code for image comparison, not wired into the pipeline | `ai-model/README.md`                                           |
+| `arkiv`                 | Design notes for the Arkiv part                                 | [arkiv/README.md](arkiv/README.md)                             |
 
 ## Trust model
 
 **What is signed**
+
 - The camera signs a packet: image hash, companion hash, liveness verdict, timestamp, nonce, device address.
 - The key is secp256k1, derived from device identifiers plus a salt on the Pi.
 - The format lives in `hardware-web3-service/packet.js` and `hardware-camera-app/capture_pipeline.py`.
 
 **What is checked**
+
 - The backend rejects packets that are too old, from the future, or a replayed nonce.
 - Minting needs the device to be active in `DeviceRegistry`.
 - A liveness check tags the shot as live or not; if no engine answers, it stays `pending`.
@@ -126,27 +128,27 @@ sequenceDiagram
 
 **What is stored where**
 
-| Data | Where |
-|---|---|
-| The photo | 0G Storage or Lighthouse (IPFS/Filecoin) |
+| Data                          | Where                                          |
+| ----------------------------- | ---------------------------------------------- |
+| The photo                     | 0G Storage or Lighthouse (IPFS/Filecoin)       |
 | Ownership and device identity | ERC-1155 and DeviceRegistry on Sepolia and Arc |
-| Licenses | `VerisLicense` on Arc, paid in USDC |
-| Permanent claim record | Postgres on `public-server` |
-| Public, queryable copy | Arkiv (see [arkiv/schema.md](arkiv/schema.md)) |
-| Device private key | Only on the Pi |
+| Licenses                      | `VerisLicense` on Arc, paid in USDC            |
+| Permanent claim record        | Postgres on `public-server`                    |
+| Public, queryable copy        | Arkiv (see [arkiv/schema.md](arkiv/schema.md)) |
+| Device private key            | Only on the Pi                                 |
 
 ## Deployed
 
-| What | Where |
-|---|---|
-| Public API | `https://api.veris.live` |
-| Verify endpoint | `GET https://api.veris.live/api/arkiv/search?imageHash=<hash>` |
-| Sepolia DeviceRegistry | `0x7e6bd8193E9762430ff6E494764D74036E333c14` |
-| Sepolia VerisERC1155 | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9` |
-| Arc DeviceRegistry | `0x7e6bd8193E9762430ff6E494764D74036E333c14` |
-| Arc VerisERC1155 | `0xB7909d4bba142AfF48aF7509B070e64eC1c6AdAc` |
-| Arc VerisLicense | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9` |
-| Arkiv writer wallet (chain id 7794095) | `0xC15aF2A372D01B5223819bB328400DB8b14d1894` |
+| What                                   | Where                                                          |
+| -------------------------------------- | -------------------------------------------------------------- |
+| Public API                             | `https://api.veris.live`                                       |
+| Verify endpoint                        | `GET https://api.veris.live/api/arkiv/search?imageHash=<hash>` |
+| Sepolia DeviceRegistry                 | `0x7e6bd8193E9762430ff6E494764D74036E333c14`                   |
+| Sepolia VerisERC1155                   | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9`                   |
+| Arc DeviceRegistry                     | `0x7e6bd8193E9762430ff6E494764D74036E333c14`                   |
+| Arc VerisERC1155                       | `0xB7909d4bba142AfF48aF7509B070e64eC1c6AdAc`                   |
+| Arc VerisLicense                       | `0xA1B6ea0133da15dCFB5A5b4704022e4041f3Edb9`                   |
+| Arkiv writer wallet (chain id 7794095) | `0xC15aF2A372D01B5223819bB328400DB8b14d1894`                   |
 
 - Sources: `contracts/deployment-11155111.json`, `contracts/deployment-5042002.json`, [arkiv/schema.md](arkiv/schema.md).
 - Live portal: https://www.veris.live (checked 2026-11-07). Claim server: https://api.veris.live.
@@ -173,15 +175,13 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 4. Open Search, drop the same photo, and see the answer come from Arkiv (`"source":"arkiv"`).
 5. Buy a USDC license on Arc and see the `veris-license` entity appear and later expire.
 
-> 📸 TODO: screenshots of the camera, claim page, dashboard and search result.
-
 ## Prize tracks
 
-| Sponsor / track | What we built | Verify it |
-|---|---|---|
-| [Arkiv](#arkiv) (Continuity) | Provenance and license records, queryable by anyone | `curl` the verify endpoint below |
-| [Arc Studio](#arc-studio) (Continuity) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
-| [Ethereum Foundation, CROPS](#crops) (Continuity) | Photo verification that works without our server | Drop a photo on Search with `api.veris.live` blocked |
+| Sponsor / track                                   | What we built                                       | Verify it                                            |
+| ------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
+| [Arkiv](#arkiv) (Continuity)                      | Provenance and license records, queryable by anyone | `curl` the verify endpoint below                     |
+| [Arc Studio](#arc-studio) (Continuity)            | Mint on Arc testnet and USDC photo licensing        | Arc contracts in the Deployed table                  |
+| [Ethereum Foundation, CROPS](#crops) (Continuity) | Photo verification that works without our server    | Drop a photo on Search with `api.veris.live` blocked |
 
 - Not in the code on `main`: vlayer, RISC Zero, Synapse SDK calls. They are not claimed here. The Solana program is on the `solana-migration` branch, not on `main`.
 - Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
@@ -203,13 +203,21 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 A query you can run (get a key at https://hub.arkiv.network/access-keys):
 
 ```js
-import { createPublicClient } from '@arkiv-network/sdk'
-import { rabdi } from '@arkiv-network/sdk/chains'
-import { eq } from '@arkiv-network/sdk/query'
-import { http } from 'viem'
+import { createPublicClient } from "@arkiv-network/sdk";
+import { rabdi } from "@arkiv-network/sdk/chains";
+import { eq } from "@arkiv-network/sdk/query";
+import { http } from "viem";
 // Claims is the `veris-claim` schema from arkiv/schema.md
-const client = createPublicClient({ chain: rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY }), transport: http() })
-const r = await client.select({ $key: true, status: true }).from(Claims).where(eq('status', 'minted')).limit(5).fetch()
+const client = createPublicClient({
+  chain: rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY }),
+  transport: http(),
+});
+const r = await client
+  .select({ $key: true, status: true })
+  .from(Claims)
+  .where(eq("status", "minted"))
+  .limit(5)
+  .fetch();
 ```
 
 - Underneath it is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
@@ -226,7 +234,6 @@ const r = await client.select({ $key: true, status: true }).from(Claims).where(e
 - **Flag and fallback:** `CHAINS` lists the extra chains; an Arc failure is queued for retry and never fails the Sepolia mint.
 - **Verify:** open the Arc contracts from the Deployed table on `https://testnet.arcscan.app`.
 - **Details, diagram and tx hashes:** [prizes/arc.md](prizes/arc.md).
-- > TODO: Arc Studio project URL.
 
 ### Ethereum Foundation: Best CROPS Upgrade
 
