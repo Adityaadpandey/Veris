@@ -63,25 +63,9 @@ const r = await client.select({ $key: true, status: true }).from(Claims).where(e
 
 - **New property:** verifying a photo does not need our server. See [CROPS](#crops) below and [prizes/crops.md](prizes/crops.md).
 
-## The problem
+## What it does
 
-- AI images look like photos now.
-- Nobody can tell a real photo from a fake one.
-- Photographers have no simple proof that they took a shot.
-
-## The solution
-
-- A Raspberry Pi camera signs each photo with a hardware-bound key.
-- The photo is stored on decentralized storage and minted as an NFT.
-- A QR code lets the owner claim it; a public page lets anyone verify it.
-
-## Why it matters
-
-- Real photos get proof, not just trust.
-- Fakes cannot reuse a capture: every packet has a nonce and a timestamp.
-- Checking a photo needs no account and no access to our server.
-- Photographers can license photos and get paid in USDC.
-- Provenance is public on Arkiv, so it outlives our hosting.
+AI images look like photos now, and photographers have no simple proof they took a shot. A Raspberry Pi camera signs each photo with a hardware-bound key, stores it on decentralized storage and mints it as an NFT. A QR code lets the owner claim it, and anyone can check a photo without an account or our server. Photographers can also license photos and get paid in USDC.
 
 ## End to end
 
@@ -94,7 +78,6 @@ flowchart LR
   end
   subgraph Backend
     W3[hardware-web3-service<br/>verify packet, mint]
-    EMB[ai-embedding-service<br/>CLIP + pHash]
     PS[public-server<br/>claims, search, forensics]
   end
   subgraph Storage
@@ -111,7 +94,6 @@ flowchart LR
   PHONE --> PS
   W3 --> ZG
   W3 --> LH
-  W3 --> EMB
   W3 --> SEP
   W3 --> ARC
   W3 --> PS
@@ -180,11 +162,8 @@ sequenceDiagram
 | `owner-portal` | React site: claim, dashboard, search, license | `owner-portal/README.md` |
 | `mobile-app` | Expo app: claim and verify on a phone | [mobile-app/README.md](mobile-app/README.md) |
 | `contracts` | Solidity: DeviceRegistry, VerisERC1155, VerisLicense | `contracts/README.md` |
-| `ai-embedding-service` | FastAPI: CLIP embedding and pHash for similar-photo search | `ai-embedding-service/README.md` |
 | `ai-model` | Research code for image comparison, not wired into the pipeline | `ai-model/README.md` |
 | `arkiv` | Design notes for the Arkiv part | [arkiv/README.md](arkiv/README.md) |
-
-- Per-service READMEs are written alongside this one; paths above are relative to the repo root.
 
 ## Trust model
 
@@ -210,20 +189,6 @@ sequenceDiagram
 | Permanent claim record | Postgres on `public-server` |
 | Public, queryable copy | Arkiv (see [arkiv/schema.md](arkiv/schema.md)) |
 | Device private key | Only on the Pi |
-
-## Tech stack
-
-| Layer | Tech |
-|---|---|
-| Camera | Python, Kivy, Picamera2, OpenCV |
-| Backend | Node.js (ES modules), Express, ethers, better-sqlite3 |
-| Claim server | Node.js, Express, Postgres (`pg`), sharp, Cloudinary |
-| Storage | 0G Storage SDK, Lighthouse SDK |
-| Chains | Ethereum Sepolia, Arc testnet, Arkiv |
-| Contracts | Solidity, Foundry, OpenZeppelin |
-| Web | React, Vite, Privy, Wagmi, Viem |
-| Mobile | Expo, React Native |
-| AI | CLIP (FastAPI), perceptual hashing, vision LLM liveness |
 
 ## Deployed
 
@@ -253,7 +218,7 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 6. Camera, on the Pi: `cd hardware-camera-app && python3 raspberry_pi_camera_app.py`.
 
 - Full cloud and Pi setup: [deploy.md](deploy.md). It was written before the multi-chain work, so check addresses against the table above.
-- Architecture diagrams: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
+- Architecture diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Demo script for judges
 
