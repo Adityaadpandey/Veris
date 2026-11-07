@@ -247,9 +247,8 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 
 1. Contracts: `cd contracts && forge build && forge test`, then deploy with `script/Deploy.s.sol`.
 2. Claim server: `cd public-server && npm install && npm run dev` (needs `DATABASE_URL`).
-3. AI embedding service: `cd ai-embedding-service && pip install -r requirements.txt && uvicorn main:app --port 5001`.
-4. Backend: `cd hardware-web3-service && npm install && npm run dev`.
-5. Portal: `cd owner-portal && npm install && npm run dev`.
+3. Backend: `cd hardware-web3-service && npm install && npm run dev`.
+4. Portal: `cd owner-portal && npm install && npm run dev`.
 6. Mobile (optional): `cd mobile-app && npm install && npm start`.
 7. Camera, on the Pi: `cd hardware-camera-app && python3 raspberry_pi_camera_app.py`.
 
