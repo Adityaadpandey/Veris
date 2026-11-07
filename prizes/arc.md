@@ -63,10 +63,10 @@ function buyLicense(uint256 tokenId, address photographer) external returns (uin
 ## Honest gaps
 
 - Tests use a fake USDC, not real Arc USDC.
-- No deploy script for `VerisLicense`. > TODO: add one or document how Arc was deployed.
+- `VerisLicense` has its own deploy script, `contracts/script/DeployLicense.s.sol` (needs `VERIS_ADDRESS`; USDC defaults to the Arc testnet USDC). The live address was recorded by hand in `deployment-5042002.json`.
 - Nothing blocks image download without a license; `isLicensed` is not called by any app.
-- Web history uses `explorer.testnet.arc.io` but mint links use `testnet.arcscan.app`. > TODO: confirm same explorer.
-- > TODO: paste one real `buyLicense` tx hash and one Arc mint tx hash.
+- Same explorer: `testnet.arcscan.app` 301-redirects to `explorer.testnet.arc.io`. The history list calls its `/api/v2` logs endpoint, the links use the arcscan name.
+- Real txs on Arc testnet (from the explorer logs API, 2026-11-07): `Licensed` event in `0x012434b543859cbd765d22a88bf4498a2f781601c9032809f4d39f4336bd9d5b`; `TransferSingle` on `VerisERC1155` in `0x98b193d9257c8cb755327eb5b54ba67110e5b42dd978bc7ab54642224555b9fe`.
 - > 📸 TODO: claim page with the "License this photo · 5 USDC" button.
 - > 📸 TODO: ArcScan page of a `buyLicense` transaction.
 - > 📸 TODO: Licenses section listing the new license.

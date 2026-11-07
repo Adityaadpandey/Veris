@@ -19,7 +19,7 @@ Before the event:
 - `0e12df1`, `35d8264` portal provider fixes (2026-10-29).
 
 Added 2026-11-06:
-- `26902e6` only touched `App.jsx` for the Arc license button. No new Privy feature. > TODO: confirm with the team.
+- `26902e6` only touched `App.jsx` for the Arc license button. No new Privy feature (checked: the commit is the portal license button, `App.jsx`, `ClaimPage.jsx`, `LicenseButton.jsx`, `arc.js`).
 
 ## Where in the code
 
@@ -57,7 +57,7 @@ config={{
 ## Honest gaps
 
 - The `/api/privy/*` routes (`server.js:1423-1538`) are unused by the portal and mobile app, and have no auth check on the caller.
-- `@privy-io/server-auth` is in `hardware-web3-service/package.json:28` but never imported; `privyService.js` calls session-signer URLs by hand. > TODO: confirm these endpoints exist in the real Privy API.
+- `@privy-io/server-auth` is in `hardware-web3-service/package.json:28` but never imported; `privyService.js` calls `/apps/{id}/session-signers` URLs by hand. Unverified, and they do not look like Privy's documented REST API (wallets and users, `privy-app-id` header), so treat that service as untested.
 - > TODO: confirm Privy gas sponsorship (`sponsor-all`) is enabled in the dashboard.
 - > 📸 TODO: Privy login modal in the portal.
 - > 📸 TODO: mobile wallet screen after email OTP login.
