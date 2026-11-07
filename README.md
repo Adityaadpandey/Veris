@@ -6,62 +6,7 @@
 
 > 📸 TODO: demo video link.
 
-## Prize tracks
-
-| Sponsor / track | What we built | Verify it |
-|---|---|---|
-| [Arkiv](#arkiv-ethglobal-mumbai-continuity-track) (Continuity) | Provenance and license records, queryable by anyone | `curl` the verify endpoint below |
-| [Arc Studio](#arc-arc-studio-continuity-track) (Continuity) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
-| [Ethereum Foundation, CROPS](#crops) (Continuity) | Photo verification that works without our server | Drop a photo on Search with `api.veris.live` blocked |
-
-- Not in the code on `main`: vlayer, RISC Zero, Synapse SDK calls. They are not claimed here. The Solana program is on the `solana-migration` branch, not on `main`.
-- Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
-
-### Arkiv (ETHGlobal Mumbai, Continuity track)
-
-- **Prize:** Build on Arkiv (existing projects).
-- **Existed before the event:** camera, hardware signing, Filecoin/Lighthouse storage, Postgres claim server, ERC-1155 contracts, owner portal, mobile app.
-- **Added at the event:** `public-server/arkivService.js` mirrors each claim to Arkiv; pending ones expire in 24 hours, minted ones get the longest life Arkiv allows.
-- **Added at the event:** a `veris-license` entity per USDC license on Arc, expiring exactly when the term ends.
-- **Added at the event:** `GET /api/arkiv/search`, and a browser-side lookup in `owner-portal/src/lib/arkivDirect.js` that asks Arkiv first.
-- **Flag and fallback:** `ARKIV_ENABLED`; reads fall back to Postgres, failed writes are retried.
-- **Writer wallet (Arkiv testnet, chain id 7794095):** `0xC15aF2A372D01B5223819bB328400DB8b14d1894`
-- **Live result (2026-11-06):** 14 `minted` and 0 `pending` claim entities.
-- **Verify:** `curl "https://api.veris.live/api/arkiv/search?imageHash=940d4b013da66f9d767e04e0fe516222c6193b3c4b476bdf022e8fd24e7986f3"` returns `"source":"arkiv"` with two minted claims (Arc tokens 12 and 13).
-- **Details:** [arkiv/README.md](arkiv/README.md), [schema](arkiv/schema.md), [how we use Arkiv](arkiv/how-you-use-arkiv.md), [why Arkiv](arkiv/why-arkiv.md), [reach](arkiv/reach.md), [friction](arkiv/friction.md).
-- **Service README:** `public-server/README.md`.
-
-A query you can run (get a key at https://hub.arkiv.network/access-keys):
-
-```js
-import { createPublicClient } from '@arkiv-network/sdk'
-import { rabdi } from '@arkiv-network/sdk/chains'
-import { eq } from '@arkiv-network/sdk/query'
-import { http } from 'viem'
-// Claims is the `veris-claim` schema from arkiv/schema.md
-const client = createPublicClient({ chain: rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY }), transport: http() })
-const r = await client.select({ $key: true, status: true }).from(Claims).where(eq('status', 'minted')).limit(5).fetch()
-```
-
-- Underneath it is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
-- Example entity: `0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
-- **How AI was used:** Claude Code helped write the Arkiv service, the license contract and the docs under `arkiv/`; the team reviewed and tested every change.
-
-### Arc (Arc Studio, Continuity track)
-
-- **Prize:** Arc Studio Continuity Track, Bring Your Project to Arc. Bounty: USDC payment flows added to an existing commerce product.
-- **Existed before the event:** single-chain mint on Sepolia, `DeviceRegistry`, `VerisERC1155`, the claim page and dashboard.
-- **Added at the event:** the same ERC-1155 mint on Arc testnet, next to Sepolia (`CHAINS=sepolia,arc`).
-- **Added at the event:** `VerisLicense`: an editor pays 5 USDC to license a photo for 30 days, paid straight to the photographer.
-- **Files:** `contracts/src/VerisLicense.sol`, `hardware-web3-service/chains.js`, `owner-portal/src/lib/arc.js`, `owner-portal/src/components/LicenseButton.jsx`, `public-server/server.js` (`/api/license/record`).
-- **Flag and fallback:** `CHAINS` lists the extra chains; an Arc failure is queued for retry and never fails the Sepolia mint.
-- **Verify:** open the Arc contracts from the Deployed table on `https://testnet.arcscan.app`.
-- **Details, diagram and tx hashes:** [prizes/arc.md](prizes/arc.md).
-- > TODO: Arc Studio project URL.
-
-### Ethereum Foundation: Best CROPS Upgrade (Continuity track)
-
-- **New property:** verifying a photo does not need our server. See [CROPS](#crops) below and [prizes/crops.md](prizes/crops.md).
+All submitted prizes are for ETHGlobal Mumbai, Continuity track. See [Prize tracks](#prize-tracks).
 
 ## What it does
 
@@ -229,6 +174,63 @@ Each service has its own `.env.example`. See the service READMEs for the variabl
 5. Buy a USDC license on Arc and see the `veris-license` entity appear and later expire.
 
 > 📸 TODO: screenshots of the camera, claim page, dashboard and search result.
+
+## Prize tracks
+
+| Sponsor / track | What we built | Verify it |
+|---|---|---|
+| [Arkiv](#arkiv) (Continuity) | Provenance and license records, queryable by anyone | `curl` the verify endpoint below |
+| [Arc Studio](#arc-studio) (Continuity) | Mint on Arc testnet and USDC photo licensing | Arc contracts in the Deployed table |
+| [Ethereum Foundation, CROPS](#crops) (Continuity) | Photo verification that works without our server | Drop a photo on Search with `api.veris.live` blocked |
+
+- Not in the code on `main`: vlayer, RISC Zero, Synapse SDK calls. They are not claimed here. The Solana program is on the `solana-migration` branch, not on `main`.
+- Every sponsor feature sits behind an env flag and falls back to the older path. A capture never fails because a sponsor is down.
+
+### Arkiv
+
+- **Prize:** Build on Arkiv (existing projects), ETHGlobal Mumbai, Continuity track.
+- **Existed before the event:** camera, hardware signing, Filecoin/Lighthouse storage, Postgres claim server, ERC-1155 contracts, owner portal, mobile app.
+- **Added at the event:** `public-server/arkivService.js` mirrors each claim to Arkiv; pending ones expire in 24 hours, minted ones get the longest life Arkiv allows.
+- **Added at the event:** a `veris-license` entity per USDC license on Arc, expiring exactly when the term ends.
+- **Added at the event:** `GET /api/arkiv/search`, and a browser-side lookup in `owner-portal/src/lib/arkivDirect.js` that asks Arkiv first.
+- **Flag and fallback:** `ARKIV_ENABLED`; reads fall back to Postgres, failed writes are retried.
+- **Writer wallet (Arkiv testnet, chain id 7794095):** `0xC15aF2A372D01B5223819bB328400DB8b14d1894`
+- **Live result (2026-11-06):** 14 `minted` and 0 `pending` claim entities.
+- **Verify:** `curl "https://api.veris.live/api/arkiv/search?imageHash=940d4b013da66f9d767e04e0fe516222c6193b3c4b476bdf022e8fd24e7986f3"` returns `"source":"arkiv"` with two minted claims (Arc tokens 12 and 13).
+- **Details:** [arkiv/README.md](arkiv/README.md), [schema](arkiv/schema.md), [how we use Arkiv](arkiv/how-you-use-arkiv.md), [why Arkiv](arkiv/why-arkiv.md), [reach](arkiv/reach.md), [friction](arkiv/friction.md).
+- **Service README:** `public-server/README.md`.
+
+A query you can run (get a key at https://hub.arkiv.network/access-keys):
+
+```js
+import { createPublicClient } from '@arkiv-network/sdk'
+import { rabdi } from '@arkiv-network/sdk/chains'
+import { eq } from '@arkiv-network/sdk/query'
+import { http } from 'viem'
+// Claims is the `veris-claim` schema from arkiv/schema.md
+const client = createPublicClient({ chain: rabdi({ accessKey: process.env.ARKIV_ACCESS_KEY }), transport: http() })
+const r = await client.select({ $key: true, status: true }).from(Claims).where(eq('status', 'minted')).limit(5).fetch()
+```
+
+- Underneath it is the filter `arkiv.schema = str('veris-claim') AND status = str('minted')`.
+- Example entity: `0x309b48e503a9447378b6f2285296f9c44b8ea3a4bd72957645e083b8a7f3b958`.
+- **How AI was used:** Claude Code helped write the Arkiv service, the license contract and the docs under `arkiv/`; the team reviewed and tested every change.
+
+### Arc Studio
+
+- **Prize:** Arc Studio Continuity Track, Bring Your Project to Arc. Bounty: USDC payment flows added to an existing commerce product.
+- **Existed before the event:** single-chain mint on Sepolia, `DeviceRegistry`, `VerisERC1155`, the claim page and dashboard.
+- **Added at the event:** the same ERC-1155 mint on Arc testnet, next to Sepolia (`CHAINS=sepolia,arc`).
+- **Added at the event:** `VerisLicense`: an editor pays 5 USDC to license a photo for 30 days, paid straight to the photographer.
+- **Files:** `contracts/src/VerisLicense.sol`, `hardware-web3-service/chains.js`, `owner-portal/src/lib/arc.js`, `owner-portal/src/components/LicenseButton.jsx`, `public-server/server.js` (`/api/license/record`).
+- **Flag and fallback:** `CHAINS` lists the extra chains; an Arc failure is queued for retry and never fails the Sepolia mint.
+- **Verify:** open the Arc contracts from the Deployed table on `https://testnet.arcscan.app`.
+- **Details, diagram and tx hashes:** [prizes/arc.md](prizes/arc.md).
+- > TODO: Arc Studio project URL.
+
+### Ethereum Foundation: Best CROPS Upgrade
+
+- **New property:** verifying a photo does not need our server. See [CROPS](#crops) below and [prizes/crops.md](prizes/crops.md).
 
 ## CROPS
 
